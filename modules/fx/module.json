@@ -1,0 +1,10 @@
+{
+  "id": "fx",
+  "name": "FX",
+  "horizon_days": {
+    "min": 7,
+    "max": 56
+  },
+  "sources": ["evds", "market_close"],
+  "seers": []
+}

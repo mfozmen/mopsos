@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfozmen/mopsos/schemas/module.schema.json",
+  "title": "Asset class module",
+  "description": "One asset class. Adding a class means adding a folder and this file — nothing central is edited, so a new tab cannot half-exist.",
+  "type": "object",
+  "required": ["id", "name", "horizon_days", "sources", "seers"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "Also the folder name. A mismatch is rejected, so the two cannot drift. Deliberately a pattern rather than a list of the four classes that exist today — a closed list here would mean adding a class requires editing something central, which is the thing this design exists to avoid.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "horizon_days": {
+      "description": "How long this class takes to give feedback. Housing is slow, FX is fast; scores are never compared across classes because of it.",
+      "type": "object",
+      "required": ["min", "max"],
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "integer", "minimum": 1 },
+        "max": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["evds", "tuik", "listing_snapshot", "market_close"]
+      },
+      "uniqueItems": true
+    },
+    "seers": {
+      "description": "Fewer than two makes the class incomplete: a single seer has nothing to be wrong against, so its track record means nothing.",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+      "uniqueItems": true
+    }
+  }
+}
