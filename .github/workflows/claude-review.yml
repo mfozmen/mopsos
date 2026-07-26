@@ -18,7 +18,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  # The event name is part of the key. Without it, any comment on the pull request
+  # — including SonarCloud's own quality gate bot — lands in the same group as the
+  # running review and cancels it. The comment-triggered run then skips itself for
+  # not containing @claude, so the review dies without a trace.
+  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
