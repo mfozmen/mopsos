@@ -61,3 +61,16 @@ export function formatDueReport(due: DueVerdict[], today: string): string {
 
   return lines.join('\n');
 }
+
+/**
+ * The calendar date where the reader is, as YYYY-MM-DD.
+ *
+ * Not `toISOString().slice(0, 10)`, which gives the UTC date: Turkey is UTC+3,
+ * so for the first three hours after local midnight that reports the previous
+ * day and a verdict looks due a day late. The publication calendar these dates
+ * are measured against is Turkish, so the local day is the right frame.
+ */
+export function localIsoDate(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

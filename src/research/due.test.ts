@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Verdict } from '../schema/types.js';
-import { dueVerdicts, formatDueReport, type ResolvableVerdict } from './due.js';
+import { dueVerdicts, formatDueReport, localIsoDate, type ResolvableVerdict } from './due.js';
 
 const BASE: Verdict = {
   schema_version: 1,
@@ -111,5 +111,19 @@ describe('formatDueReport', () => {
 
   it('shows the rule, so the reader knows what to measure', () => {
     expect(formatDueReport(due, '2026-10-20')).toContain('value > 41.5');
+  });
+});
+
+describe('localIsoDate', () => {
+  it('takes the calendar date where the reader is, not in UTC', () => {
+    // Turkey is UTC+3, so for the first three hours after local midnight
+    // toISOString() still reports the previous day — and a verdict would look
+    // due a day late. The publication calendar this is measured against is
+    // Turkish, so the local day is the right frame.
+    expect(localIsoDate(new Date(2026, 9, 16, 1, 30))).toBe('2026-10-16');
+  });
+
+  it('pads single-digit months and days', () => {
+    expect(localIsoDate(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05');
   });
 });
