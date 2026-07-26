@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "verdict_id": "2026-07-26-housing-tr-kfe-q3",
+  "collected_at": "2026-07-26T14:30:00Z",
+  "sources": [
+    {
+      "kind": "evds",
+      "reference": "TP.KTF17",
+      "retrieved_at": "2026-07-26T14:28:00Z",
+      "url": "https://evds2.tcmb.gov.tr/",
+      "observations": [
+        { "period": "2026-04", "value": 39.1 },
+        { "period": "2026-05", "value": 39.9 },
+        { "period": "2026-06", "value": 40.7 }
+      ]
+    },
+    {
+      "kind": "evds",
+      "reference": "TP.KTFTUK",
+      "retrieved_at": "2026-07-26T14:29:00Z",
+      "observations": [{ "period": "2026-W30", "value": 38.2 }],
+      "note": "Weekly series, revised retroactively as each new week is published."
+    }
+  ]
+}

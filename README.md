@@ -122,6 +122,7 @@ cp .env.example .env   # fill in your own keys
 ## Repository layout
 
 ```
+schemas/        JSON Schemas for verdict, evidence, outcome and score
 src/            application code
 .github/        workflows, issue and PR templates
 scripts/        one-off repository administration scripts
