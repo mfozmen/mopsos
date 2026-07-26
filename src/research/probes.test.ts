@@ -108,6 +108,23 @@ describe('the relation must point somewhere real', () => {
     expect(problems([LONG, orphan, ...PROBES]).join('\n')).toMatch(/does not exist/);
   });
 
+  it("rejects a probe calibrating another seer's verdict", () => {
+    // The probe exists to measure one seer. Scored against a different seer's
+    // call it measures nothing, while still counting towards coverage.
+    const otherSeer = { ...probe('2026-07-26-housing-rate-4w', '2026-08-23'), seer: 'contrarian' };
+
+    expect(problems([LONG, otherSeer, PROBES[1]!]).join('\n')).toMatch(/same seer/);
+  });
+
+  it('rejects a probe in a different asset class from the verdict it calibrates', () => {
+    const otherClass: Verdict = {
+      ...probe('2026-07-26-fx-rate-4w', '2026-08-23'),
+      asset_class: 'fx',
+    };
+
+    expect(problems([LONG, otherClass, PROBES[1]!]).join('\n')).toMatch(/asset class/);
+  });
+
   it('rejects a probe of a probe, which calibrates nothing', () => {
     const nested = probe('2026-07-26-housing-nested', '2026-08-23', PROBES[0]!.id);
 

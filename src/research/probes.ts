@@ -33,27 +33,51 @@ function horizonDays(verdict: Verdict): number {
   return (Date.parse(verdict.due_at) - Date.parse(verdict.created_at)) / MS_PER_DAY;
 }
 
-function checkProbe(probe: Verdict, byId: Map<string, Verdict>, problems: string[]): void {
+/** Returns true when the probe genuinely calibrates its target. */
+function checkProbe(probe: Verdict, byId: Map<string, Verdict>, problems: string[]): boolean {
   const targetId = probe.calibration_probe_of;
-  if (targetId === undefined) return;
+  /* v8 ignore next -- callers filter probes first */
+  if (targetId === undefined) return false;
 
   const target = byId.get(targetId);
   if (!target) {
     problems.push(`${probe.id} is a probe of ${targetId}, which does not exist`);
-    return;
+    return false;
   }
 
+  const found: string[] = [];
+
   if (target.calibration_probe_of !== undefined) {
-    problems.push(`${probe.id} is a probe of ${targetId}, which is itself a probe`);
+    found.push(`${probe.id} is a probe of ${targetId}, which is itself a probe`);
+  }
+
+  // A probe measures one seer. Scored against another seer's call it measures
+  // nothing, while still counting towards that call's required coverage — which
+  // would let a seer satisfy the rule using someone else's work.
+  if (probe.seer !== target.seer) {
+    found.push(
+      `${probe.id} (seer ${probe.seer}) calibrates ${targetId} (seer ${target.seer}): ` +
+        'a probe must be by the same seer as the verdict it calibrates',
+    );
+  }
+
+  if (probe.asset_class !== target.asset_class) {
+    found.push(
+      `${probe.id} is ${probe.asset_class} but calibrates ${targetId}, which is ` +
+        `${target.asset_class}: a probe must be in the same asset class`,
+    );
   }
 
   const days = horizonDays(probe);
   if (days < PROBE_MIN_DAYS || days > PROBE_MAX_DAYS) {
-    problems.push(
+    found.push(
       `${probe.id} resolves in ${days} days; a calibration probe must resolve ` +
         `between 2 and 8 weeks so it can inform the call it supports`,
     );
   }
+
+  problems.push(...found);
+  return found.length === 0;
 }
 
 /**
@@ -67,12 +91,16 @@ export function assertProbeCoverage(verdicts: Verdict[]): void {
   const problems: string[] = [];
   const byId = new Map(verdicts.map((verdict) => [verdict.id, verdict]));
 
+  // Only valid probes count towards coverage. Counting the invalid ones happens
+  // to be harmless today, because any problem rejects the whole set — but it
+  // would quietly become a way to satisfy the rule with broken probes the moment
+  // anything reports instead of throwing.
   const probeCount = new Map<string, number>();
   for (const verdict of verdicts) {
-    checkProbe(verdict, byId, problems);
-
     const targetId = verdict.calibration_probe_of;
-    if (targetId !== undefined) {
+    if (targetId === undefined) continue;
+
+    if (checkProbe(verdict, byId, problems)) {
       probeCount.set(targetId, (probeCount.get(targetId) ?? 0) + 1);
     }
   }
