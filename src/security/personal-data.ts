@@ -41,18 +41,25 @@ const RULES: Rule[] = [
   },
   {
     kind: 'iban',
-    pattern: /\bTR\d{2}(?:[ ]?\d{4}){5}[ ]?\d{2}\b/gi,
+    pattern: /\bTR\d{2}(?: ?\d{4}){5} ?\d{2}\b/gi,
   },
   {
     kind: 'phone',
-    pattern: /(?:\+90[ ]?|\b0)(?:\d[ ]?){10}\b/g,
+    pattern: /(?:\+90 ?|\b0)(?:\d ?){10}\b/g,
   },
+  // Split in two rather than one long alternation, so each stays readable. Both
+  // fire only when an amount is tied to the author: a bare amount is market
+  // data, which is the entire point of this repository, and flagging it would
+  // get the check disabled within a week.
   {
-    // Only when tied to the author. A bare amount is market data, which is the
-    // entire point of the repository — flagging it would make the check useless.
     kind: 'personal_amount',
     pattern:
-      /\b(?:i have|my|benim|our|savings|birikim|portfolio|portföy|down payment|net worth)\b[^.\n]{0,60}?\d[\d.,]*\s?(?:m|k|bin|milyon)?\s?(?:TRY|TL|₺|USD|EUR)/gi,
+      /\b(?:i have|my|benim|our)\b[^.\n]{0,60}?\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)/gi,
+  },
+  {
+    kind: 'personal_amount',
+    pattern:
+      /\b(?:savings|birikim|portfolio|portföy|down payment|net worth)\b[^.\n]{0,60}?\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)/gi,
   },
   {
     kind: 'address',
@@ -75,14 +82,21 @@ const RULES: Rule[] = [
  */
 export function findPersonalData(text: string): PersonalDataFinding[] {
   const findings: PersonalDataFinding[] = [];
+  // Two rules can match overlapping text on one line. Reporting it twice trains
+  // the reader to skim the report, which is how a real hit gets missed.
+  const seen = new Set<string>();
 
   text.split('\n').forEach((content, index) => {
     for (const rule of RULES) {
       for (const [match] of content.matchAll(rule.pattern)) {
-        const cleaned = match.replace(/[ ]/g, '');
-        if (rule.accept && !rule.accept(cleaned)) continue;
+        if (rule.accept && !rule.accept(match.replaceAll(' ', ''))) continue;
 
-        findings.push({ kind: rule.kind, line: index + 1, match });
+        const line = index + 1;
+        const key = `${rule.kind}:${line}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        findings.push({ kind: rule.kind, line, match });
       }
     }
   });

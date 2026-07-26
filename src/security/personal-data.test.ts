@@ -97,3 +97,11 @@ describe('reporting', () => {
     ]);
   });
 });
+
+describe('deduplication', () => {
+  it('reports one finding when two patterns match the same text', () => {
+    // "my ... savings ... amount" satisfies both the first-person and the
+    // portfolio rule. Two identical lines in a report train the reader to skim.
+    expect(kinds('my savings are 2400000 TRY')).toEqual(['personal_amount']);
+  });
+});

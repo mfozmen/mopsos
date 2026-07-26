@@ -1,5 +1,5 @@
 /**
- * Fails when a tracked file contains the author's own personal data.
+ * Fails when a file in this repository contains the author's own personal data.
  *
  * A separate problem from secret scanning, which matches credential formats and
  * cannot recognise a first-person amount as sensitive. On a public repository the
@@ -7,49 +7,62 @@
  * by accident, and a commit deleted five minutes later is already cloned and
  * indexed. See private/README.md for what that looks like.
  */
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 
 import { findPersonalData } from '../security/personal-data.js';
 
 /**
- * Files whose job is to *describe* the rule, and which therefore quote examples
- * of what breaks it: the scanner's own tests, and the four documents that teach
- * the policy.
+ * `private/` is skipped because personal data belongs there by design — that is
+ * the entire point of the directory. The rest are build and dependency output
+ * with nothing authored in them.
+ *
+ * Untracked files are scanned too. That errs towards noise rather than towards
+ * missing something, which is the correct direction for a leak detector.
+ */
+const SKIP_DIRECTORIES = new Set(['private', 'node_modules', '.git', 'coverage', 'dist']);
+
+/**
+ * Files whose job is to *describe* the rule, and which therefore quote an
+ * example of breaking it.
  *
  * Excluding them is the honest option. The alternatives are worse: weakening the
  * patterns until they stop matching their own test data, or rewording the
- * examples until they slip past the regex — which is gaming the check while
- * pretending to pass it.
- *
- * The list stays short and is reviewed on sight. Every other tracked file is
- * scanned, including everything under research/, which is where real data would
- * actually land.
+ * examples until they slip past a regex, which is gaming the check while
+ * appearing to pass it. The list stays short and is reviewed on sight.
  */
-const EXCLUDED = new Set([
-  'src/security/personal-data.test.ts',
-  'private/README.md',
-  'README.md',
-  'SECURITY.md',
-  'CLAUDE.md',
-]);
+const SKIP_FILES = new Set(
+  ['src/security/personal-data.test.ts', 'README.md', 'SECURITY.md', 'CLAUDE.md'].map((path) =>
+    path.split('/').join(sep),
+  ),
+);
 
-const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
-  .split('\n')
-  .filter((path) => path.length > 0 && !EXCLUDED.has(path));
+const SCANNABLE = /\.(ts|js|json|md|ya?ml|txt|csv|properties)$/;
 
+function* files(directory: string): Generator<string> {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRECTORIES.has(entry.name)) yield* files(path);
+      continue;
+    }
+
+    if (SCANNABLE.test(entry.name)) yield path;
+  }
+}
+
+const root = process.argv[2] ?? '.';
+let scanned = 0;
 let hits = 0;
 
-for (const path of tracked) {
-  let content: string;
-  try {
-    content = readFileSync(path, 'utf8');
-  } catch {
-    continue; // unreadable or binary; nothing to scan
-  }
+for (const path of files(root)) {
+  const relativePath = relative(root, path);
+  if (SKIP_FILES.has(relativePath)) continue;
 
-  for (const finding of findPersonalData(content)) {
-    console.error(`${path}:${finding.line}  ${finding.kind}  ${finding.match}`);
+  scanned += 1;
+  for (const finding of findPersonalData(readFileSync(path, 'utf8'))) {
+    console.error(`${relativePath}:${finding.line}  ${finding.kind}  ${finding.match}`);
     hits += 1;
   }
 }
@@ -59,4 +72,4 @@ if (hits > 0) {
   process.exit(1);
 }
 
-console.log(`No personal data found in ${tracked.length} tracked files.`);
+console.log(`No personal data found in ${scanned} files.`);
