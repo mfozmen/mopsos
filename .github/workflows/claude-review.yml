@@ -60,11 +60,15 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # These tools are what let the reviewer publish. Without them it
-          # analyses the diff and then has no permitted way to say anything.
+          # `Bash(gh:*)` rather than a list of `gh pr <verb>` prefixes. The narrow
+          # patterns match only an exact command prefix, so anything wrapped in a
+          # `cd`, a pipe or a heredoc is denied — which is how the first run spent
+          # 13 turns, collected 7 permission denials and published nothing. What
+          # actually bounds this is GITHUB_TOKEN, which has contents:read plus
+          # pull-requests/issues:write and cannot touch code or settings.
           claude_args: |
             --max-turns 40
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh:*),Read,Grep,Glob"
           prompt: |
             You are an ADVISORY reviewer for Mopsos. Do not approve or block the
             pull request — the human and the deterministic CI gate decide that.
@@ -75,9 +79,12 @@ jobs:
             How to publish:
             - `mcp__github_inline_comment__create_inline_comment` for concrete
               findings, on the specific changed lines.
-            - `gh pr comment` for ONE short top-level summary. Always post it,
-              even when you find nothing — say so in a line — so the run leaves a
-              visible result.
+            - ONE short top-level summary, posted with exactly this shape:
+              `gh pr comment <number> --body "<text>"`. Do not wrap it in a `cd`,
+              a pipe, a heredoc or `&&` — the command must begin with `gh`, or
+              the permission check rejects it and your review is never published.
+            - Always post the summary, even when you find nothing worth raising —
+              say so in one line — so every run leaves a visible result.
 
             Three things matter more than general code quality here. Check them
             first and report them first.
