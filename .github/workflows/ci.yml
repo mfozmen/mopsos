@@ -17,6 +17,10 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
+    # Job level, so the steps below can branch on whether the secret exists.
+    # The `secrets` context is not available in an `if` condition; `env` is.
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,3 +48,14 @@ jobs:
           name: coverage
           path: coverage/lcov.info
           retention-days: 7
+
+      # Same job as the tests, so the freshly written lcov report is already on disk.
+      - name: SonarCloud scan
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+
+      # A skipped scan must be loud. A quality gate that silently does nothing is
+      # worse than no quality gate, because the green check still looks like proof.
+      - name: SonarCloud not configured
+        if: env.SONAR_TOKEN == ''
+        run: echo "::warning::SonarCloud scan skipped - SONAR_TOKEN is not set."
