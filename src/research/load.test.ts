@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { loadVerdicts } from './load.js';
+import { loadResolvedVerdictIds, loadVerdicts } from './load.js';
 
 const VERDICT = `---
 schema_version: 1
@@ -134,5 +134,38 @@ describe('loadVerdicts', () => {
     // Skipping would be worse than failing: a verdict that quietly disappears
     // from the record is indistinguishable from one that was never made.
     expect(() => loadVerdicts(dir)).toThrow(/2026-07-26-housing-tr-kfe-q3\.md/);
+  });
+});
+
+describe('loadResolvedVerdictIds', () => {
+  function writeOutcome(dir: string, filename: string, verdictId: string): void {
+    mkdirSync(join(dir, 'outcomes'), { recursive: true });
+    writeFileSync(
+      join(dir, 'outcomes', filename),
+      `---\nschema_version: 1\nid: 2026-10-16-outcome-a\nverdict_id: ${verdictId}\n` +
+        `resolved_at: '2026-10-16T09:00:00Z'\nobserved_value: 42.8\nprint: first\nhit: true\n---\n\nRead.\n`,
+      'utf8',
+    );
+  }
+
+  it('reports which verdicts already have an outcome', () => {
+    const dir = research();
+    writeOutcome(dir, '2026-10-16-outcome-a.md', '2026-07-26-housing-tr-kfe-q3');
+
+    expect(loadResolvedVerdictIds(dir)).toEqual(new Set(['2026-07-26-housing-tr-kfe-q3']));
+  });
+
+  it('is empty before anything has been resolved', () => {
+    expect(loadResolvedVerdictIds(research())).toEqual(new Set());
+  });
+
+  it('refuses a malformed outcome rather than treating it as unresolved', () => {
+    // Silently ignoring it would re-list the verdict as due and invite a second,
+    // conflicting measurement of something already settled.
+    const dir = research();
+    mkdirSync(join(dir, 'outcomes'), { recursive: true });
+    writeFileSync(join(dir, 'outcomes', 'broken.md'), '---\nid: nope\n---\n', 'utf8');
+
+    expect(() => loadResolvedVerdictIds(dir)).toThrow(/broken\.md/);
   });
 });
