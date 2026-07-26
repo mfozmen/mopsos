@@ -10,8 +10,8 @@ REPO="${REPO:-mfozmen/mopsos}"
 
 # Required status checks. A context that has never reported cannot be required —
 # GitHub accepts it, but the branch then blocks forever waiting for a check that
-# nobody runs. Add "SonarCloud Code Analysis" here once SONAR_TOKEN is set.
-CONTEXTS='["ci", "CodeQL"]'
+# nobody runs. Every context listed here has reported at least once.
+CONTEXTS='["ci", "CodeQL", "SonarCloud Code Analysis"]'
 
 echo "Protecting main on $REPO"
 
