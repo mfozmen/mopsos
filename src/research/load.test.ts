@@ -84,6 +84,30 @@ describe('loadVerdicts', () => {
     expect(loadVerdicts(dir)).toHaveLength(1);
   });
 
+  it('ignores outcomes/, which holds outcome files rather than verdicts', () => {
+    const dir = research();
+    writeVerdict(join(dir, '2026-07-26-menemen'), '2026-07-26-housing-tr-kfe-q3.md');
+    mkdirSync(join(dir, 'outcomes'), { recursive: true });
+    writeFileSync(
+      join(dir, 'outcomes', '2026-10-16-outcome-housing-tr-kfe-q3.md'),
+      '---\nschema_version: 1\nverdict_id: 2026-07-26-housing-tr-kfe-q3\n---\n\nRead.\n',
+      'utf8',
+    );
+
+    expect(loadVerdicts(dir).map((entry) => entry.verdict.id)).toEqual([
+      '2026-07-26-housing-tr-kfe-q3',
+    ]);
+  });
+
+  it('ignores a directory that is not named like a run', () => {
+    const dir = research();
+    writeVerdict(join(dir, '2026-07-26-menemen'), '2026-07-26-housing-tr-kfe-q3.md');
+    mkdirSync(join(dir, 'scratch'), { recursive: true });
+    writeFileSync(join(dir, 'scratch', 'draft.md'), 'not a verdict', 'utf8');
+
+    expect(loadVerdicts(dir)).toHaveLength(1);
+  });
+
   it('refuses a filename that disagrees with the id inside it', () => {
     const dir = research();
     writeVerdict(join(dir, '2026-07-26-menemen'), '2026-07-26-something-else.md');

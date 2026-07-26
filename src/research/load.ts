@@ -4,6 +4,14 @@ import { basename, join } from 'node:path';
 import type { Verdict } from '../schema/types.js';
 import { parseVerdict } from '../schema/verdict.js';
 
+/**
+ * Run directories are `YYYY-MM-DD-<slug>`. Matching on the shape rather than
+ * skipping a list of known exceptions means `outcomes/`, scratch folders and
+ * anything else added later are ignored by default instead of being parsed as
+ * verdicts and blowing up.
+ */
+const RUN_DIRECTORY = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$/;
+
 export interface LoadedVerdict {
   /** The run directory this verdict was produced in, relative to the research root. */
   run: string;
@@ -26,15 +34,20 @@ export function loadVerdicts(root: string): LoadedVerdict[] {
   const loaded: LoadedVerdict[] = [];
   const seen = new Map<string, string>();
 
-  for (const run of readdirSync(root, { withFileTypes: true })) {
-    if (!run.isDirectory()) continue;
+  // Sorted: readdir order is not guaranteed by POSIX, and a record whose order
+  // depends on the filesystem is a record that reads differently on two machines.
+  const runs = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && RUN_DIRECTORY.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
 
-    const runPath = join(root, run.name);
-    const files = readdirSync(runPath).filter(
-      (file) => file.endsWith('.md') && !file.endsWith('.evidence.md'),
-    );
+  for (const run of runs) {
+    const runPath = join(root, run);
+    const files = readdirSync(runPath)
+      .filter((file) => file.endsWith('.md'))
+      .sort();
 
-    for (const file of files.sort()) {
+    for (const file of files) {
       const path = join(runPath, file);
       let parsed;
       try {
@@ -56,7 +69,7 @@ export function loadVerdicts(root: string): LoadedVerdict[] {
       }
       seen.set(parsed.verdict.id, path);
 
-      loaded.push({ run: run.name, path, verdict: parsed.verdict, reasoning: parsed.reasoning });
+      loaded.push({ run, path, verdict: parsed.verdict, reasoning: parsed.reasoning });
     }
   }
 
