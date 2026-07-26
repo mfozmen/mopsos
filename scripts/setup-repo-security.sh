@@ -16,12 +16,15 @@ echo "Applying security settings to $REPO"
 # which rejects a commit containing a recognised credential before it lands.
 # On a public repository a leaked key is scraped within seconds; deleting it
 # afterwards does not un-leak it.
+#
+# Note: secret_scanning_non_provider_patterns and secret_scanning_validity_checks
+# are NOT set here. The API accepts them and returns success, then leaves them
+# disabled — they need Secret Protection, which this repository does not have.
+# Setting them would make this script report something untrue.
 gh api -X PATCH "repos/$REPO" \
   -F 'security_and_analysis[secret_scanning][status]=enabled' \
   -F 'security_and_analysis[secret_scanning_push_protection][status]=enabled' \
-  -F 'security_and_analysis[secret_scanning_non_provider_patterns][status]=enabled' \
   --silent
-echo "  secret scanning + push protection: enabled"
 
 # Dependabot alerts and automatic security-fix PRs.
 gh api -X PUT "repos/$REPO/vulnerability-alerts" --silent
@@ -48,4 +51,11 @@ gh api -X PATCH "repos/$REPO" \
   --silent
 echo "  wiki: disabled, branch cleanup on merge: enabled"
 
-echo "Done."
+# Report what GitHub actually stored, not what was sent. Several of these
+# settings accept a value and silently ignore it depending on the plan; a script
+# that prints its own intentions is worse than no script, because it reads as
+# proof that the setting is on.
+echo
+echo "Actual state:"
+gh api "repos/$REPO" -q '.security_and_analysis | to_entries[] | "  \(.key): \(.value.status)"'
+gh api "repos/$REPO/actions/permissions/workflow" -q '"  default_workflow_permissions: \(.default_workflow_permissions)"'
