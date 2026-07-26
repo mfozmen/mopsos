@@ -11,11 +11,28 @@ const HEADER = COLUMNS.join(',');
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 function positiveNumber(value: string, column: string, line: number): number {
-  const parsed = Number(value);
+  // The empty check comes first because Number('') is 0, and a blank cell is a
+  // gap in the data, not a measurement of zero. Recorded as zero it would
+  // corrupt a series that is never rewritten.
+  const parsed = value.length === 0 ? Number.NaN : Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error(`line ${line}: ${column} must be a number of zero or more, got "${value}"`);
   }
   return parsed;
+}
+
+/**
+ * A real calendar day, not merely something shaped like one.
+ *
+ * `2026-02-30` matches the pattern and does not exist. These dates are entered
+ * by hand onto a series that is never corrected, so the moment to catch that is
+ * now.
+ */
+function isRealDay(value: string): boolean {
+  if (!ISO_DAY.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 /**
@@ -26,8 +43,9 @@ function positiveNumber(value: string, column: string, line: number): number {
  * that cannot be filled later — by then the listings it described are gone.
  */
 export function parseSnapshotCsv(text: string): SnapshotObservation[] {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  const [header, ...rows] = lines;
+  // Blank lines are kept, not filtered, so a reported line number matches what
+  // the reader sees in their editor. They are skipped inside the loop instead.
+  const [header, ...rows] = text.split(/\r?\n/);
 
   if (header?.trim() !== HEADER) {
     throw new Error(`unexpected header: expected "${HEADER}", got "${header ?? ''}"`);
@@ -38,6 +56,8 @@ export function parseSnapshotCsv(text: string): SnapshotObservation[] {
 
   rows.forEach((row, index) => {
     const line = index + 2; // 1-indexed, and the header is line 1
+    if (row.trim().length === 0) return;
+
     const cells = row.split(',').map((cell) => cell.trim());
 
     if (cells.length !== COLUMNS.length) {
@@ -50,8 +70,10 @@ export function parseSnapshotCsv(text: string): SnapshotObservation[] {
       throw new Error(`line ${line}: basket_id is empty`);
     }
 
-    if (!ISO_DAY.test(observedOn)) {
-      throw new Error(`line ${line}: observed_on must be YYYY-MM-DD, got "${observedOn}"`);
+    if (!isRealDay(observedOn)) {
+      throw new Error(
+        `line ${line}: observed_on must be a real YYYY-MM-DD day, got "${observedOn}"`,
+      );
     }
 
     // One reading per basket per day. Two are a conflict to resolve now, while

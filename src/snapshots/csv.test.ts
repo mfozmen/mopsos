@@ -100,3 +100,26 @@ describe('csvSnapshotSource', () => {
     expect(csvSnapshotSource('manual-export', csv(ROW)).id).toBe('manual-export');
   });
 });
+
+describe('gaps and invalid dates', () => {
+  it('rejects a blank number rather than storing it as zero', () => {
+    // Number('') is 0 in JS. A missing median price silently recorded as zero
+    // would corrupt a series that is never rewritten.
+    expect(message(csv('menemen-3plus1-100to130,2026-07-26,142,'))).toMatch(/median_price_per_m2/);
+  });
+
+  it('rejects a blank count for the same reason', () => {
+    expect(message(csv('menemen-3plus1-100to130,2026-07-26,,48500'))).toMatch(/listing_count/);
+  });
+
+  it.each(['2026-13-01', '2026-02-30', '2026-00-10'])(
+    'rejects %s, which is not a real day',
+    (day) => {
+      expect(message(csv(`menemen-3plus1-100to130,${day},142,48500`))).toMatch(/observed_on/);
+    },
+  );
+
+  it('counts blank lines when naming the line, so the number matches the editor', () => {
+    expect(message(`${HEADER}\n${ROW}\n\nbroken`)).toMatch(/line 4/);
+  });
+});
