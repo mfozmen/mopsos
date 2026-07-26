@@ -41,7 +41,27 @@ export function brier(probability: number, hit: boolean): number {
 }
 
 /**
+ * Which horizon a verdict belongs to, for grouping.
+ *
+ * A seer's record on four-week probes says nothing about its record on an
+ * eighteen-month call, and averaging the two together lets a good probe record
+ * hide a bad long one. The boundaries follow the asset classes: probes resolve
+ * within 8 weeks, housing runs 6-24 months.
+ */
+export function horizonBucket(days: number): 'probe' | 'short' | 'medium' | 'long' {
+  if (days <= 56) return 'probe';
+  if (days <= 182) return 'short';
+  if (days <= 365) return 'medium';
+  return 'long';
+}
+
+/**
  * Mean Brier per group, sorted by key so two runs read the same.
+ *
+ * `groupBy` is required on purpose. A default of "by seer" would silently
+ * average across asset classes and horizons, which is exactly the aggregation
+ * that makes a record look better than it is — so the caller has to say what it
+ * is comparing.
  *
  * An empty record yields no rows rather than a zero. Zero is the best possible
  * score, and a seer that has never been measured must not appear to have earned
@@ -49,7 +69,7 @@ export function brier(probability: number, hit: boolean): number {
  */
 export function aggregate(
   scored: ScoredVerdict[],
-  groupBy: (entry: ScoredVerdict) => string = (entry) => entry.seer,
+  groupBy: (entry: ScoredVerdict) => string,
 ): Aggregate[] {
   const groups = new Map<string, number[]>();
 
@@ -69,7 +89,8 @@ export function aggregate(
     .sort((a, b) => (a.key < b.key ? -1 : 1));
 }
 
-const BUCKET_WIDTH = 0.2;
+const BUCKETS = 5;
+const BUCKET_WIDTH = 1 / BUCKETS;
 
 function bucketLabel(index: number): string {
   const low = index * BUCKET_WIDTH;
@@ -91,8 +112,11 @@ export function calibrationCurve(scored: ScoredVerdict[]): CalibrationBucket[] {
   const buckets = new Map<number, ScoredVerdict[]>();
 
   for (const entry of scored) {
+    // Multiply, never divide: 0.6 / 0.2 is 2.9999999999999996 in IEEE-754, so
+    // dividing drops an exact boundary value one bucket and silently misreports
+    // the seer's calibration. 0.6 * 5 is exactly 3.
     // 1.0 belongs in the top bucket rather than a sixth one of its own.
-    const index = Math.min(Math.floor(entry.probability / BUCKET_WIDTH), 4);
+    const index = Math.min(Math.floor(entry.probability * BUCKETS), BUCKETS - 1);
     buckets.set(index, [...(buckets.get(index) ?? []), entry]);
   }
 

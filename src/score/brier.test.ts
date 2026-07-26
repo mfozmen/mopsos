@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aggregate, brier, calibrationCurve, type ScoredVerdict } from './brier.js';
+import { aggregate, brier, calibrationCurve, horizonBucket, type ScoredVerdict } from './brier.js';
 
 describe('brier', () => {
   it('is 0 for a confident call that was right', () => {
@@ -42,12 +42,15 @@ const scored = (
 });
 
 describe('aggregate', () => {
-  it('averages the Brier score per seer', () => {
-    const result = aggregate([
-      scored('cautious', 0.5, true),
-      scored('cautious', 0.5, false),
-      scored('optimistic', 1, true),
-    ]);
+  it('averages the Brier score within a group', () => {
+    const result = aggregate(
+      [
+        scored('cautious', 0.5, true),
+        scored('cautious', 0.5, false),
+        scored('optimistic', 1, true),
+      ],
+      (entry) => entry.seer,
+    );
 
     expect(result).toEqual([
       { key: 'cautious', count: 2, brier: 0.25 },
@@ -67,9 +70,39 @@ describe('aggregate', () => {
     ]);
   });
 
+  it('separates horizons, so a probe record cannot flatter a long call', () => {
+    const result = aggregate(
+      [
+        scored('cautious', 1, true, { horizon_days: 28 }),
+        scored('cautious', 1, false, { horizon_days: 400 }),
+      ],
+      (entry) => `${entry.seer}/${horizonBucket(entry.horizon_days)}`,
+    );
+
+    // Sorted by key, so the two horizons are reported apart rather than averaged.
+    expect(result).toEqual([
+      { key: 'cautious/long', count: 1, brier: 1 },
+      { key: 'cautious/probe', count: 1, brier: 0 },
+    ]);
+  });
+
   it('returns nothing for an empty record rather than a flattering zero', () => {
     // A seer with no resolved verdicts has no score. Zero would read as perfect.
-    expect(aggregate([])).toEqual([]);
+    expect(aggregate([], (entry) => entry.seer)).toEqual([]);
+  });
+});
+
+describe('horizonBucket', () => {
+  it.each([
+    [14, 'probe'],
+    [56, 'probe'],
+    [57, 'short'],
+    [182, 'short'],
+    [183, 'medium'],
+    [365, 'medium'],
+    [366, 'long'],
+  ])('puts %s days in %s', (days, expected) => {
+    expect(horizonBucket(days)).toBe(expected);
   });
 });
 
@@ -86,6 +119,18 @@ describe('calibrationCurve', () => {
       { bucket: '0.0-0.2', count: 1, predicted: 0.1, observed: 0 },
       { bucket: '0.8-1.0', count: 3, predicted: 0.9, observed: 2 / 3 },
     ]);
+  });
+
+  it.each([
+    [0.2, '0.2-0.4'],
+    [0.4, '0.4-0.6'],
+    [0.6, '0.6-0.8'],
+    [0.8, '0.8-1.0'],
+    [1, '0.8-1.0'],
+  ])('puts a probability of exactly %s in %s', (probability, bucket) => {
+    // 0.6 / 0.2 is 2.9999999999999996 in IEEE-754, so dividing puts an exact
+    // boundary value one bucket too low and silently misreports calibration.
+    expect(calibrationCurve([scored('cautious', probability, true)])[0]?.bucket).toBe(bucket);
   });
 
   it('omits buckets nothing fell into', () => {
