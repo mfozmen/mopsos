@@ -1,0 +1,25 @@
+name: Decision needed
+description: A choice that must be made by the user before work can continue
+labels: [needs-decision]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and trade-offs
+    validations:
+      required: true
+
+  - type: input
+    id: blocks
+    attributes:
+      label: Blocks
+      description: What cannot proceed until this is answered.
+    validations:
+      required: true
