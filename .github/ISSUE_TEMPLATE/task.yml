@@ -1,0 +1,37 @@
+name: Task
+description: A unit of work from the roadmap
+labels: []
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The work itself, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is needed
+      description: What breaks or stays impossible without it.
+    validations:
+      required: true
+
+  - type: input
+    id: depends
+    attributes:
+      label: Depends on
+      description: Issue numbers that must land first, or "none".
+    validations:
+      required: true
+
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of done
+      description: Observable conditions, not intentions.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true

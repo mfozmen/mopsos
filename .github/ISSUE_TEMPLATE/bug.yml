@@ -1,0 +1,31 @@
+name: Bug
+description: Something behaves differently than described
+labels: [bug]
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: integrity
+    attributes:
+      label: Track record impact
+      options:
+        - label: This bug could change an already-recorded verdict, outcome or score
