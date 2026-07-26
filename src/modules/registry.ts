@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { AssetClass, ResolutionSource } from '../schema/types.js';
+import type { ResolutionSource } from '../schema/types.js';
 import { assertValid } from '../schema/validate.js';
 
 /**
@@ -13,7 +13,7 @@ import { assertValid } from '../schema/validate.js';
 export type ModuleStatus = 'configured' | 'incomplete' | 'empty';
 
 export interface AssetModule {
-  id: AssetClass;
+  id: string;
   name: string;
   horizon_days: { min: number; max: number };
   sources: ResolutionSource[];

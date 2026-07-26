@@ -45,6 +45,15 @@ describe('discovery', () => {
     expect(loadModules(root).map((module) => module.id)).toEqual(['fx', 'housing']);
   });
 
+  it('accepts a class nobody has thought of yet, with no other file edited', () => {
+    // The whole claim is that a new asset class is a folder and a file. A closed
+    // list of ids anywhere would quietly make that false.
+    const root = temp();
+    write(root, 'crypto', definition({ id: 'crypto', name: 'Crypto', seers: [] }));
+
+    expect(loadModules(root).map((module) => module.id)).toEqual(['crypto']);
+  });
+
   it('refuses a definition whose id disagrees with its folder', () => {
     const root = temp();
     write(root, 'housing', definition({ id: 'equities' }));

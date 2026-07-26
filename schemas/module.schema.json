@@ -8,9 +8,9 @@
   "additionalProperties": false,
   "properties": {
     "id": {
-      "description": "Also the folder name. A mismatch is rejected, so the two cannot drift.",
+      "description": "Also the folder name. A mismatch is rejected, so the two cannot drift. Deliberately a pattern rather than a list of the four classes that exist today — a closed list here would mean adding a class requires editing something central, which is the thing this design exists to avoid.",
       "type": "string",
-      "enum": ["housing", "precious_metals", "fx", "equities"]
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
     },
     "name": { "type": "string", "minLength": 1 },
     "horizon_days": {
