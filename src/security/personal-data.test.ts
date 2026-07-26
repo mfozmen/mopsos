@@ -20,6 +20,14 @@ describe('isValidTckn', () => {
   it('rejects a number starting with zero', () => {
     expect(isValidTckn('01234567890')).toBe(false);
   });
+
+  it('accepts a valid number whose checksum step goes negative', () => {
+    // For 19090909018 the intermediate is -29. JS % is a remainder, not a
+    // modulo, so it yields -9 and the id is silently rejected — meaning a real
+    // national id would sail through the scanner untouched. False negatives
+    // here are the only kind that matter.
+    expect(isValidTckn('19090909018')).toBe(true);
+  });
 });
 
 describe('national id', () => {
@@ -98,10 +106,48 @@ describe('reporting', () => {
   });
 });
 
+describe('Turkish possessive phrasing', () => {
+  it.each(['2.4M TL birikimim var', 'param 2400000 TRY', 'toplam 2400000 TRY tasarrufum'])(
+    'flags %s, where ownership is a suffix rather than a separate word',
+    (text) => {
+      expect(kinds(text)).toContain('personal_amount');
+    },
+  );
+
+  it('flags an amount followed by the ownership word', () => {
+    expect(kinds('2400000 TRY in savings')).toContain('personal_amount');
+  });
+
+  it('still says nothing about market data in the same shape', () => {
+    expect(kinds('Sales in Menemen totalled 45,000 TRY per m2.')).toEqual([]);
+  });
+});
+
+describe('addresses without a No: label', () => {
+  it('flags a street and building number written the common way', () => {
+    expect(kinds('Gül Sokak 14/3, Menemen')).toEqual(['address']);
+  });
+});
+
 describe('deduplication', () => {
   it('reports one finding when two patterns match the same text', () => {
     // "my ... savings ... amount" satisfies both the first-person and the
     // portfolio rule. Two identical lines in a report train the reader to skim.
     expect(kinds('my savings are 2400000 TRY')).toEqual(['personal_amount']);
+  });
+});
+
+describe('marked examples', () => {
+  it('skips a line that declares itself an example', () => {
+    // Documentation and tests have to quote what they forbid. A line-scoped
+    // marker keeps each exemption visible where it is used, and greppable —
+    // unlike a file-level list, which exempts a whole file forever.
+    expect(kinds('TCKN 10000000078  scan-ignore: example')).toEqual([]);
+  });
+
+  it('still scans the rest of a file containing a marked line', () => {
+    const text = 'TCKN 10000000078  scan-ignore: example\nTR330006100519786457841326';
+
+    expect(kinds(text)).toEqual(['iban']);
   });
 });

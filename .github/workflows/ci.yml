@@ -45,15 +45,18 @@ jobs:
 
       - run: npm run test:coverage
 
-      # A different problem from secret scanning, which matches credential
-      # formats and cannot recognise a first-person amount as sensitive.
-      - run: npm run scan:personal-data
-
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage
           path: coverage/lcov.info
           retention-days: 7
+
+      # After the artifact upload on purpose: if this step fails the job stops,
+      # and the coverage report is more useful in hand than lost with it.
+      #
+      # A different problem from secret scanning, which matches credential
+      # formats and cannot recognise a first-person amount as sensitive.
+      - run: npm run scan:personal-data
 
       # Same job as the tests, so the freshly written lcov report is already on disk.
       - name: SonarCloud scan

@@ -166,7 +166,7 @@ the seer. The schema supports this as a first-class concept: a verdict can be th
 The repository is public. **The user's personal financial data is never committed**: amounts,
 portfolio size, account details, real address, national ID. `private/` is git-ignored for
 those and the README says so explicitly. Research output stays generic and anonymous
-("average price per m² for 3+1 flats in Menemen" yes, "my 2.4M TRY savings" no). API keys
+("average price per m² for 3+1 flats in Menemen" yes, "my 2.4M TRY savings" no). API keys <!-- scan-ignore: example -->
 live in `.env`, with `.env.example` committed.
 
 ## Working rules

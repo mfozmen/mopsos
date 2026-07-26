@@ -23,18 +23,15 @@ import { findPersonalData } from '../security/personal-data.js';
 const SKIP_DIRECTORIES = new Set(['private', 'node_modules', '.git', 'coverage', 'dist']);
 
 /**
- * Files whose job is to *describe* the rule, and which therefore quote an
- * example of breaking it.
+ * Only the scanner's own tests, which are wall-to-wall fixtures of the very
+ * things it looks for.
  *
- * Excluding them is the honest option. The alternatives are worse: weakening the
- * patterns until they stop matching their own test data, or rewording the
- * examples until they slip past a regex, which is gaming the check while
- * appearing to pass it. The list stays short and is reviewed on sight.
+ * Everywhere else that has to quote a forbidden example uses the line-scoped
+ * `scan-ignore: example` marker instead. A file-level exemption is permanent and
+ * invisible; a line marker sits where it is used and `grep` finds all of them.
  */
 const SKIP_FILES = new Set(
-  ['src/security/personal-data.test.ts', 'README.md', 'SECURITY.md', 'CLAUDE.md'].map((path) =>
-    path.split('/').join(sep),
-  ),
+  ['src/security/personal-data.test.ts'].map((path) => path.split('/').join(sep)),
 );
 
 const SCANNABLE = /\.(ts|js|json|md|ya?ml|txt|csv|properties)$/;

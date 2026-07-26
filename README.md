@@ -14,7 +14,7 @@ reports they generate. That second half is why this project exists.
 > This repository is public. **Personal financial data is never committed here** — no
 > amounts, portfolio size, account details, home address or national ID. Anything of that
 > kind belongs in the git-ignored `private/` directory. Research output stays generic and
-> anonymous: "average price per m² for 3+1 flats in Menemen" is fine, "my 2.4M TRY savings"
+> anonymous: "average price per m² for 3+1 flats in Menemen" is fine, "my 2.4M TRY savings" <!-- scan-ignore: example -->
 > is not.
 
 ## Status
