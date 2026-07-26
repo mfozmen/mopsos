@@ -133,3 +133,4 @@ private/        git-ignored; personal data never leaves this directory
 - `CLAUDE.md` — the working context and rules for Claude Code sessions in this repository
 - `CONTRIBUTING.md` — branch naming, commit format, PR expectations
 - `SECURITY.md` — how to report a vulnerability
+direct push test
