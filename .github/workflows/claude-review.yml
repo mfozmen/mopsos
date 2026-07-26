@@ -18,8 +18,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    # A boolean, not the key — see the same note in ci.yml. Only the action step
+    # below receives the actual secret.
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,11 +29,11 @@ jobs:
           persist-credentials: false
 
       - name: Not configured
-        if: env.ANTHROPIC_API_KEY == ''
+        if: env.HAS_ANTHROPIC_API_KEY == 'false'
         run: echo "::warning::Claude review skipped - ANTHROPIC_API_KEY is not set."
 
       - uses: anthropics/claude-code-action@c96dd0a84e0232ab86947fca5fe34f1caae8792f # v1
-        if: env.ANTHROPIC_API_KEY != ''
+        if: env.HAS_ANTHROPIC_API_KEY == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Read-only tools. This job comments; it never edits the branch.
