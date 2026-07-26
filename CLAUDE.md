@@ -171,6 +171,23 @@ live in `.env`, with `.env.example` committed.
 
 ## Working rules
 
+- **Test-driven development, always.** No production code without a failing test
+  first — new features, bug fixes, behaviour changes alike. Write one test for one
+  behaviour, run it, watch it fail for the right reason, then write the minimum code
+  that passes, then refactor while it stays green.
+
+  A test written after the code passes immediately, and passing immediately proves
+  nothing: it may test the implementation rather than the requirement, and it never
+  demonstrated that it can catch anything. This matters more here than in most
+  projects, because the rules being enforced — a verdict must be measurable, an
+  outcome is never edited — are exactly the kind that fail silently. A validator
+  that quietly accepts everything looks identical to one that works.
+
+  If production code was written first, delete it and start over from the test. Do
+  not keep it as reference and do not adapt it while writing the test; that is
+  testing afterwards with extra steps. Type-only declarations and configuration are
+  the exception, having no behaviour to fail.
+
 - **Before each PR, give a short plan and get approval, then write.**
 - **One topic per PR.** Do not merge separate concerns into one PR.
 - Branch names: `feat/`, `fix/`, `chore/`, `ci/`.
