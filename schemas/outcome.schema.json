@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfozmen/mopsos/schemas/outcome.schema.json",
+  "title": "Outcome",
+  "description": "What actually happened, measured when the verdict came due. Stored as the frontmatter of a Markdown file whose body may note anything unusual about the measurement. Never edited once written: a correction is a new outcome pointing at the old one.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "verdict_id",
+    "resolved_at",
+    "observed_value",
+    "print",
+    "hit"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "verdict_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "resolved_at": { "type": "string", "format": "date-time" },
+    "observed_value": {
+      "description": "The value as read from the source named on the verdict. Stored so that scoring never has to consult the live series again.",
+      "type": "number"
+    },
+    "print": { "const": "first" },
+    "hit": {
+      "description": "Whether resolution.rule evaluated true against observed_value. The Brier outcome term: true is 1, false is 0.",
+      "type": "boolean"
+    },
+    "corrects": {
+      "description": "The outcome this one supersedes. Set only when an earlier measurement turned out to be wrong — the earlier record stays.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    }
+  }
+}

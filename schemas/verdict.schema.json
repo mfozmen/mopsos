@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfozmen/mopsos/schemas/verdict.schema.json",
+  "title": "Verdict",
+  "description": "A prediction produced by a seer. Stored as the YAML frontmatter of a Markdown file whose body holds the seer's reasoning.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "seer",
+    "asset_class",
+    "question",
+    "probability",
+    "created_at",
+    "due_at",
+    "resolution"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": {
+      "description": "Stable identifier, also the filename stem. Never reused, never renamed.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "seer": {
+      "description": "The subagent that produced this verdict.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "asset_class": {
+      "type": "string",
+      "enum": ["housing", "precious_metals", "fx", "equities"]
+    },
+    "question": {
+      "description": "The question in full, as a sentence. Long enough that it cannot be a fragment like 'gold up?'.",
+      "type": "string",
+      "minLength": 20
+    },
+    "probability": {
+      "description": "Exclusive bounds. A verdict at 0 or 1 is a claim of certainty, which is not a prediction — and under Brier scoring it is the one place a seer can lose everything on a single call.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1
+    },
+    "created_at": { "type": "string", "format": "date" },
+    "due_at": {
+      "description": "When the question is about. Distinct from resolution.check_after, which is when the answer can first be read.",
+      "type": "string",
+      "format": "date"
+    },
+    "calibration_probe_of": {
+      "description": "Set when this verdict exists to calibrate a longer-horizon one. The relation and the minimum probe count are enforced separately.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "resolution": {
+      "description": "Filled in at prediction time. Without it the verdict is unmeasurable and is not stored.",
+      "type": "object",
+      "required": ["source", "series", "reference_period", "check_after", "rule", "print"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "description": "Fixed now, so that nobody can pick the flattering source once the result is out.",
+          "type": "string",
+          "enum": ["evds", "tuik", "listing_snapshot", "market_close"]
+        },
+        "series": {
+          "description": "Series code, or the id of a frozen listing basket.",
+          "type": "string",
+          "minLength": 1
+        },
+        "reference_period": {
+          "description": "The period being measured: YYYY-MM, YYYY-MM-DD, or YYYY-Www.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12][0-9]|3[01]))?$|^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$"
+        },
+        "check_after": {
+          "description": "The first date the value can exist, read from the publication calendar rather than the calendar month.",
+          "type": "string",
+          "format": "date"
+        },
+        "rule": {
+          "description": "One comparison, no room for interpretation. The single-comparison shape is enforced by the resolution validator, not by this schema.",
+          "type": "string",
+          "minLength": 1
+        },
+        "print": {
+          "description": "The first published value, never the revised one. Series get revised retroactively; scoring against a revision rewrites history.",
+          "const": "first"
+        }
+      }
+    }
+  }
+}

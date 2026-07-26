@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfozmen/mopsos/schemas/score.schema.json",
+  "title": "Score",
+  "description": "A verdict scored against its outcome. Derived data: it is always recomputable from the verdict and the outcome, both of which are frozen. It carries the inputs it was computed from so a stored score that disagrees with them is detectable rather than authoritative.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "verdict_id",
+    "outcome_id",
+    "probability",
+    "outcome",
+    "brier",
+    "computed_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "verdict_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "outcome_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "probability": {
+      "description": "Copied from the verdict as scored, so the score can be checked without reading it back.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1
+    },
+    "outcome": {
+      "description": "The outcome term: 1 if the verdict hit, 0 if it missed.",
+      "type": "integer",
+      "enum": [0, 1]
+    },
+    "brier": {
+      "description": "(probability - outcome)^2. Bounded by 1 because probability is bounded by 0 and 1.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "computed_at": { "type": "string", "format": "date-time" }
+  }
+}
