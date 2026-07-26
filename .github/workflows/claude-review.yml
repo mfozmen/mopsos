@@ -87,9 +87,14 @@ jobs:
             - `mcp__github_inline_comment__create_inline_comment` for concrete
               findings, on the specific changed lines.
             - ONE short top-level summary, posted with exactly this shape:
-              `gh pr comment <number> --body "<text>"`. Do not wrap it in a `cd`,
-              a pipe, a heredoc or `&&` — the command must begin with `gh`, or
-              the permission check rejects it and your review is never published.
+              `gh pr comment <number> --body "<text>"`.
+
+            EVERY `gh` call — `comment`, `diff`, `view` — must start with `gh` and
+            contain no pipe, redirect, `&&`, `cd` or heredoc. The permission check
+            matches on the command prefix, so `gh pr diff 12 | head -200` is
+            denied while `gh pr diff 12` is allowed. A denied call costs you a
+            turn and returns nothing; if you need less output, ask `gh` for it
+            with its own flags rather than filtering afterwards.
             - Always post the summary, even when you find nothing worth raising —
               say so in one line — so every run leaves a visible result.
 
