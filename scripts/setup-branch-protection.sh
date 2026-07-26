@@ -21,7 +21,7 @@ gh api -X PUT "repos/$REPO/branches/main/protection" --input - --silent <<JSON
     "strict": true,
     "contexts": $CONTEXTS
   },
-  "enforce_admins": false,
+  "enforce_admins": true,
   "required_pull_request_reviews": null,
   "restrictions": null,
   "required_linear_history": true,
@@ -38,8 +38,14 @@ echo "  strict (branch must be up to date), linear history, conversations resolv
 
 # No required approving review: this is a single-maintainer repository and nobody
 # can approve their own pull request. Requiring one would block every merge.
-# enforce_admins is false for the same reason — the admin needs a way out when a
-# required check itself is broken.
+#
+# enforce_admins IS on, though. With one maintainer, who is also the admin,
+# leaving it off means the rule applies to nobody — a direct push to main just
+# succeeds with "Bypassed rule violations". This project's central claim is that
+# every prediction has an immutable timestamp in git history, and that claim is
+# only as strong as the branch it lives on. The escape hatch when a required
+# check is itself broken is to run this script with enforce_admins flipped, land
+# the fix, and run it again — deliberate and visible, rather than always-on.
 
 # Squash only. Every PR becomes exactly one commit on main, which is what
 # semantic-release reads to decide the next version.
