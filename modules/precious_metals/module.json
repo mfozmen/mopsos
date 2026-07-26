@@ -1,0 +1,10 @@
+{
+  "id": "precious_metals",
+  "name": "Precious Metals",
+  "horizon_days": {
+    "min": 30,
+    "max": 180
+  },
+  "sources": ["market_close"],
+  "seers": []
+}

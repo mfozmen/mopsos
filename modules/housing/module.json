@@ -1,0 +1,10 @@
+{
+  "id": "housing",
+  "name": "Housing & Mortgage",
+  "horizon_days": {
+    "min": 180,
+    "max": 730
+  },
+  "sources": ["evds", "tuik", "listing_snapshot"],
+  "seers": []
+}
