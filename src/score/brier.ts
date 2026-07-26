@@ -1,8 +1,6 @@
-import type { AssetClass } from '../schema/types.js';
-
 export interface ScoredVerdict {
   seer: string;
-  asset_class: AssetClass;
+  asset_class: string;
   /** due_at minus created_at, so records can be compared at like horizons. */
   horizon_days: number;
   probability: number;

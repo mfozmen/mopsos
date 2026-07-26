@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import { assertRegisteredAssetClass } from '../modules/asset-class.js';
+import { byCodePoint } from '../order.js';
 import { parseFrontmatter } from '../schema/frontmatter.js';
 import type { Outcome, Verdict } from '../schema/types.js';
 import { assertValid } from '../schema/validate.js';
@@ -14,16 +15,6 @@ import { parseVerdict, type ParsedVerdict } from '../schema/verdict.js';
  * verdicts and blowing up.
  */
 const RUN_DIRECTORY = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$/;
-
-/**
- * Deliberately not `localeCompare`: the record must read identically on every
- * machine, and locale-aware collation is exactly the thing that would make it
- * not. Code point order is arbitrary but it is the same everywhere.
- */
-function byCodePoint(a: string, b: string): number {
-  if (a < b) return -1;
-  return a > b ? 1 : 0;
-}
 
 export interface LoadedVerdict {
   /** The run directory this verdict was produced in, relative to the research root. */
@@ -57,6 +48,35 @@ function parseFile(path: string): ParsedVerdict {
   }
 }
 
+/** Everything that can disqualify a verdict once it has parsed. */
+function check(
+  path: string,
+  file: string,
+  verdict: Verdict,
+  registeredAssetClasses: string[] | undefined,
+  seen: Map<string, string>,
+): void {
+  if (basename(file, '.md') !== verdict.id) {
+    throw new Error(`${path}: filename does not match the verdict id (${verdict.id})`);
+  }
+
+  if (registeredAssetClasses) {
+    try {
+      assertRegisteredAssetClass(verdict, registeredAssetClasses);
+    } catch (error) {
+      throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      });
+    }
+  }
+
+  const previous = seen.get(verdict.id);
+  if (previous) {
+    throw new Error(`${path}: duplicate verdict id, already used by ${previous}`);
+  }
+  seen.set(verdict.id, path);
+}
+
 /**
  * Reads every verdict under a research root.
  *
@@ -75,26 +95,7 @@ export function loadVerdicts(root: string, registeredAssetClasses?: string[]): L
       const path = join(root, run, file);
       const { verdict, reasoning } = parseFile(path);
 
-      if (basename(file, '.md') !== verdict.id) {
-        throw new Error(`${path}: filename does not match the verdict id (${verdict.id})`);
-      }
-
-      if (registeredAssetClasses) {
-        try {
-          assertRegisteredAssetClass(verdict, registeredAssetClasses);
-        } catch (error) {
-          throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
-            cause: error,
-          });
-        }
-      }
-
-      const previous = seen.get(verdict.id);
-      if (previous) {
-        throw new Error(`${path}: duplicate verdict id, already used by ${previous}`);
-      }
-      seen.set(verdict.id, path);
-
+      check(path, file, verdict, registeredAssetClasses, seen);
       loaded.push({ run, path, verdict, reasoning });
     }
   }

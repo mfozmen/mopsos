@@ -1,3 +1,4 @@
+import { byCodePoint } from '../order.js';
 import type { Verdict } from '../schema/types.js';
 
 export class UnknownAssetClassError extends Error {
@@ -6,7 +7,7 @@ export class UnknownAssetClassError extends Error {
     registered: string[],
   ) {
     super(
-      `asset_class "${assetClass}" has no module. Registered: ${[...registered].sort().join(', ')}`,
+      `asset_class "${assetClass}" has no module. Registered: ${[...registered].sort(byCodePoint).join(', ')}`,
     );
     this.name = 'UnknownAssetClassError';
   }

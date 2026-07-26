@@ -1,5 +1,4 @@
 export type ResolutionSource = 'evds' | 'tuik' | 'listing_snapshot' | 'market_close';
-export type AssetClass = string;
 
 export interface Resolution {
   source: ResolutionSource;
@@ -14,7 +13,8 @@ export interface Verdict {
   schema_version: 1;
   id: string;
   seer: string;
-  asset_class: AssetClass;
+  /** Must match a registered module; see src/modules/asset-class.ts. */
+  asset_class: string;
   question: string;
   probability: number;
   created_at: string;
