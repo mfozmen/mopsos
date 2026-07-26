@@ -2,9 +2,10 @@
  * Fails when a tracked file contains the author's own personal data.
  *
  * A separate problem from secret scanning, which matches credential formats and
- * will never catch "my 2.4M TRY". On a public repository the risk that matters
- * is not a remote attacker — it is publishing your own finances by accident,
- * and a commit deleted five minutes later has already been cloned and indexed.
+ * cannot recognise a first-person amount as sensitive. On a public repository the
+ * risk that matters is not a remote attacker — it is publishing your own finances
+ * by accident, and a commit deleted five minutes later is already cloned and
+ * indexed. See private/README.md for what that looks like.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

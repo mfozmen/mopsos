@@ -64,10 +64,10 @@ const RULES: Rule[] = [
 /**
  * Scans text for the author's own personal data.
  *
- * This is a different problem from secret scanning, which looks for credential
- * formats and will never catch "my 2.4M TRY". On a public repository the risk
- * that matters is not a remote attacker — it is publishing your own finances by
- * accident, and once pushed it cannot be unpublished.
+ * A different problem from secret scanning, which looks for credential formats
+ * and cannot recognise a first-person amount as sensitive. On a public repository
+ * the risk that matters is not a remote attacker — it is publishing your own
+ * finances by accident, and once pushed it cannot be unpublished.
  *
  * Tuned to stay quiet on market data. A district name, a price per square metre
  * and a threshold inside a resolution rule are the intended contents of this
