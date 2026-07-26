@@ -7,13 +7,15 @@
  *
  * Usage: npm run due [researchRoot] [today]
  */
+import { loadModules } from '../modules/registry.js';
 import { dueVerdicts, formatDueReport, localIsoDate } from '../research/due.js';
 import { loadResolvedVerdictIds, loadVerdicts } from '../research/load.js';
 
 const root = process.argv[2] ?? 'research';
 const today = process.argv[3] ?? localIsoDate(new Date());
 
-const due = dueVerdicts(loadVerdicts(root), loadResolvedVerdictIds(root), today);
+const registered = loadModules('modules').map((module) => module.id);
+const due = dueVerdicts(loadVerdicts(root, registered), loadResolvedVerdictIds(root), today);
 
 console.log(formatDueReport(due, today));
 process.exit(due.length === 0 ? 0 : 1);

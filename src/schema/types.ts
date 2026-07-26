@@ -1,5 +1,5 @@
 export type ResolutionSource = 'evds' | 'tuik' | 'listing_snapshot' | 'market_close';
-export type AssetClass = 'housing' | 'precious_metals' | 'fx' | 'equities';
+export type AssetClass = string;
 
 export interface Resolution {
   source: ResolutionSource;

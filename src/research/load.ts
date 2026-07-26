@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
+import { assertRegisteredAssetClass } from '../modules/asset-class.js';
 import { parseFrontmatter } from '../schema/frontmatter.js';
 import type { Outcome, Verdict } from '../schema/types.js';
 import { assertValid } from '../schema/validate.js';
@@ -63,7 +64,7 @@ function parseFile(path: string): ParsedVerdict {
  * the record is indistinguishable from one that was never made, and a track
  * record with silent holes in it is not a track record.
  */
-export function loadVerdicts(root: string): LoadedVerdict[] {
+export function loadVerdicts(root: string, registeredAssetClasses?: string[]): LoadedVerdict[] {
   if (!existsSync(root)) return [];
 
   const loaded: LoadedVerdict[] = [];
@@ -76,6 +77,16 @@ export function loadVerdicts(root: string): LoadedVerdict[] {
 
       if (basename(file, '.md') !== verdict.id) {
         throw new Error(`${path}: filename does not match the verdict id (${verdict.id})`);
+      }
+
+      if (registeredAssetClasses) {
+        try {
+          assertRegisteredAssetClass(verdict, registeredAssetClasses);
+        } catch (error) {
+          throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
+            cause: error,
+          });
+        }
       }
 
       const previous = seen.get(verdict.id);
