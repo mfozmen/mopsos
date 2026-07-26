@@ -10,6 +10,13 @@ file and directory names, and this repository's own docs. Turkish domain data �
 names, TCMB/TÜİK series codes, TRY amounts — stays in its original form. That is data, not
 a language choice.
 
+**The application UI is the one exception: it is in Turkish.** There is exactly one user,
+they read Turkish, and every proper noun on screen is Turkish already — district names,
+TCMB series, TRY amounts. An English shell around Turkish content would mean translating in
+your head on the one surface that is supposed to be effortless to read. This does not leak
+into the codebase: identifiers, comments, tests and docs stay English, and user-facing
+strings live behind a single module rather than being scattered inline.
+
 ## 1. What the product is
 
 Mopsos is a single-user personal investment research tool with a **prediction track record**.
