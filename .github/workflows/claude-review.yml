@@ -1,0 +1,95 @@
+name: Claude Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Claude review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    # A boolean, not the key — see the same note in ci.yml. Only the action step
+    # below receives the actual secret.
+    env:
+      HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Not configured
+        if: env.HAS_ANTHROPIC_API_KEY == 'false'
+        run: echo "::warning::Claude review skipped - ANTHROPIC_API_KEY is not set."
+
+      - uses: anthropics/claude-code-action@c96dd0a84e0232ab86947fca5fe34f1caae8792f # v1
+        if: env.HAS_ANTHROPIC_API_KEY == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Read-only tools. This job comments; it never edits the branch.
+          claude_args: --allowedTools Read,Grep,Glob
+          prompt: |
+            Review this pull request. Read CLAUDE.md first — it defines the
+            product rules this repository exists to enforce.
+
+            Three things matter more than general code quality here. Check them
+            first and report them first.
+
+            1. VERDICT MEASURABILITY
+               A verdict is a prediction with a probability and a due date. It is
+               worthless unless a machine can decide later whether it was right.
+               Flag:
+               - any verdict without a complete `resolution` block (source,
+                 series, reference_period, check_after, rule, print)
+               - a `rule` that is not exactly one comparison, or that needs human
+                 judgement to evaluate ("meaningfully higher", "around 40")
+               - `check_after` that looks derived from the calendar month rather
+                 than the publication calendar. TCMB's house price index appears
+                 roughly 15 days after the reference period ends, so a date that
+                 lands on the period boundary is a bug.
+               - a missing or non-`first` `print` value. Series get revised
+                 retroactively; scoring against a revised print silently rewrites
+                 history.
+               - validation code that lets an incomplete verdict through, or
+                 downgrades a validation failure to a warning.
+
+            2. SCORING INTEGRITY
+               The track record is the reason this project exists, and it is only
+               worth something if it cannot be improved after the fact. Flag:
+               - any code path that edits or deletes an already recorded verdict,
+                 outcome or score, rather than appending a correcting record
+               - Brier scoring that is not a pure function of (probability,
+                 outcome), or that special-cases unresolved verdicts into looking
+                 good instead of leaving them unscored
+               - resolution logic that re-reads a live series instead of the
+                 stored first print
+               - aggregation that quietly drops missed verdicts, or that mixes
+                 horizons or asset classes that should be scored separately
+               - anything that makes a seer's record depend on when it is read
+
+            3. PERSONAL DATA LEAKAGE
+               This repository is public and belongs to one person. Flag any
+               commit containing: monetary amounts tied to the author, portfolio
+               or savings size, income, bank or brokerage account details, a home
+               address, a national ID (TCKN), a phone number, or anything
+               identifying one specific property being considered. Generic market
+               data is fine — "median price per m2 for 3+1 flats in Menemen" is
+               the intended shape. Also flag any real credential, and anything
+               that appears to have been copied out of `private/`.
+
+            After those three, note ordinary correctness and clarity problems, but
+            keep them brief.
+
+            Be specific: file and line, what is wrong, what to do instead. If a
+            change looks fine, say so in one line rather than inventing findings.
+            Post one review comment.
