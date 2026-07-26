@@ -17,7 +17,9 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": {
+      "const": 1
+    },
     "id": {
       "description": "Stable identifier, also the filename stem. Never reused, never renamed.",
       "type": "string",
@@ -29,8 +31,9 @@
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
     },
     "asset_class": {
+      "description": "Checked against the registered modules rather than listed here. A closed list would mean adding an asset class requires a schema edit, which contradicts the registry's whole point — see src/modules/asset-class.ts.",
       "type": "string",
-      "enum": ["housing", "precious_metals", "fx", "equities"]
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
     },
     "question": {
       "description": "The question in full, as a sentence. Long enough that it cannot be a fragment like 'gold up?'.",
@@ -43,7 +46,10 @@
       "exclusiveMinimum": 0,
       "exclusiveMaximum": 1
     },
-    "created_at": { "type": "string", "format": "date" },
+    "created_at": {
+      "type": "string",
+      "format": "date"
+    },
     "due_at": {
       "description": "When the question is about. Distinct from resolution.check_after, which is when the answer can first be read.",
       "type": "string",

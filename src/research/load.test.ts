@@ -169,3 +169,23 @@ describe('loadResolvedVerdictIds', () => {
     expect(() => loadResolvedVerdictIds(dir)).toThrow(/broken\.md/);
   });
 });
+
+describe('asset class checking during load', () => {
+  it('refuses a verdict citing a class with no module', () => {
+    const dir = research();
+    writeVerdict(
+      join(dir, '2026-07-26-menemen'),
+      '2026-07-26-housing-tr-kfe-q3.md',
+      VERDICT.replace('asset_class: housing', 'asset_class: housng'),
+    );
+
+    expect(() => loadVerdicts(dir, ['housing', 'fx'])).toThrow(/housng/);
+  });
+
+  it('accepts it when the module exists', () => {
+    const dir = research();
+    writeVerdict(join(dir, '2026-07-26-menemen'), '2026-07-26-housing-tr-kfe-q3.md');
+
+    expect(loadVerdicts(dir, ['housing'])).toHaveLength(1);
+  });
+});
