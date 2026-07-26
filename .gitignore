@@ -1,5 +1,7 @@
 # Personal data — never committed. See SECURITY.md.
-private/
+# The directory's own README is the exception, so the rule is visible in the repo.
+private/*
+!private/README.md
 
 # Secrets
 .env

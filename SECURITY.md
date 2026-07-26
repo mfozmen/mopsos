@@ -23,7 +23,7 @@ Personal material belongs in `private/`, which is git-ignored. Secrets belong in
 which is also git-ignored; `.env.example` documents the keys without their values.
 
 Research output must stay generic and anonymous. "Average price per m² for 3+1 flats in
-Menemen" is publishable. "My 2.4M TRY savings" is not.
+Menemen" is publishable. "My 2.4M TRY savings" is not. <!-- scan-ignore: example -->
 
 ## Enforcement
 
