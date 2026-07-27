@@ -1,36 +1,131 @@
-export interface ModuleTab {
+export interface Tab {
   id: string;
   name: string;
-  status: 'configured' | 'incomplete' | 'empty';
+  /** Shown when the panel has nothing in it yet. */
+  emptyState: string;
 }
 
-export interface OpenVerdict {
+/** The minimum a module has to declare for the interface to place it. */
+export interface TabModule {
   id: string;
-  seer: string;
-  asset_class: string;
-  question: string;
-  probability: number;
-  horizon_days: number;
-  check_after: string;
-  is_probe: boolean;
+  label_tr: string;
+  kind: 'target' | 'instrument';
+}
+
+const KONUT_EMPTY =
+  'Henüz araştırma yok. Bir il ve ilçe seçip agent’ı gönderdiğinde bulduğu mahalle fiyatları, kira getirileri ve piyasa altı ilanlar burada birikir.';
+
+const FINANSMAN: Tab = {
+  id: 'finansman',
+  name: 'Finansman',
+  emptyState: 'Hesaplayıcı hazırlanıyor.',
+};
+
+const SICIL: Tab = {
+  id: 'sicil',
+  name: 'Sicil',
+  emptyState:
+    'Henüz ölçülmüş bir öngörü yok. Agent’ın vadesi gelen ilk tahmini ölçüldüğünde sicil burada başlar.',
+};
+
+/**
+ * What each instrument tab is for.
+ *
+ * Every one of them answers the same question from a different angle: while the
+ * down payment grows, is this a better place for it than the alternatives? None
+ * of them is here as an investment in its own right, and the empty states say so
+ * — a tab that does not explain why it exists gets filled with whatever is easy
+ * to measure rather than whatever matters.
+ */
+const INSTRUMENT_EMPTY: Record<string, string> = {
+  precious_metals:
+    'Henüz kurulmadı. Gram altın ve gümüşün TL getirisi buraya gelecek — peşinat biriktirirken paranın burada durmasının konut fiyatlarına karşı kazandırıp kazandırmadığı sorusu.',
+  fx: 'Henüz kurulmadı. Kur ve TL mevduat faizi yan yana gelecek — peşinatı dövizde tutmanın, faizde tutmanın ve konut fiyat artışının karşılaştırması.',
+  equities:
+    'Henüz kurulmadı. BIST endeksleri ve izlediğin hisseler buraya gelecek. Vadesi peşinat hedefinden kısa olan para için.',
+  funds:
+    'Henüz kurulmadı. Yatırım fonları ve gayrimenkul sertifikaları buraya gelecek — Damla Kent gibi projeler dahil. Daireyi bütün almak yerine sertifika biriktirip sonra daireye çevirme yolu da bir seçenek.',
+};
+
+function instrumentTab(module: TabModule): Tab {
+  return {
+    id: module.id,
+    name: module.label_tr,
+    emptyState:
+      INSTRUMENT_EMPTY[module.id] ??
+      `Henüz kurulmadı. ${module.label_tr} getirileri buraya gelecek.`,
+  };
+}
+
+/**
+ * The tab strip, built from the registry rather than written out here.
+ *
+ * Konut first because it is the goal, Finansman second because it is how the
+ * goal gets paid for, then every instrument the registry knows about, and Sicil
+ * last because it looks backwards rather than forwards.
+ *
+ * Instruments come from the registry so that adding one stays a matter of adding
+ * a folder. A list written here would quietly make that untrue.
+ */
+export function buildTabs(modules: TabModule[]): Tab[] {
+  const target = modules.find((module) => module.kind === 'target');
+  const instruments = modules.filter((module) => module.kind === 'instrument');
+
+  return [
+    { id: 'konut', name: target?.label_tr ?? 'Konut', emptyState: KONUT_EMPTY },
+    FINANSMAN,
+    ...instruments.map(instrumentTab),
+    SICIL,
+  ];
+}
+
+export interface Neighbourhood {
+  name: string;
+  sale_per_m2: number;
+  rent_per_m2: number;
+  /** Annual gross rental yield, as a fraction. */
+  gross_yield: number;
+  listing_count: number;
+  /** Where the figures came from. A figure with no source does not get shown. */
+  source: string;
+}
+
+export interface ResearchReport {
+  place: string;
+  /** ISO date the research was done. */
+  dated: string;
+  neighbourhoods: Neighbourhood[];
+}
+
+export interface InstrumentReturn {
+  /** Module id the figure belongs to. */
+  module: string;
+  name: string;
+  annual_return: number;
+  source: string;
 }
 
 export interface SeerRecord {
   seer: string;
-  /** Records are never compared across classes, so the class is part of one. */
-  asset_class: string;
   count: number;
   brier: number;
-  /** Mean stated confidence. */
   predicted: number;
-  /** Fraction that actually happened. */
   observed: number;
 }
 
+export interface FinanceBundle {
+  /** The compiled mortgage module, so the page and the tests share one implementation. */
+  bundle: string;
+  /** The pinned BDDK rules, applied identically in the browser. */
+  rules: unknown;
+}
+
 export interface PageData {
-  modules: ModuleTab[];
-  verdicts: OpenVerdict[];
+  modules: TabModule[];
+  research: ResearchReport[];
+  instruments: InstrumentReturn[];
   records: SeerRecord[];
+  finance: FinanceBundle;
 }
 
 function escape(value: string): string {
@@ -41,122 +136,257 @@ function escape(value: string): string {
     .replaceAll('"', '&quot;');
 }
 
+/** Turkish number formatting: 48.500 rather than 48,500. */
+function tl(value: number): string {
+  return value.toLocaleString('tr-TR', { maximumFractionDigits: 0 });
+}
+
+function percent(fraction: number): string {
+  return `%${(fraction * 100).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}`;
+}
+
 function turkishDate(iso: string): string {
   const [year = '', month = '', day = ''] = iso.split('-');
   return `${day}.${month}.${year}`;
 }
 
-function horizonLabel(days: number): string {
-  if (days < 60) return `${days} gün`;
-  if (days < 400) return `${Math.round(days / 30)} ay`;
-  return `${(days / 365).toFixed(1)} yıl`;
-}
-
-/**
- * The one call the tab is about: the longest-horizon open verdict.
- *
- * Probes are excluded deliberately. They exist to calibrate a seer, not to be
- * acted on, and leading with one would put a four-week technicality where the
- * actual decision belongs.
- */
-function headline(verdicts: OpenVerdict[]): OpenVerdict | undefined {
-  return [...verdicts]
-    .filter((verdict) => !verdict.is_probe)
-    .sort((a, b) => b.horizon_days - a.horizon_days)[0];
-}
-
-/**
- * The signature element: what the seer said and what actually happened, as two
- * marks on one line. The distance between them is the calibration, shown rather
- * than described — a seer saying 90% and being right 60% of the time has a
- * visible gap, and no number needs to explain it.
- */
-function reckoningLine(record: SeerRecord): string {
-  const said = Math.round(record.predicted * 100);
-  const happened = Math.round(record.observed * 100);
-
+function neighbourhoodRow(neighbourhood: Neighbourhood): string {
   return `
-      <div class="reckoning" role="img"
-           aria-label="Ortalama dediği yüzde ${said}, gerçekleşme oranı yüzde ${happened}">
-        <span class="scale-end left">%0</span>
-        <span class="scale-end right">%100</span>
-        <span class="reckoning-mark said" style="left:${said}%"><i>dedi %${said}</i></span>
-        <span class="reckoning-mark happened" style="left:${happened}%"><i>oldu %${happened}</i></span>
-      </div>`;
+          <tr>
+            <td>${escape(neighbourhood.name)}</td>
+            <td class="num">${tl(neighbourhood.sale_per_m2)}</td>
+            <td class="num">${tl(neighbourhood.rent_per_m2)}</td>
+            <td class="num">${percent(neighbourhood.gross_yield)}</td>
+            <td class="num">${tl(neighbourhood.listing_count)}</td>
+            <td class="src">${escape(neighbourhood.source)}</td>
+          </tr>`;
 }
 
-function verdictRow(verdict: OpenVerdict): string {
+function reportSection(report: ResearchReport): string {
   return `
-        <tr>
-          <td class="q">${escape(verdict.question)}
-            ${verdict.is_probe ? '<span class="tag">prob</span>' : ''}
-          </td>
-          <td class="num">%${Math.round(verdict.probability * 100)}</td>
-          <td class="who">${escape(verdict.seer)}</td>
-          <td class="when">${turkishDate(verdict.check_after)}</td>
-        </tr>`;
+      <h3>${escape(report.place)}<span class="dated">${turkishDate(report.dated)}</span></h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Mahalle</th>
+            <th class="num">m² satış</th>
+            <th class="num">m² kira</th>
+            <th class="num">Getiri</th>
+            <th class="num">İlan</th>
+            <th class="src">Kaynak</th>
+          </tr>
+        </thead>
+        <tbody>${report.neighbourhoods.map(neighbourhoodRow).join('')}
+        </tbody>
+      </table>`;
 }
+
+const FINANCE_FORM = `
+      <form id="finance" autocomplete="off">
+        <div class="fields">
+          <label>Aylık ödeyebileceğin<input id="budget" type="text" inputmode="decimal" value="60.000"><span>₺</span></label>
+          <label>Peşinat<input id="downPayment" type="text" inputmode="decimal" value="1.000.000"><span>₺</span></label>
+          <label>Baktığın ev fiyatı<input id="price" type="text" inputmode="decimal" value="3.500.000"><span>₺</span></label>
+          <label>Aylık faiz<input id="rate" type="text" inputmode="decimal" value="2,79"><span>%</span></label>
+          <label>Vade<input id="months" type="text" inputmode="numeric" value="120"><span>ay</span></label>
+          <label>Üzerine kayıtlı ev<select id="ownsHome">
+            <option value="no" selected>Yok</option>
+            <option value="yes">Var</option>
+          </select></label>
+          <label>Enerji sınıfı<select id="energyClass">
+            <option value="A_B">A veya B</option>
+            <option value="C">C</option>
+            <option value="OTHER" selected>D ve altı / bilinmiyor</option>
+          </select></label>
+        </div>
+      </form>
+
+      <div class="answers">
+        <section class="answer">
+          <h4>Bu bütçeyle en fazla</h4>
+          <p class="big" id="maxPrice">—</p>
+          <p class="note" id="maxPriceNote"></p>
+        </section>
+        <section class="answer">
+          <h4>Baktığın ev için aylık</h4>
+          <p class="big" id="payment">—</p>
+          <p class="note" id="paymentNote"></p>
+        </section>
+      </div>
+
+      <dl class="breakdown" id="breakdown"></dl>
+
+      <p class="caveat">
+        Üzerine kayıtlı bir ev varsa kredi oranı <strong>%75 azaltılır</strong> (BDDK 10656) —
+        eş ve 18 yaş altı çocuklar dahil. Kredi oranı satış fiyatına değil <strong>ekspertiz
+        değerine</strong> uygulanır ve ekspertiz
+        çoğu zaman istenen fiyatın altında çıkar — gerçekte çekebileceğin kredi buradakinden düşük
+        olabilir. Konut kredisinde <strong>BSMV yoktur</strong> (5582 sayılı kanun) ve KKDF de
+        uygulanmaz (88/12944 sayılı BKK — bu ikincisini birincil kaynaktan doğrulayamadık),
+        o yüzden hesaba vergi eklenmez; ihtiyaç kredisi için aynısı geçerli değildir. Vade için
+        <strong>yasal bir üst sınır yoktur</strong> — 120 ay bankaların yaygın uygulaması. Sigorta, ekspertiz ve
+        ipotek masrafları dahil değildir.
+      </p>`;
 
 function recordRow(record: SeerRecord): string {
   return `
-      <li class="record">
-        <div class="record-head">
-          <span class="who">${escape(record.seer)}</span>
-          <span class="brier">${record.brier.toFixed(2)}<em>brier</em></span>
-          <span class="count">${record.count} ölçülmüş tahmin</span>
-        </div>
-        ${reckoningLine(record)}
-      </li>`;
+          <tr>
+            <td>${escape(record.seer)}</td>
+            <td class="num">${record.brier.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="num">${percent(record.predicted)}</td>
+            <td class="num">${percent(record.observed)}</td>
+            <td class="num">${tl(record.count)}</td>
+          </tr>`;
 }
 
-function modulePanel(module: ModuleTab, verdicts: OpenVerdict[], records: SeerRecord[]): string {
-  if (verdicts.length === 0) {
-    const reason =
-      module.status === 'incomplete'
-        ? 'Bu sınıfta tek seer tanımlı. İkinci seer eklenene kadar sicil bir şey ölçmez.'
-        : 'Henüz kurulmadı. Bu sınıf için seer tanımlanınca açılır.';
-    return `
-      <p class="empty">${reason}</p>`;
-  }
-
-  const lead = headline(verdicts);
-  const record = lead ? records.find((entry) => entry.seer === lead.seer) : undefined;
-
-  const head = lead
-    ? `
-      <p class="eyebrow">Şu anki çağrı</p>
-      <div class="headline">
-        <p class="headline-question">${escape(lead.question)}</p>
-        <p class="headline-number"><span>%</span>${Math.round(lead.probability * 100)}</p>
-      </div>
-      <p class="headline-meta">${
-        record
-          ? `${escape(lead.seer)} · ${record.count} ölçülmüş tahminde brier ${record.brier.toFixed(2)}`
-          : `${escape(lead.seer)} · henüz ölçülmüş tahmini yok`
-      } · ${horizonLabel(lead.horizon_days)} · ${turkishDate(lead.check_after)} tarihinde ölçülür</p>`
-    : `
-      <p class="eyebrow">Şu anki çağrı</p>
-      <p class="empty">Açık uzun vadeli çağrı yok. Aşağıdakiler yalnızca seer’ı ölçen kalibrasyon probları.</p>`;
-
-  return `${head}
-
-      <h2>Açık tahminler</h2>
+function recordTable(records: SeerRecord[]): string {
+  return `
       <table>
         <thead>
-          <tr><th>Soru</th><th class="num">Olasılık</th><th class="who">Seer</th><th class="when">Ölçüm günü</th></tr>
+          <tr>
+            <th>Agent</th>
+            <th class="num">Brier</th>
+            <th class="num">Dediği</th>
+            <th class="num">Olan</th>
+            <th class="num">Ölçülen</th>
+          </tr>
         </thead>
-        <tbody>${verdicts.map(verdictRow).join('')}
+        <tbody>${records.map(recordRow).join('')}
         </tbody>
-      </table>
-
-      <h2>Sicil</h2>
-      ${
-        records.length === 0
-          ? '<p class="empty">Henüz ölçülmüş tahmin yok. Sicil, ilk tahminin vadesi geldiğinde başlar.</p>'
-          : `<ul class="records">${records.map(recordRow).join('')}
-      </ul>`
-      }`;
+      </table>`;
 }
+
+function instrumentTable(returns: InstrumentReturn[]): string {
+  return `
+      <table>
+        <thead>
+          <tr><th>Araç</th><th class="num">Yıllık getiri</th><th class="src">Kaynak</th></tr>
+        </thead>
+        <tbody>${returns
+          .map(
+            (entry) => `
+          <tr>
+            <td>${escape(entry.name)}</td>
+            <td class="num">${percent(entry.annual_return)}</td>
+            <td class="src">${escape(entry.source)}</td>
+          </tr>`,
+          )
+          .join('')}
+        </tbody>
+      </table>`;
+}
+
+function panelBody(tab: Tab, data: PageData): string {
+  const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
+
+  if (tab.id === 'finansman') return FINANCE_FORM;
+
+  if (tab.id === 'konut') {
+    return data.research.length === 0 ? empty : data.research.map(reportSection).join('');
+  }
+
+  if (tab.id === 'sicil') {
+    // No number at all when nothing has been measured: zero is the best possible
+    // Brier score and an unmeasured agent must not appear to have earned it.
+    return data.records.length === 0 ? empty : recordTable(data.records);
+  }
+
+  const returns = data.instruments.filter((entry) => entry.module === tab.id);
+  return returns.length === 0 ? empty : instrumentTable(returns);
+}
+
+/**
+ * The calculator, running against the same compiled module the tests run
+ * against. Nothing here posts, stores or persists what is typed: amounts are
+ * personal data, and this page is generated from a public repository.
+ */
+const FINANCE_SCRIPT = `
+  const rules = window.__MOPSOS_RULES__;
+  const M = window.Mortgage;
+  const $ = (id) => document.getElementById(id);
+  // Reading and writing numbers comes from the compiled module rather than from
+  // hand-written lines in this string. That is where the last silent bug came
+  // from: one backslash too few left /./g in the page, a regex matching every
+  // character, and every field quietly read as zero.
+  const money = M.formatTry;
+  const num = M.parseTurkishNumber;
+
+  function run() {
+    const budget = num($('budget').value);
+    const downPayment = num($('downPayment').value);
+    const price = num($('price').value);
+    const rate = num($('rate').value);
+    const months = Math.round(num($('months').value));
+    const energyClass = $('energyClass').value;
+    const ownsHome = $('ownsHome').value === 'yes';
+
+    const fail = (message) => {
+      $('maxPrice').textContent = '—';
+      $('payment').textContent = '—';
+      $('maxPriceNote').textContent = '';
+      $('paymentNote').textContent = message;
+      $('breakdown').innerHTML = '';
+    };
+
+    if ([budget, downPayment, price, rate].some(Number.isNaN) || Number.isNaN(months)) {
+      return fail('Sayıları kontrol et.');
+    }
+
+    // Checked here rather than by catching the module's error: that error is
+    // written for whoever reads the code, and this interface is Turkish. The
+    // number still comes from the pinned rules, so there is one source for it.
+    if (months < 1) return fail('Vade en az 1 ay olmalı.');
+    if (months > rules.term.conventional_max_months) {
+      return fail('Bankalar konut kredisinde genelde en fazla ' +
+        rules.term.conventional_max_months + ' ay veriyor. Yasal bir üst sınır yok.');
+    }
+
+    try {
+      const reachable = M.affordability({ rules, monthlyBudget: budget, downPayment,
+        monthlyRatePercent: rate, months, energyClass, ownsHome });
+      $('maxPrice').textContent = money(reachable);
+      $('maxPriceNote').textContent = reachable <= downPayment
+        ? 'Bu bütçe krediyi çevirmiyor; ancak peşinatın kadarına bakabilirsin.'
+        : 'Peşinat ' + money(downPayment) + ' + kredi ' + money(reachable - downPayment);
+    } catch (error) {
+      $('maxPrice').textContent = '—';
+      $('maxPriceNote').textContent = error.problems ? error.problems.join(' ') : error.message;
+    }
+
+    const ratio = M.maxLoanToValue(rules, price, energyClass, { ownsHome });
+    const cap = M.maxLoan(rules, price, energyClass, { ownsHome });
+    const wanted = price - downPayment;
+    const loan = Math.max(0, Math.min(wanted, cap));
+
+    if (loan <= 0) {
+      $('payment').textContent = money(0);
+      $('paymentNote').textContent = 'Peşinat fiyatı zaten karşılıyor.';
+      $('breakdown').innerHTML = '';
+      return;
+    }
+
+    const payment = M.monthlyPayment(loan, rate, months);
+    $('payment').textContent = money(payment);
+    $('paymentNote').textContent = wanted > cap
+      ? 'Bu fiyat ve enerji sınıfında kredi en fazla ' + money(cap) + '. En az ' +
+        money(M.minDownPayment(rules, price, energyClass, { ownsHome })) + ' peşinat gerekiyor.'
+      : (payment > budget ? 'Aylık bütçenin üzerinde.' : 'Aylık bütçenin içinde.');
+
+    const rows = [
+      ['Kredi', money(loan)],
+      ['Kredi / değer oranı', '%' + (ratio * 100).toLocaleString('tr-TR') +
+        (ownsHome ? ' (mevcut ev nedeniyle dörtte bire indi)' : '')],
+      ['Toplam geri ödeme', money(M.totalRepayment(loan, rate, months))],
+      ['Toplam faiz', money(M.totalInterest(loan, rate, months))],
+    ];
+    $('breakdown').innerHTML = rows
+      .map(([term, value]) => '<dt>' + term + '</dt><dd>' + value + '</dd>')
+      .join('');
+  }
+
+  $('finance').addEventListener('input', run);
+  run();
+`;
 
 const STYLE = `
   :root {
@@ -172,114 +402,129 @@ const STYLE = `
     --mono: Consolas, ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--ground); color: var(--ink);
-    font-family: var(--sans); font-size: 15px; line-height: 1.55;
-  }
-  .wrap { max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
-  header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  body { margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
   .brand small { display: block; font-family: var(--sans); font-size: .7rem; letter-spacing: .16em;
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
-  nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
-  nav a { font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
-    color: var(--muted); padding-bottom: .25rem; border-bottom: 2px solid transparent; }
-  nav a[aria-current] { color: var(--ink); border-bottom-color: var(--measured); }
-  nav a:focus-visible { outline: 2px solid var(--measured); outline-offset: 3px; }
-  main { margin-top: 3.5rem; }
-  .eyebrow { font-size: .7rem; letter-spacing: .18em; text-transform: uppercase;
-    color: var(--muted); font-weight: 600; margin: 0 0 .75rem; }
-  .headline { display: flex; align-items: flex-start; justify-content: space-between; gap: 2rem; }
-  .headline-question { font-family: var(--serif); font-size: 1.9rem; line-height: 1.25;
-    margin: 0; max-width: 30rem; text-wrap: balance; }
-  .headline-number { font-family: var(--serif); font-size: 3.6rem; line-height: 1; margin: 0;
-    font-variant-numeric: oldstyle-nums; color: var(--measured); white-space: nowrap; }
-  .headline-number span { font-size: 1.4rem; vertical-align: .9rem; color: var(--muted); }
-  .headline-meta { color: var(--muted); font-size: .85rem; margin: 1rem 0 0;
-    padding-top: 1rem; border-top: 1px solid var(--line); }
-  h2 { font-family: var(--sans); font-size: .72rem; letter-spacing: .18em; text-transform: uppercase;
-    color: var(--muted); font-weight: 600; margin: 3.5rem 0 .9rem; }
-  h2.class-name { color: var(--ink); font-size: .78rem; margin-top: 4.5rem;
-    padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
-  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-  th { text-align: left; font-weight: 600; font-size: .68rem; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--muted); padding: 0 0 .5rem; border-bottom: 1px solid var(--line); }
-  td { padding: .8rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-  td.q { padding-right: 1.5rem; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
-    padding-right: 1.75rem; }
-  td.num { font-family: var(--serif); font-size: 1.05rem; }
-  th.who, th.when { padding-right: 0; }
-  .who { font-family: var(--mono); font-size: .78rem; color: var(--muted); white-space: nowrap;
-    padding-right: 1.75rem; }
-  .when { font-family: var(--mono); font-size: .78rem; color: var(--muted); white-space: nowrap;
-    text-align: right; }
-  .tag { font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--pending);
-    border: 1px solid var(--pending); border-radius: 2px; padding: .05rem .3rem; margin-left: .4rem;
-    white-space: nowrap; }
-  .records { list-style: none; margin: 0; padding: 0; }
-  .record { padding: 1.1rem 0 1.6rem; border-bottom: 1px solid var(--line); }
-  .record-head { display: flex; align-items: baseline; gap: .9rem; }
-  .record-head .brier { font-family: var(--serif); font-size: 1.5rem; font-variant-numeric: oldstyle-nums; }
-  .record-head .brier em { font-style: normal; font-family: var(--sans); font-size: .62rem;
-    letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-left: .35rem; }
-  .record-head .count { font-size: .8rem; color: var(--muted); margin-left: auto; }
-  .reckoning { position: relative; height: 2.9rem; margin-top: 1.6rem;
-    border-top: 1px solid var(--line); }
-  .scale-end { position: absolute; bottom: 0; font-size: .62rem; color: var(--muted);
-    font-variant-numeric: tabular-nums; }
-  .scale-end.left { left: 0; }
-  .scale-end.right { right: 0; }
-  .reckoning-mark { position: absolute; top: -1px; transform: translateX(-50%); }
-  .reckoning-mark::before { content: ""; display: block; width: 1px; height: .7rem;
-    margin: 0 auto; background: currentColor; }
-  .reckoning-mark i { display: block; font-style: normal; font-size: .65rem; letter-spacing: .1em;
-    text-transform: uppercase; margin-top: .2rem; white-space: nowrap; }
-  .reckoning-mark.said { color: var(--pending); }
-  .reckoning-mark.happened { color: var(--measured); z-index: 1; }
-  .reckoning-mark.happened i { margin-top: 1.15rem; }
-  .reckoning-mark.happened::before { height: 1.85rem; }
+  [role="tablist"] { display: flex; gap: .35rem; flex-wrap: wrap; margin: 2.5rem 0 0;
+    border-bottom: 1px solid var(--line); }
+  [role="tab"] { font: inherit; font-size: .82rem; letter-spacing: .06em; background: none;
+    border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer;
+    padding: .5rem .9rem; margin-bottom: -1px; }
+  [role="tab"]:hover { color: var(--ink); }
+  [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--measured);
+    font-weight: 600; }
+  [role="tab"]:focus-visible { outline: 2px solid var(--measured); outline-offset: -2px; }
+  [role="tabpanel"] { padding-top: 2.5rem; }
+  [role="tabpanel"][hidden] { display: none; }
+  h3 { font-family: var(--serif); font-size: 1.35rem; font-weight: normal; margin: 0 0 1rem;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  h3 .dated { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 2.5rem; }
+  th { text-align: left; font-weight: 600; font-size: .66rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding: 0 1rem .5rem 0;
+    border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: .75rem 1rem .75rem 0; border-bottom: 1px solid var(--line); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.num { font-family: var(--serif); font-size: 1rem; }
+  .src { font-family: var(--mono); font-size: .75rem; color: var(--muted); padding-right: 0; }
   .empty { color: var(--muted); font-family: var(--serif); font-size: 1.05rem;
-    background: var(--surface); border: 1px solid var(--line); padding: 1.25rem 1.4rem; margin: 0; }
+    background: var(--surface); border: 1px solid var(--line); padding: 1.25rem 1.4rem; margin: 0;
+    max-width: 40rem; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1.1rem 1.5rem; margin-bottom: 2.5rem; }
+  .fields label { display: grid; grid-template-columns: 1fr auto; gap: .3rem .5rem;
+    font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    font-weight: 600; align-items: center; }
+  .fields input, .fields select { grid-column: 1; font: inherit; font-family: var(--serif);
+    font-size: 1.15rem; text-transform: none; letter-spacing: 0; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 2px;
+    padding: .45rem .6rem; width: 100%; }
+  .fields select { font-size: .95rem; }
+  .fields input:focus-visible, .fields select:focus-visible { outline: 2px solid var(--measured);
+    outline-offset: 1px; }
+  .fields span { grid-column: 2; grid-row: 2; font-family: var(--serif); font-size: 1rem;
+    text-transform: none; letter-spacing: 0; }
+  .answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 2rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+  .answer h4 { margin: 0 0 .4rem; font-size: .7rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; }
+  .big { font-family: var(--serif); font-size: 2.4rem; line-height: 1.1; margin: 0;
+    color: var(--measured); font-variant-numeric: oldstyle-nums; }
+  .note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
+  .breakdown { display: grid; grid-template-columns: 1fr auto; gap: .55rem 2rem; margin: 2.5rem 0 0;
+    padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
+  .breakdown dt { color: var(--muted); }
+  .breakdown dd { margin: 0; text-align: right; font-family: var(--serif); font-size: 1.05rem;
+    font-variant-numeric: tabular-nums; }
+  .caveat { margin: 2.5rem 0 0; padding: 1.1rem 1.3rem; background: var(--surface);
+    border-left: 2px solid var(--pending); font-size: .85rem; color: var(--muted); }
+  .caveat strong { color: var(--ink); font-weight: 600; }
   footer { margin-top: 5rem; padding-top: 1rem; border-top: 1px solid var(--line);
     font-size: .75rem; color: var(--muted); }
-  @media (max-width: 34rem) {
-    .headline { flex-direction: column; gap: .75rem; }
-    .headline-question { font-size: 1.5rem; }
-    .who, .when { display: none; }
+  @media (max-width: 34rem) { .src { display: none; } }
+`;
+
+/**
+ * Tab switching, and nothing else.
+ *
+ * Without scripting every panel stays visible, which is a worse layout but still
+ * the whole page — the content never depends on the script having run.
+ */
+const SCRIPT = `
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const select = (id) => {
+    for (const tab of tabs) {
+      const chosen = tab.dataset.tab === id;
+      tab.setAttribute('aria-selected', String(chosen));
+      tab.tabIndex = chosen ? 0 : -1;
+      document.getElementById('panel-' + tab.dataset.tab).hidden = !chosen;
+    }
+    history.replaceState(null, '', '#' + id);
+  };
+  for (const tab of tabs) tab.addEventListener('click', () => select(tab.dataset.tab));
+  document.querySelector('[role="tablist"]').addEventListener('keydown', (event) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    if (!step) return;
+    const current = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+    const next = tabs[(current + step + tabs.length) % tabs.length];
+    next.focus();
+    select(next.dataset.tab);
+  });
+  if (location.hash) {
+    const wanted = location.hash.slice(1);
+    if (tabs.some((tab) => tab.dataset.tab === wanted)) select(wanted);
   }
 `;
 
 /**
  * The whole page, as one self-contained document.
  *
- * Read-only by construction: it is generated from the repository and has no way
- * to write back. Nothing is loaded from the network either, so it opens from a
- * file and keeps working with no connection.
+ * Read-only by construction: generated from the record, with no way to write
+ * back to it, and nothing loaded from the network.
  */
 export function renderPage(data: PageData): string {
-  const first = data.modules[0];
-  const tabs = data.modules
+  const tabs = buildTabs(data.modules);
+  const tablist = tabs
     .map(
-      (module) =>
-        `<a href="#${escape(module.id)}"${module.id === first?.id ? ' aria-current="page"' : ''}>${escape(module.name)}</a>`,
+      (tab, index) =>
+        `<button role="tab" id="tab-${tab.id}" data-tab="${tab.id}"
+                aria-controls="panel-${tab.id}" aria-selected="${index === 0}"
+                tabindex="${index === 0 ? 0 : -1}">${escape(tab.name)}</button>`,
     )
     .join('\n        ');
 
-  // Each class gets its own panel over its own verdicts and its own record.
-  // Filtering here rather than in the panel is what makes it impossible for one
-  // class's call to be presented as another's.
-  const panels = data.modules
-    .map((module, index) => {
-      const verdicts = data.verdicts.filter((verdict) => verdict.asset_class === module.id);
-      const records = data.records.filter((record) => record.asset_class === module.id);
-      const heading =
-        index === 0 ? '' : `\n        <h2 class="class-name">${escape(module.name)}</h2>`;
-
-      return `
-      <section id="${escape(module.id)}">${heading}${modulePanel(module, verdicts, records)}
-      </section>`;
-    })
+  const panels = tabs
+    .map(
+      (tab, index) => `
+      <section role="tabpanel" id="panel-${tab.id}" aria-labelledby="tab-${tab.id}"${
+        index === 0 ? '' : ' hidden'
+      }>${panelBody(tab, data)}
+      </section>`,
+    )
     .join('');
 
   return `<!doctype html>
@@ -293,20 +538,23 @@ export function renderPage(data: PageData): string {
 <body>
   <div class="wrap">
     <header>
-      <h1 class="brand">Mopsos<small>tahmin ve hesaplaşma</small></h1>
-      <nav>
-        ${tabs}
-      </nav>
+      <h1 class="brand">Mopsos<small>ev alma araştırması</small></h1>
     </header>
 
-    <main>${panels}
-    </main>
+    <div role="tablist" aria-label="Bölümler">
+        ${tablist}
+    </div>
+${panels}
 
     <footer>
-      Bu sayfa depodaki dosyalardan üretildi ve hiçbir şey yazmaz.
+      Bu sayfa kayıttan üretildi ve hiçbir şey yazmaz.
       Yeniden üretmek için: <code>npm run ui</code>
     </footer>
   </div>
+  <script>${data.finance.bundle}</script>
+  <script>window.__MOPSOS_RULES__ = ${JSON.stringify(data.finance.rules)};</script>
+  <script>${SCRIPT}</script>
+  <script>${FINANCE_SCRIPT}</script>
 </body>
 </html>
 `;

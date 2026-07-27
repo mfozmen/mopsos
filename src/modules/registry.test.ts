@@ -13,6 +13,9 @@ function definition(overrides: Partial<AssetModule> = {}): AssetModule {
   return {
     id: 'housing',
     name: 'Housing & Mortgage',
+    label_tr: 'Konut',
+    kind: 'target',
+    order: 0,
     horizon_days: { min: 180, max: 730 },
     sources: ['evds', 'tuik', 'listing_snapshot'],
     seers: ['cautious', 'contrarian'],
@@ -94,13 +97,40 @@ describe('completeness', () => {
 });
 
 describe('the modules committed to this repository', () => {
-  it('defines all four asset classes', () => {
-    expect(loadModules(MODULES_DIR).map((module) => module.id)).toEqual([
-      'equities',
-      'fx',
-      'housing',
-      'precious_metals',
+  it('returns the committed modules in the order the interface shows them', () => {
+    // Not alphabetical: sorting by folder name puts Hisse before Döviz, which
+    // is an ordering of English identifiers and means nothing to the reader.
+    expect(loadModules(MODULES_DIR).map((module) => module.label_tr)).toEqual([
+      'Konut',
+      'Altın & Gümüş',
+      'Döviz',
+      'Hisse',
+      'Fonlar',
     ]);
+  });
+
+  it('separates the thing being bought from the places money can wait', () => {
+    // Housing is the goal; the rest are where the down payment sits meanwhile.
+    // The interface is built on that distinction, so the data carries it.
+    const kinds = Object.fromEntries(
+      loadModules(MODULES_DIR).map((module) => [module.id, module.kind]),
+    );
+
+    expect(kinds).toEqual({
+      housing: 'target',
+      precious_metals: 'instrument',
+      fx: 'instrument',
+      equities: 'instrument',
+      funds: 'instrument',
+    });
+  });
+
+  it('carries a Turkish label for every module, since the interface is Turkish', () => {
+    // Kept in the module file rather than a map in the UI: a map would be one
+    // more central edit, and adding a class is meant to be adding a folder.
+    for (const module of loadModules(MODULES_DIR)) {
+      expect(module.label_tr).toBeTruthy();
+    }
   });
 
   it('has no configured module yet, since no seer exists anywhere', () => {
@@ -113,6 +143,7 @@ describe('the modules committed to this repository', () => {
 
     expect(status).toEqual({
       equities: 'empty',
+      funds: 'empty',
       fx: 'empty',
       housing: 'empty',
       precious_metals: 'empty',

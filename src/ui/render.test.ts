@@ -1,181 +1,274 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderPage, type PageData } from './render.js';
+import { buildTabs, renderPage, type PageData } from './render.js';
 
 const MODULES = [
-  { id: 'housing', name: 'Konut & Mortgage', status: 'empty' as const },
-  { id: 'fx', name: 'Döviz', status: 'empty' as const },
+  { id: 'housing', label_tr: 'Konut', kind: 'target' as const },
+  { id: 'precious_metals', label_tr: 'Altın & Gümüş', kind: 'instrument' as const },
+  { id: 'fx', label_tr: 'Döviz', kind: 'instrument' as const },
+  { id: 'equities', label_tr: 'Hisse', kind: 'instrument' as const },
+  { id: 'funds', label_tr: 'Fonlar', kind: 'instrument' as const },
 ];
 
-const VERDICT = {
-  id: '2026-07-26-housing-menemen-12m',
-  seer: 'cautious',
-  asset_class: 'housing',
-  question: 'Haziran 2027 konut fiyat endeksi 62.0 üzerinde olacak.',
-  probability: 0.58,
-  horizon_days: 339,
-  check_after: '2027-07-16',
-  is_probe: false,
-};
-
-const DATA: PageData = {
+const EMPTY: PageData = {
   modules: MODULES,
-  verdicts: [VERDICT],
+  research: [],
+  instruments: [],
   records: [],
+  finance: { bundle: 'var Mortgage = {};', rules: { term: { max_months: 120 } } },
 };
 
-describe('renderPage', () => {
-  it('names every asset class, so a tab is never silently missing', () => {
-    const html = renderPage(DATA);
+/**
+ * One panel's markup. Bounded by the next panel or the footer rather than the
+ * next `<section>`, because panels contain sections of their own.
+ */
+function panel(html: string, id: string): string {
+  const start = html.indexOf(`id="panel-${id}"`);
+  const next = html.indexOf('id="panel-', start + 1);
+  const end = next === -1 ? html.indexOf('<footer', start) : next;
+  return html.slice(start, end);
+}
 
-    expect(html).toContain('Konut &amp; Mortgage');
-    expect(html).toContain('Döviz');
+describe('the tabs', () => {
+  it('shows every tab, named in Turkish and safely escaped', () => {
+    const html = renderPage(EMPTY);
+
+    for (const tab of buildTabs(MODULES)) {
+      expect(html).toContain(tab.name.replaceAll('&', '&amp;'));
+    }
   });
 
-  it('leads with the headline call and its probability', () => {
-    const html = renderPage(DATA);
-
-    expect(html).toContain('Haziran 2027 konut fiyat endeksi 62.0 üzerinde olacak.');
-    expect(html).toContain('58');
+  it('opens on the thing being bought, then how to pay for it', () => {
+    expect(
+      buildTabs(MODULES)
+        .slice(0, 2)
+        .map((tab) => tab.id),
+    ).toEqual(['konut', 'finansman']);
   });
 
-  it('leads with the longest-horizon call, not a probe', () => {
-    const probe = {
-      ...VERDICT,
-      id: 'p',
-      question: 'Dört haftalık prob.',
-      horizon_days: 28,
-      is_probe: true,
-    };
-    const html = renderPage({ ...DATA, verdicts: [probe, VERDICT] });
-    const headline = html.indexOf('class="headline-question"');
-
-    expect(html.slice(headline, headline + 200)).toContain('Haziran 2027');
+  it('gives every instrument its own tab, in the order the registry lists them', () => {
+    // Adding an instrument is adding a folder. A hardcoded tab list here would
+    // quietly make that untrue.
+    expect(buildTabs(MODULES).map((tab) => tab.name)).toEqual([
+      'Konut',
+      'Finansman',
+      'Altın & Gümüş',
+      'Döviz',
+      'Hisse',
+      'Fonlar',
+      'Sicil',
+    ]);
   });
 
-  it('says a class is not configured rather than showing an empty chart', () => {
-    expect(renderPage({ ...DATA, verdicts: [] })).toContain('Henüz kurulmadı');
+  it('ends with Sicil, which is a look back rather than a decision', () => {
+    const tabs = buildTabs(MODULES);
+
+    expect(tabs[tabs.length - 1]?.id).toBe('sicil');
   });
 
-  it('says plainly that nothing has been scored yet', () => {
-    // An empty record must never look like a good record.
-    expect(renderPage(DATA)).toContain('Henüz ölçülmüş tahmin yok');
+  it('picks up an instrument nobody has thought of yet', () => {
+    const withCrypto = [
+      ...MODULES,
+      { id: 'crypto', label_tr: 'Kripto', kind: 'instrument' as const },
+    ];
+
+    expect(buildTabs(withCrypto).map((tab) => tab.id)).toContain('crypto');
   });
 
-  it('shows a seer record with its Brier score and calibration', () => {
-    const html = renderPage({
-      ...DATA,
-      records: [
-        {
-          seer: 'cautious',
-          asset_class: 'housing',
-          count: 6,
-          brier: 0.19,
-          predicted: 0.62,
-          observed: 0.5,
-        },
-      ],
-    });
+  it('marks exactly one tab selected', () => {
+    const html = renderPage(EMPTY);
+    // Anchored on the aria-label and searched forward from it: every role
+    // appears in the stylesheet too, and the stylesheet comes first.
+    const start = html.indexOf('aria-label="Bölümler"');
+    const tablist = html.slice(start, html.indexOf('role="tabpanel"', start));
 
-    expect(html).toContain('0.19');
-    expect(html).toContain('cautious');
+    expect(tablist.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(tablist.match(/aria-selected="false"/g)).toHaveLength(buildTabs(MODULES).length - 1);
   });
 
+  it('hides every panel except the first, so one tab is one screen', () => {
+    const html = renderPage(EMPTY);
+
+    expect(panel(html, 'konut')).not.toContain('hidden');
+    expect(panel(html, 'finansman')).toContain('hidden');
+  });
+
+  it('wires each tab to the panel it controls', () => {
+    const html = renderPage(EMPTY);
+
+    for (const tab of buildTabs(MODULES)) {
+      expect(html).toContain(`aria-controls="panel-${tab.id}"`);
+      expect(html).toContain(`id="panel-${tab.id}"`);
+    }
+  });
+
+  it('uses real tab semantics rather than links that scroll', () => {
+    const html = renderPage(EMPTY);
+
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('role="tab"');
+    expect(html).toContain('role="tabpanel"');
+  });
+});
+
+describe('the finance calculator', () => {
+  it('asks for what the reader knows: price, down payment, rate, term, energy class', () => {
+    const finansman = panel(renderPage(EMPTY), 'finansman');
+
+    for (const field of ['price', 'downPayment', 'rate', 'months', 'energyClass']) {
+      expect(finansman).toContain(`id="${field}"`);
+    }
+  });
+
+  it('asks for a monthly budget, since that is the question that was asked first', () => {
+    expect(panel(renderPage(EMPTY), 'finansman')).toContain('id="budget"');
+  });
+
+  it('carries the arithmetic into the page rather than reimplementing it', () => {
+    // One implementation of a payment formula. Two would disagree eventually,
+    // and the disagreement would be silent.
+    expect(renderPage(EMPTY)).toContain('var Mortgage = {};');
+  });
+
+  it('carries the pinned rules, so the browser applies the same limits', () => {
+    expect(renderPage(EMPTY)).toContain('"max_months":120');
+  });
+
+  it('warns that the ratio applies to the appraised value, not the asking price', () => {
+    // The ekspertiz value is routinely below the asking price in Turkey, so the
+    // reachable price is lower than this calculation suggests. Saying so is the
+    // difference between a tool and a toy.
+    expect(panel(renderPage(EMPTY), 'finansman')).toMatch(/ekspertiz/i);
+  });
+
+  it('says no tax is applied, because that is a real difference from a consumer loan', () => {
+    expect(panel(renderPage(EMPTY), 'finansman')).toMatch(/KKDF|BSMV/);
+  });
+
+  it('does not put the reader’s numbers anywhere but the page', () => {
+    // Amounts are personal data. Nothing here may post, store or persist them.
+    const html = renderPage(EMPTY);
+
+    expect(html).not.toMatch(/fetch\(|localStorage|XMLHttpRequest|navigator\.sendBeacon/);
+  });
+});
+
+describe('instrument tabs', () => {
+  it('says what each instrument tab will hold rather than just "empty"', () => {
+    const html = renderPage(EMPTY);
+
+    // Gold is for parking a down payment, not for its own sake — the empty
+    // state should say so, because that is why the tab exists.
+    expect(panel(html, 'precious_metals')).toMatch(/peşinat/i);
+  });
+
+  it('mentions certificates under funds, which is a route to a flat', () => {
+    expect(panel(renderPage(EMPTY), 'funds')).toMatch(/sertifika/i);
+  });
+});
+
+describe('empty states say what is missing, not just that something is', () => {
+  it('tells you no research has been done rather than showing a blank page', () => {
+    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/araştırma/i);
+  });
+
+  it('never shows an unmeasured record as a score', () => {
+    // Zero is the best possible Brier score. A seer that has never been measured
+    // must not appear to have earned it.
+    const sicil = panel(renderPage(EMPTY), 'sicil');
+
+    expect(sicil).toMatch(/henüz/i);
+    expect(sicil).not.toMatch(/0\.00/);
+  });
+});
+
+describe('panels never go blank when they have data', () => {
+  it('renders a seer record rather than nothing', () => {
+    // The old renderer was removed and the branch was left returning an empty
+    // string, so a panel with data in it drew nothing at all. Silent blankness
+    // is the failure this project can least afford.
+    const sicil = panel(
+      renderPage({
+        ...EMPTY,
+        records: [{ seer: 'cautious', count: 6, brier: 0.19, predicted: 0.62, observed: 0.5 }],
+      }),
+      'sicil',
+    );
+
+    expect(sicil).toContain('cautious');
+    expect(sicil).toContain('0,19');
+    expect(sicil).not.toMatch(/Henüz/);
+  });
+
+  it('renders an instrument return rather than nothing', () => {
+    const fx = panel(
+      renderPage({
+        ...EMPTY,
+        instruments: [{ module: 'fx', name: 'USD/TRY', annual_return: 0.31, source: 'TCMB' }],
+      }),
+      'fx',
+    );
+
+    expect(fx).toContain('USD/TRY');
+    expect(fx).toContain('TCMB');
+    expect(fx).not.toMatch(/Henüz/);
+  });
+});
+
+describe('research findings', () => {
+  const data: PageData = {
+    ...EMPTY,
+    research: [
+      {
+        place: 'İzmir · Çiğli',
+        dated: '2026-07-27',
+        neighbourhoods: [
+          {
+            name: 'Egekent 2',
+            sale_per_m2: 48500,
+            rent_per_m2: 180,
+            gross_yield: 0.045,
+            listing_count: 142,
+            source: 'Endeksa',
+          },
+        ],
+      },
+    ],
+  };
+
+  it('shows a neighbourhood with its figures', () => {
+    const konut = panel(renderPage(data), 'konut');
+
+    expect(konut).toContain('Egekent 2');
+    expect(konut).toContain('48.500');
+  });
+
+  it('names the source of every figure', () => {
+    // A number with no source cannot be checked later, and an unverifiable
+    // number is worse than a missing one because it looks like knowledge.
+    expect(panel(renderPage(data), 'konut')).toContain('Endeksa');
+  });
+
+  it('says when the research was done, since the market moves', () => {
+    expect(panel(renderPage(data), 'konut')).toContain('27.07.2026');
+  });
+});
+
+describe('safety', () => {
   it('escapes content instead of letting it become markup', () => {
-    const nasty = { ...VERDICT, question: '<script>alert(1)</script>' };
+    const data: PageData = {
+      ...EMPTY,
+      research: [{ place: '<script>alert(1)</script>', dated: '2026-07-27', neighbourhoods: [] }],
+    };
 
-    expect(renderPage({ ...DATA, verdicts: [nasty] })).not.toContain('<script>alert(1)</script>');
+    expect(renderPage(data)).not.toContain('<script>alert(1)</script>');
   });
 
-  it('is a complete standalone document, since it opens from a file', () => {
-    const html = renderPage(DATA);
+  it('is a complete standalone document that loads nothing from the network', () => {
+    const html = renderPage(EMPTY);
 
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).not.toContain('http://');
     expect(html).not.toContain('https://');
-  });
-});
-
-describe('each tab shows only its own asset class', () => {
-  const fxVerdict = {
-    ...VERDICT,
-    id: 'fx-1',
-    asset_class: 'fx',
-    question: 'Dolar yıl sonunda 55 üzerinde olacak.',
-    horizon_days: 900,
-  };
-
-  it('does not let another class supply the headline call', () => {
-    // Without a filter the longest-horizon verdict wins regardless of class, so
-    // an FX call would be presented as the housing decision.
-    const html = renderPage({ ...DATA, verdicts: [fxVerdict, VERDICT] });
-    const housing = html.slice(html.indexOf('id="housing"'), html.indexOf('id="fx"'));
-
-    expect(housing).toContain('Haziran 2027');
-    expect(housing).not.toContain('Dolar');
-  });
-
-  it('shows a class its own open verdicts', () => {
-    const html = renderPage({ ...DATA, verdicts: [fxVerdict, VERDICT] });
-
-    expect(html.slice(html.indexOf('id="fx"'))).toContain('Dolar');
-  });
-
-  it('keeps records apart, since a record from another class means nothing here', () => {
-    const html = renderPage({
-      ...DATA,
-      records: [
-        {
-          seer: 'cautious',
-          asset_class: 'housing',
-          count: 6,
-          brier: 0.19,
-          predicted: 0.6,
-          observed: 0.5,
-        },
-        {
-          seer: 'cautious',
-          asset_class: 'fx',
-          count: 4,
-          brier: 0.44,
-          predicted: 0.8,
-          observed: 0.25,
-        },
-      ],
-    });
-    const housing = html.slice(html.indexOf('id="housing"'), html.indexOf('id="fx"'));
-
-    expect(housing).toContain('0.19');
-    expect(housing).not.toContain('0.44');
-  });
-});
-
-describe('module status is shown, not merely carried', () => {
-  it('distinguishes a half-built class from an empty one', () => {
-    // One seer is worse than none: it produces numbers that look like a record
-    // while having nothing to be wrong against.
-    const html = renderPage({
-      ...DATA,
-      modules: [{ id: 'fx', name: 'Döviz', status: 'incomplete' }],
-      verdicts: [],
-    });
-
-    expect(html).toContain('tek seer');
-  });
-});
-
-describe('an open set of only probes', () => {
-  it('says there is no long call rather than looking empty', () => {
-    const probe = {
-      ...VERDICT,
-      id: 'p',
-      question: 'Dört haftalık prob.',
-      horizon_days: 28,
-      is_probe: true,
-    };
-    const html = renderPage({ ...DATA, verdicts: [probe] });
-
-    expect(html).toContain('Açık uzun vadeli çağrı yok');
-    expect(html).toContain('Dört haftalık prob.');
   });
 });
