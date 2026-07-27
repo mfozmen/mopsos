@@ -256,7 +256,13 @@ function ratesTable(reports: RateReport[]): string {
         <tbody>${reports.map(rateRow).join('')}
         </tbody>
       </table>
-      <p class="note">Orana tıklayınca hesaba geçer. Oranlar sık değişir — okunma tarihine bak.</p>`;
+      <p class="note">Orana tıklayınca hesaba geçer. Oranlar sık değişir — okunma tarihine bak.</p>
+      <p class="caveat">
+        Sıralama <strong>yayınlanan aylık orana göre</strong>; bu “en ucuz” demek değil.
+        Peşin faiz ödemeli bir ürün düşük oran gösterip başta büyük bir ödeme ister,
+        paket oranı sigorta ve ek ürün almayı şart koşar, değişken oran başlangıç
+        değeridir. Koşul sütununu okumadan karşılaştırma.
+      </p>`;
 }
 
 const FINANCE_FORM = `

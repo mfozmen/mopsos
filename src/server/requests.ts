@@ -99,3 +99,45 @@ export function readRequests(root: string): QueuedRequest[] {
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line) as QueuedRequest);
 }
+
+const CLAIMS = 'claims.jsonl';
+
+export interface Claim {
+  /** The `requested_at` of the request being claimed. */
+  request: string;
+  by: string;
+  at: string;
+}
+
+/**
+ * Marks a request as taken.
+ *
+ * Two sessions can watch the same queue, and without this they both act: six
+ * scouts once re-read what six others had just read, minutes apart. The only
+ * reason that was not pure waste is that the readings happened to agree.
+ *
+ * A separate file rather than a flag on the request, because the queue is
+ * append-only — and because who reached for what, and when, is worth being able
+ * to look at later. Claiming twice is not an error; it is what a race looks
+ * like, and both claims are kept.
+ */
+export function claimRequest(root: string, requestedAt: string, by: string, at?: string): void {
+  const claim: Claim = { request: requestedAt, by, at: at ?? new Date().toISOString() };
+  appendFileSync(join(root, CLAIMS), `${JSON.stringify(claim)}\n`, 'utf8');
+}
+
+export function readClaims(root: string): Claim[] {
+  const path = join(root, CLAIMS);
+  if (!existsSync(path)) return [];
+
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as Claim);
+}
+
+/** Requests nobody has taken yet. */
+export function pendingRequests(root: string): QueuedRequest[] {
+  const claimed = new Set(readClaims(root).map((claim) => claim.request));
+  return readRequests(root).filter((request) => !claimed.has(request.requested_at));
+}

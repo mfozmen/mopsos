@@ -4,7 +4,15 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { appendRequest, InvalidRequestError, parseRequest, readRequests } from './requests.js';
+import {
+  appendRequest,
+  claimRequest,
+  InvalidRequestError,
+  parseRequest,
+  pendingRequests,
+  readClaims,
+  readRequests,
+} from './requests.js';
 
 function dir(): string {
   return mkdtempSync(join(tmpdir(), 'mopsos-req-'));
@@ -110,5 +118,67 @@ describe('place names are narrow on purpose', () => {
     expect(() => parseRequest({ kind: 'market', province, district: 'Çiğli' })).toThrow(
       InvalidRequestError,
     );
+  });
+});
+
+describe('claiming a request', () => {
+  it('reports a fresh request as pending', () => {
+    const root = dir();
+    appendRequest(root, { kind: 'rates' }, '2026-07-28T09:00:00.000Z');
+
+    expect(pendingRequests(root)).toHaveLength(1);
+  });
+
+  it('drops it once someone has claimed it', () => {
+    // Two sessions can watch the same queue. Without this they both act, and
+    // six agents re-read what six other agents had just read.
+    const root = dir();
+    appendRequest(root, { kind: 'rates' }, '2026-07-28T09:00:00.000Z');
+    claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-a');
+
+    expect(pendingRequests(root)).toEqual([]);
+  });
+
+  it('leaves other requests alone', () => {
+    const root = dir();
+    appendRequest(root, { kind: 'rates' }, '2026-07-28T09:00:00.000Z');
+    appendRequest(
+      root,
+      { kind: 'market', province: 'İzmir', district: 'Çiğli' },
+      '2026-07-28T09:01:00.000Z',
+    );
+    claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-a');
+
+    expect(pendingRequests(root).map((request) => request.kind)).toEqual(['market']);
+  });
+
+  it('keeps the request itself, since what was asked is part of the record', () => {
+    const root = dir();
+    appendRequest(root, { kind: 'rates' }, '2026-07-28T09:00:00.000Z');
+    claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-a');
+
+    expect(readRequests(root)).toHaveLength(1);
+  });
+
+  it('records who claimed it and when, so a stalled claim can be seen', () => {
+    const root = dir();
+    appendRequest(root, { kind: 'rates' }, '2026-07-28T09:00:00.000Z');
+    claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-a', '2026-07-28T09:00:05.000Z');
+
+    expect(readClaims(root)).toEqual([
+      { request: '2026-07-28T09:00:00.000Z', by: 'session-a', at: '2026-07-28T09:00:05.000Z' },
+    ]);
+  });
+
+  it('is a no-op to claim twice, which is what a race looks like', () => {
+    const root = dir();
+    appendRequest(root, { kind: 'rates' }, '2026-07-28T09:00:00.000Z');
+    claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-a');
+    claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-b');
+
+    expect(pendingRequests(root)).toEqual([]);
+    // Both claims are kept: two sessions reaching for one request is worth
+    // seeing, not worth hiding.
+    expect(readClaims(root)).toHaveLength(2);
   });
 });
