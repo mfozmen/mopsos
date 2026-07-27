@@ -513,7 +513,11 @@ describe('the page script', () => {
    */
   it('parses', () => {
     const page = renderPage(EMPTY);
-    const scripts = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    // Case-insensitive: this only ever reads our own output, which is
+    // lowercase, but a tag-matching pattern that silently misses <SCRIPT>
+    // is the shape of a real bug wherever one is used to filter rather
+    // than to find.
+    const scripts = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
 
     expect(scripts.length).toBeGreaterThan(0);
     for (const script of scripts) {
