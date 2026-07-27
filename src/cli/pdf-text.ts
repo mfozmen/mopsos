@@ -1,16 +1,16 @@
 /**
  * Prints the text of a PDF, from a local path or a URL.
  *
- * Exit codes: 0 text extracted, 1 no text layer (a scan), 2 not a PDF.
+ * Exit codes: 0 text extracted, 1 no text layer (a scan), 2 unreadable.
  * A scan gets its own code because it is not a failure — it is a document that
  * needs reading with eyes instead, and the caller can branch on that.
  *
  * Usage: npm run pdf:text -- <path|url>
  */
-import { readFileSync } from 'node:fs';
-
+import { resolveDataDir } from '../config/data-dir.js';
 import { extractPdfText, NotAPdfError } from '../pdf/extract.js';
-import { fetchPdf, PdfFetchError } from '../pdf/fetch.js';
+import { PdfFetchError } from '../pdf/fetch.js';
+import { OutsideAllowedRootError, readPdf } from '../pdf/read.js';
 
 const target = process.argv[2];
 
@@ -19,13 +19,17 @@ if (target === undefined) {
   process.exit(2);
 }
 
-async function read(source: string): Promise<Uint8Array> {
-  if (!/^https?:\/\//.test(source)) return new Uint8Array(readFileSync(source));
-  return fetchPdf(source);
+// This repository and the private data repository, and nothing else. The caller
+// is usually a subagent building a path from a request.
+const roots = [process.cwd()];
+try {
+  roots.push(resolveDataDir(process.cwd(), process.env));
+} catch {
+  // No data directory yet — the working tree alone is a fine allowed root.
 }
 
 try {
-  const { pages, hasTextLayer } = await extractPdfText(await read(target));
+  const { pages, hasTextLayer } = await extractPdfText(await readPdf(target, roots));
 
   if (!hasTextLayer) {
     console.error(
@@ -40,12 +44,12 @@ try {
     console.log(page);
   });
 } catch (error) {
-  if (error instanceof PdfFetchError) {
+  if (
+    error instanceof PdfFetchError ||
+    error instanceof OutsideAllowedRootError ||
+    error instanceof NotAPdfError
+  ) {
     console.error(error.message);
-    process.exit(2);
-  }
-  if (error instanceof NotAPdfError) {
-    console.error(`${target}: ${error.message}`);
     process.exit(2);
   }
   throw error;
