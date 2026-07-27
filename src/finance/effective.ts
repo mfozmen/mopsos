@@ -76,7 +76,7 @@ export function effectiveMonthlyRate(flow: LoanCashflow): number {
  * A monthly rate as a yearly one, compounded.
  *
  * Turkish rate sheets quote monthly and are often read as "times twelve", which
- * understates badly: %2,88 a month is %40,55 a year, not %34,56.
+ * understates badly: %2,88 a month is %40,60 a year, not %34,56.
  */
 export function annualCostRate(monthlyRatePercent: number): number {
   return (1 + monthlyRatePercent / 100) ** 12 - 1;
