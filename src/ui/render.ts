@@ -194,6 +194,26 @@ function reportSection(report: ResearchReport): string {
       </table>`;
 }
 
+/**
+ * Sending the agent out.
+ *
+ * The button queues a request; the Claude Code session watching that queue picks
+ * it up and runs the agent. Deliberately not "the server runs it": the work
+ * stays where it can be watched, corrected and stopped, and where its cost is
+ * visible. The copy says so, because a button that appears to do nothing is
+ * worse than no button.
+ */
+const DISPATCH = `
+      <div class="dispatch">
+        <div class="ask">
+          <label>İl<input id="province" type="text" value="İzmir" autocomplete="off"></label>
+          <label>İlçe<input id="district" type="text" value="Çiğli" autocomplete="off"></label>
+          <button type="button" id="ask-market">Bu ilçeyi araştır</button>
+        </div>
+        <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
+        <p class="note" id="ask-status">Açık olan Claude Code oturumu isteği alır ve agent’ı çalıştırır — ne yaptığını orada görürsün.</p>
+      </div>`;
+
 const RATES_EMPTY =
   'Henüz banka oranı yok. rate-scout agent’ını gönderip bankaları araştırdığında güncel konut kredisi oranları buraya gelir ve tıklayınca hesaba aktarılır.';
 
@@ -346,6 +366,7 @@ function panelBody(tab: Tab, data: PageData): string {
     // decision is made in, so it is the order the panel is read in.
     return `
       <h3 class="section">Pazar araştırması</h3>
+      ${DISPATCH}
       ${research}
 
       <h3 class="section">Banka oranları</h3>
@@ -463,6 +484,31 @@ const FINANCE_SCRIPT = `
 
   $('finance').addEventListener('input', run);
   run();
+
+  // Only the place is ever sent. The calculator's amounts are personal data and
+  // stay in this page.
+  const ask = async (payload, label) => {
+    const status = $('ask-status');
+    status.textContent = label + ' isteniyor…';
+    try {
+      const response = await fetch('/request', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      status.textContent = response.ok
+        ? label + ' istendi. Claude Code oturumunda çalışıyor — bitince sayfayı tazele.'
+        : (data.error || 'İstek gönderilemedi.');
+    } catch {
+      status.textContent = 'Sunucuya ulaşılamadı. npm run dev çalışıyor mu?';
+    }
+  };
+
+  $('ask-rates').addEventListener('click', () => ask({ kind: 'rates' }, 'Banka oranları'));
+  $('ask-market').addEventListener('click', () =>
+    ask({ kind: 'market', province: $('province').value, district: $('district').value },
+      $('province').value + ' / ' + $('district').value));
 `;
 
 const STYLE = `
@@ -538,6 +584,20 @@ const STYLE = `
   .note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
   .breakdown { display: grid; grid-template-columns: 1fr auto; gap: .55rem 2rem; margin: 2.5rem 0 0;
     padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
+  .dispatch { margin-bottom: 2.5rem; }
+  .ask { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem; }
+  .ask label { display: grid; gap: .3rem; font-size: .7rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .ask input { font: inherit; font-family: var(--serif); font-size: 1rem; text-transform: none;
+    letter-spacing: 0; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 2px; padding: .4rem .6rem; width: 10rem; }
+  .dispatch button { font: inherit; font-size: .8rem; letter-spacing: .04em; cursor: pointer;
+    background: var(--measured); color: var(--surface); border: 0; border-radius: 2px;
+    padding: .5rem 1rem; }
+  .dispatch button:hover { background: var(--ink); }
+  .dispatch button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #ask-rates { background: none; color: var(--measured); border: 1px solid var(--line); }
+  #ask-rates:hover { background: var(--surface); color: var(--ink); }
   .use-rate { font: inherit; font-family: var(--serif); font-size: 1rem; background: none;
     border: 0; border-bottom: 1px dashed var(--measured); color: var(--measured);
     cursor: pointer; padding: 0; font-variant-numeric: tabular-nums; }
