@@ -348,12 +348,12 @@ function ratesTable(reports: RateReport[]): string {
  */
 const HOUSEHOLD = `
       <form id="household" class="household" autocomplete="off">
-        <label>Yaşın${hint('Bankalar son taksitin 70 yaşından önce bitmesini ister, o yüzden yaş vadeyi kısaltır — 62 yaşında 120 ay değil 96 ay çıkar. Bu bir kanun değil, bankaların uyguladığı kendi sınırı: BDDK yaş sınırını ve azami vadeyi her bankaya bırakıyor.')}<input id="age" type="text" inputmode="numeric" value="35"><span>yaş</span></label>
-        <label>Sen, eşin veya 18 yaş altı çocuğun üzerine kayıtlı konut${hint('Bankaların hepsi “ilk ev”i hane olarak tanımlıyor: kendisi, eşi veya 18 yaşından küçük çocukları. Varsa üç şey birden değişir — “İlk Evim” oranlarının hiçbirini alamazsın, taksitlere %15 BSMV eklenir (konut kredisi muafiyeti kalkar) ve kullanabileceğin kredi oranı %75 azalır (BDDK 10656). Bu, kurallardaki tek en büyük etki.')}<select id="ownsHome">
+        <label><span class="q">Yaşın${hint('Bankalar son taksitin 70 yaşından önce bitmesini ister, o yüzden yaş vadeyi kısaltır — 62 yaşında 120 ay değil 96 ay çıkar. Bu bir kanun değil, bankaların uyguladığı kendi sınırı: BDDK yaş sınırını ve azami vadeyi her bankaya bırakıyor.')}</span><span class="control"><input id="age" type="text" inputmode="numeric" value="35"><span class="unit">yaş</span></span></label>
+        <label><span class="q">Sen, eşin veya 18 yaş altı çocuğun üzerine kayıtlı konut${hint('Bankaların hepsi “ilk ev”i hane olarak tanımlıyor: kendisi, eşi veya 18 yaşından küçük çocukları. Varsa üç şey birden değişir — “İlk Evim” oranlarının hiçbirini alamazsın, taksitlere %15 BSMV eklenir (konut kredisi muafiyeti kalkar) ve kullanabileceğin kredi oranı %75 azalır (BDDK 10656). Bu, kurallardaki tek en büyük etki.')}</span><select id="ownsHome">
           <option value="no" selected>Yok</option>
           <option value="yes">Var</option>
         </select></label>
-        <label>Hanede maaşı kim alıyor${hint('Bu bir filtre değil, bir hatırlatma. Ziraat, Halkbank ve VakıfBank’ın üçünde de kamu/maaş koşullu konut oranı ARANDI ve hiçbiri yayınlamıyor — ama üçünün de kendi belgeleri böyle bir oranın var olduğunu söylüyor. Ziraat’in broşürü: “kurumunuz ile Bankamız arasında imzalanan maaş protokolüne göre değişiklik gösterebilir… şubemiz ile irtibata geçiniz.” Ziraat’in kendi hesaplama servisinde maaşlı/maaşsız oran alanı var, konut için ikisi de sıfır dönüyor. VakıfBank’ın OYAK ve TSK üyelerine özel konut kampanyaları canlı ama oran yazmıyor. Yani aşağıdaki tablo herkese açık oranlar; protokol oranı sormadan öğrenilmiyor.')}<select id="salary">
+        <label><span class="q">Hanede maaşı kim alıyor${hint('Bu bir filtre değil, bir hatırlatma. Ziraat, Halkbank ve VakıfBank’ın üçünde de kamu/maaş koşullu konut oranı ARANDI ve hiçbiri yayınlamıyor — ama üçünün de kendi belgeleri böyle bir oranın var olduğunu söylüyor. Ziraat’in broşürü: “kurumunuz ile Bankamız arasında imzalanan maaş protokolüne göre değişiklik gösterebilir… şubemiz ile irtibata geçiniz.” Ziraat’in kendi hesaplama servisinde maaşlı/maaşsız oran alanı var, konut için ikisi de sıfır dönüyor. VakıfBank’ın OYAK ve TSK üyelerine özel konut kampanyaları canlı ama oran yazmıyor. Yani aşağıdaki tablo herkese açık oranlar; protokol oranı sormadan öğrenilmiyor.')}</span><select id="salary">
           <option value="private" selected>Özel sektör / serbest</option>
           <option value="public">Kamu (memur, öğretmen, sağlık, TSK, OYAK)</option>
           <option value="retired">Emekli</option>
@@ -794,10 +794,25 @@ const STYLE = `
   .true-rate.unknown { color: var(--muted); cursor: help; }
 
   /* Asked once, above everything it changes. */
-  .household { display: flex; flex-wrap: wrap; gap: 1.4rem 2.2rem; align-items: end;
-    padding: 1.1rem 1.3rem; background: var(--surface); border-left: 2px solid var(--measured); }
-  .household label { flex: 1 1 14rem; }
-  .household #age { max-width: 5rem; }
+  /* Same grid as the calculator below it: the label sits above its control, so a
+     long question wraps into its own column instead of shoving the control sideways. */
+  .household { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.2rem 2rem; align-items: start;
+    padding: 1.2rem 1.4rem; background: var(--surface); border-left: 2px solid var(--measured); }
+  .household label { display: flex; flex-direction: column; align-items: start; gap: .5rem; }
+  /* The question and its ? are one line of text, so they share a span — as flex
+     items the question mark would drop onto a row of its own. */
+  .household .q { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; line-height: 1.6; }
+  .household .control { display: flex; align-items: baseline; gap: .5rem; }
+  .household .unit { font-size: .8rem; color: var(--muted); }
+  .household input, .household select { font: inherit; font-family: var(--serif);
+    font-size: 1rem; letter-spacing: 0; text-transform: none; color: var(--ink);
+    background: var(--ground); border: 1px solid var(--line); padding: .45rem .6rem;
+    width: 100%; max-width: 22rem; }
+  .household #age { max-width: 6rem; }
+  .household input:focus-visible, .household select:focus-visible {
+    outline: 2px solid var(--measured); outline-offset: 1px; }
   .cap { color: var(--pending); font-size: .78rem; }
   .advice { flex-basis: 100%; margin: .9rem 0 0; padding: .8rem 1rem; background: var(--surface);
     border-left: 2px solid var(--pending); font-size: .82rem; line-height: 1.6; }
@@ -812,7 +827,9 @@ const STYLE = `
   .hint:hover, .hint:focus-visible { color: var(--ground); background: var(--ink);
     border-color: var(--ink); }
   .hint:focus-visible { outline: 2px solid var(--measured); outline-offset: 2px; }
-  .hint-body { position: absolute; left: 0; bottom: calc(100% + .5rem); z-index: 5;
+  /* Downwards. Upwards clips against the top of the viewport whenever the
+     control is near it, and a tooltip you have to scroll to is not a tooltip. */
+  .hint-body { position: absolute; left: 0; top: calc(100% + .5rem); z-index: 5;
     width: max-content; max-width: min(26rem, 78vw); padding: .7rem .85rem;
     font-size: .78rem; line-height: 1.55; text-align: left; letter-spacing: 0;
     color: var(--ink); background: var(--surface); border: 1px solid var(--line);
