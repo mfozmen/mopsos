@@ -227,7 +227,7 @@ function ratesTable(reports: RateReport[]): string {
   if (reports.length === 0) return `<p class="empty">${RATES_EMPTY}</p>`;
 
   return `
-      <table>
+      <table class="rates">
         <thead>
           <tr>
             <th>Banka</th><th class="num">Aylık</th><th>Koşul</th><th class="when">Okundu</th>
@@ -281,7 +281,9 @@ const FINANCE_FORM = `
         çoğu zaman istenen fiyatın altında çıkar — gerçekte çekebileceğin kredi buradakinden düşük
         olabilir. Konut kredisinde <strong>BSMV yoktur</strong> (5582 sayılı kanun) ve KKDF de
         uygulanmaz (88/12944 sayılı BKK — bu ikincisini birincil kaynaktan doğrulayamadık),
-        o yüzden hesaba vergi eklenmez; ihtiyaç kredisi için aynısı geçerli değildir. Vade için
+        o yüzden hesaba vergi eklenmez. Ama <strong>üzerine kayıtlı ev varsa BSMV eklenebilir</strong>
+        (bankalar böyle uyguluyor) — bu durumda gerçek maliyet buradakinden yüksek. İhtiyaç
+        kredisinde muafiyet zaten yok. Vade için
         <strong>yasal bir üst sınır yoktur</strong> — 120 ay bankaların yaygın uygulaması. Sigorta, ekspertiz ve
         ipotek masrafları dahil değildir.
       </p>`;
@@ -542,6 +544,10 @@ const STYLE = `
   .use-rate:hover { border-bottom-style: solid; }
   .use-rate:focus-visible { outline: 2px solid var(--measured); outline-offset: 2px; }
   tr.silent td { color: var(--muted); }
+  /* Conditions are long because they matter — a package rate with four insurance
+     products attached is a different offer. Given room to breathe, not hidden. */
+  .rates td:nth-child(3) { font-size: .82rem; line-height: 1.5; color: var(--muted); }
+  .rates td:first-child { white-space: normal; min-width: 7rem; }
   .breakdown dt { color: var(--muted); }
   .breakdown dd { margin: 0; text-align: right; font-family: var(--serif); font-size: 1.05rem;
     font-variant-numeric: tabular-nums; }

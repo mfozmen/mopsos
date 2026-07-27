@@ -57,6 +57,12 @@ Path: `<data-dir>/rates/<YYYY-MM-DD>-<bank-slug>.json`
 - `conditions` is not optional in spirit. A rate that requires moving your salary to the bank
   is not comparable with one that does not, and a comparison that omits that is misleading
   rather than incomplete.
+- **A variable rate must say so in `conditions`, with its ceiling**, e.g. "değişken, başlangıç
+  oranı, tavan %8,00". A starting rate sorts above fixed rates while being the one figure that
+  is guaranteed not to last. Recording it as though it were fixed is the single easiest way to
+  make this table lie.
+- **A package rate must list what has to be bought.** "%2,89 if you also take four insurance
+  products" is not the same offer as "%2,89", and the difference is the whole comparison.
 
 ## Rules
 
