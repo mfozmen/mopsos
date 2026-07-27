@@ -130,3 +130,46 @@ describe('bestOffer', () => {
     ).toBeUndefined();
   });
 });
+
+describe('a second reading on the same day', () => {
+  function at(bank: string, capturedAt: string, rate: number): string {
+    return JSON.stringify({
+      schema_version: 1,
+      bank,
+      captured_on: capturedAt.slice(0, 10),
+      captured_at: capturedAt,
+      source_url: 'https://example.test/x',
+      offers: [{ product: 'Konut', monthly_rate: rate }],
+    });
+  }
+
+  it('supersedes the earlier one, so a correction is possible at all', () => {
+    // Append-only means the record is never silently improved. It does not mean
+    // a mistake has to stand: the earlier file stays on disk, and the later
+    // reading is what gets shown.
+    const root = rates(
+      ['a.json', at('Yapı Kredi', '2026-07-28T09:00:00Z', 2.88)],
+      ['b.json', at('Yapı Kredi', '2026-07-28T15:00:00Z', 3.12)],
+    );
+
+    expect(loadRateReports(root)[0]?.offers[0]?.monthly_rate).toBe(3.12);
+  });
+
+  it('does not depend on which file the directory lists first', () => {
+    const root = rates(
+      ['z-later.json', at('Yapı Kredi', '2026-07-28T15:00:00Z', 3.12)],
+      ['a-earlier.json', at('Yapı Kredi', '2026-07-28T09:00:00Z', 2.88)],
+    );
+
+    expect(loadRateReports(root)[0]?.offers[0]?.monthly_rate).toBe(3.12);
+  });
+
+  it('still works when only the date is recorded, as older reports have it', () => {
+    const root = rates(
+      ['old.json', report('Yapı Kredi', '2026-07-20', 2.5)],
+      ['new.json', at('Yapı Kredi', '2026-07-28T09:00:00Z', 2.88)],
+    );
+
+    expect(loadRateReports(root)[0]?.offers[0]?.monthly_rate).toBe(2.88);
+  });
+});
