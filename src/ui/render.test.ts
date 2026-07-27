@@ -65,7 +65,16 @@ describe('renderPage', () => {
   it('shows a seer record with its Brier score and calibration', () => {
     const html = renderPage({
       ...DATA,
-      records: [{ seer: 'cautious', count: 6, brier: 0.19, predicted: 0.62, observed: 0.5 }],
+      records: [
+        {
+          seer: 'cautious',
+          asset_class: 'housing',
+          count: 6,
+          brier: 0.19,
+          predicted: 0.62,
+          observed: 0.5,
+        },
+      ],
     });
 
     expect(html).toContain('0.19');
@@ -84,5 +93,89 @@ describe('renderPage', () => {
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).not.toContain('http://');
     expect(html).not.toContain('https://');
+  });
+});
+
+describe('each tab shows only its own asset class', () => {
+  const fxVerdict = {
+    ...VERDICT,
+    id: 'fx-1',
+    asset_class: 'fx',
+    question: 'Dolar yıl sonunda 55 üzerinde olacak.',
+    horizon_days: 900,
+  };
+
+  it('does not let another class supply the headline call', () => {
+    // Without a filter the longest-horizon verdict wins regardless of class, so
+    // an FX call would be presented as the housing decision.
+    const html = renderPage({ ...DATA, verdicts: [fxVerdict, VERDICT] });
+    const housing = html.slice(html.indexOf('id="housing"'), html.indexOf('id="fx"'));
+
+    expect(housing).toContain('Haziran 2027');
+    expect(housing).not.toContain('Dolar');
+  });
+
+  it('shows a class its own open verdicts', () => {
+    const html = renderPage({ ...DATA, verdicts: [fxVerdict, VERDICT] });
+
+    expect(html.slice(html.indexOf('id="fx"'))).toContain('Dolar');
+  });
+
+  it('keeps records apart, since a record from another class means nothing here', () => {
+    const html = renderPage({
+      ...DATA,
+      records: [
+        {
+          seer: 'cautious',
+          asset_class: 'housing',
+          count: 6,
+          brier: 0.19,
+          predicted: 0.6,
+          observed: 0.5,
+        },
+        {
+          seer: 'cautious',
+          asset_class: 'fx',
+          count: 4,
+          brier: 0.44,
+          predicted: 0.8,
+          observed: 0.25,
+        },
+      ],
+    });
+    const housing = html.slice(html.indexOf('id="housing"'), html.indexOf('id="fx"'));
+
+    expect(housing).toContain('0.19');
+    expect(housing).not.toContain('0.44');
+  });
+});
+
+describe('module status is shown, not merely carried', () => {
+  it('distinguishes a half-built class from an empty one', () => {
+    // One seer is worse than none: it produces numbers that look like a record
+    // while having nothing to be wrong against.
+    const html = renderPage({
+      ...DATA,
+      modules: [{ id: 'fx', name: 'Döviz', status: 'incomplete' }],
+      verdicts: [],
+    });
+
+    expect(html).toContain('tek seer');
+  });
+});
+
+describe('an open set of only probes', () => {
+  it('says there is no long call rather than looking empty', () => {
+    const probe = {
+      ...VERDICT,
+      id: 'p',
+      question: 'Dört haftalık prob.',
+      horizon_days: 28,
+      is_probe: true,
+    };
+    const html = renderPage({ ...DATA, verdicts: [probe] });
+
+    expect(html).toContain('Açık uzun vadeli çağrı yok');
+    expect(html).toContain('Dört haftalık prob.');
   });
 });

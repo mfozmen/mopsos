@@ -17,6 +17,8 @@ export interface OpenVerdict {
 
 export interface SeerRecord {
   seer: string;
+  /** Records are never compared across classes, so the class is part of one. */
+  asset_class: string;
   count: number;
   brier: number;
   /** Mean stated confidence. */
@@ -107,41 +109,52 @@ function recordRow(record: SeerRecord): string {
       </li>`;
 }
 
-function housingPanel(data: PageData): string {
-  const lead = headline(data.verdicts);
-
-  if (!lead) {
+function modulePanel(module: ModuleTab, verdicts: OpenVerdict[], records: SeerRecord[]): string {
+  if (verdicts.length === 0) {
+    const reason =
+      module.status === 'incomplete'
+        ? 'Bu sınıfta tek seer tanımlı. İkinci seer eklenene kadar sicil bir şey ölçmez.'
+        : 'Henüz kurulmadı. Bu sınıf için seer tanımlanınca açılır.';
     return `
-      <p class="empty">Henüz tahmin yok. İlk araştırma koşusu birleştirildiğinde burası dolar.</p>`;
+      <p class="empty">${reason}</p>`;
   }
 
-  const record = data.records.find((entry) => entry.seer === lead.seer);
-  const credibility = record
-    ? `${escape(lead.seer)} · ${record.count} ölçülmüş tahminde brier ${record.brier.toFixed(2)}`
-    : `${escape(lead.seer)} · henüz ölçülmüş tahmini yok`;
+  const lead = headline(verdicts);
+  const record = lead ? records.find((entry) => entry.seer === lead.seer) : undefined;
 
-  return `
+  const head = lead
+    ? `
       <p class="eyebrow">Şu anki çağrı</p>
       <div class="headline">
         <p class="headline-question">${escape(lead.question)}</p>
         <p class="headline-number"><span>%</span>${Math.round(lead.probability * 100)}</p>
       </div>
-      <p class="headline-meta">${credibility} · ${horizonLabel(lead.horizon_days)} · ${turkishDate(lead.check_after)} tarihinde ölçülür</p>
+      <p class="headline-meta">${
+        record
+          ? `${escape(lead.seer)} · ${record.count} ölçülmüş tahminde brier ${record.brier.toFixed(2)}`
+          : `${escape(lead.seer)} · henüz ölçülmüş tahmini yok`
+      } · ${horizonLabel(lead.horizon_days)} · ${turkishDate(lead.check_after)} tarihinde ölçülür</p>`
+    : `
+      <p class="eyebrow">Şu anki çağrı</p>
+      <p class="empty">Açık uzun vadeli çağrı yok. Aşağıdakiler yalnızca seer’ı ölçen kalibrasyon probları.</p>`;
+
+  return `${head}
 
       <h2>Açık tahminler</h2>
       <table>
         <thead>
-          <tr><th>Soru</th><th class="num">Olasılık</th><th>Seer</th><th>Ölçüm günü</th></tr>
+          <tr><th>Soru</th><th class="num">Olasılık</th><th class="who">Seer</th><th class="when">Ölçüm günü</th></tr>
         </thead>
-        <tbody>${data.verdicts.map(verdictRow).join('')}
+        <tbody>${verdicts.map(verdictRow).join('')}
         </tbody>
       </table>
 
       <h2>Sicil</h2>
       ${
-        data.records.length === 0
+        records.length === 0
           ? '<p class="empty">Henüz ölçülmüş tahmin yok. Sicil, ilk tahminin vadesi geldiğinde başlar.</p>'
-          : `<ul class="records">${data.records.map(recordRow).join('')}\n      </ul>`
+          : `<ul class="records">${records.map(recordRow).join('')}
+      </ul>`
       }`;
 }
 
@@ -186,6 +199,8 @@ const STYLE = `
     padding-top: 1rem; border-top: 1px solid var(--line); }
   h2 { font-family: var(--sans); font-size: .72rem; letter-spacing: .18em; text-transform: uppercase;
     color: var(--muted); font-weight: 600; margin: 3.5rem 0 .9rem; }
+  h2.class-name { color: var(--ink); font-size: .78rem; margin-top: 4.5rem;
+    padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
   table { width: 100%; border-collapse: collapse; font-size: .9rem; }
   th { text-align: left; font-weight: 600; font-size: .68rem; letter-spacing: .1em;
     text-transform: uppercase; color: var(--muted); padding: 0 0 .5rem; border-bottom: 1px solid var(--line); }
@@ -243,23 +258,28 @@ const STYLE = `
  * file and keeps working with no connection.
  */
 export function renderPage(data: PageData): string {
-  const housing = data.modules.find((module) => module.id === 'housing');
+  const first = data.modules[0];
   const tabs = data.modules
     .map(
       (module) =>
-        `<a href="#${escape(module.id)}"${module.id === housing?.id ? ' aria-current="page"' : ''}>${escape(module.name)}</a>`,
+        `<a href="#${escape(module.id)}"${module.id === first?.id ? ' aria-current="page"' : ''}>${escape(module.name)}</a>`,
     )
     .join('\n        ');
 
-  const others = data.modules
-    .filter((module) => module.id !== 'housing')
-    .map(
-      (module) => `
-      <section id="${escape(module.id)}">
-        <h2>${escape(module.name)}</h2>
-        <p class="empty">Henüz kurulmadı. Bu sınıf için seer tanımlanınca açılır.</p>
-      </section>`,
-    )
+  // Each class gets its own panel over its own verdicts and its own record.
+  // Filtering here rather than in the panel is what makes it impossible for one
+  // class's call to be presented as another's.
+  const panels = data.modules
+    .map((module, index) => {
+      const verdicts = data.verdicts.filter((verdict) => verdict.asset_class === module.id);
+      const records = data.records.filter((record) => record.asset_class === module.id);
+      const heading =
+        index === 0 ? '' : `\n        <h2 class="class-name">${escape(module.name)}</h2>`;
+
+      return `
+      <section id="${escape(module.id)}">${heading}${modulePanel(module, verdicts, records)}
+      </section>`;
+    })
     .join('');
 
   return `<!doctype html>
@@ -279,10 +299,7 @@ export function renderPage(data: PageData): string {
       </nav>
     </header>
 
-    <main>
-      <section id="housing">${housingPanel(data)}
-      </section>
-      ${others}
+    <main>${panels}
     </main>
 
     <footer>
