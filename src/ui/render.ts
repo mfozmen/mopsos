@@ -109,6 +109,22 @@ export interface SeerRecord {
   observed: number;
 }
 
+export interface RateOffer {
+  product: string;
+  monthly_rate: number;
+  max_term_months?: number;
+  conditions?: string;
+}
+
+export interface RateReport {
+  bank: string;
+  kind: 'faiz' | 'kar_payi';
+  captured_on: string;
+  source_url: string;
+  offers: RateOffer[];
+  note?: string;
+}
+
 export interface FinanceBundle {
   /** The compiled mortgage module, so the page and the tests share one implementation. */
   bundle: string;
@@ -121,6 +137,7 @@ export interface PageData {
   research: ResearchReport[];
   instruments: InstrumentReturn[];
   records: SeerRecord[];
+  rates: RateReport[];
   finance: FinanceBundle;
 }
 
@@ -177,6 +194,51 @@ function reportSection(report: ResearchReport): string {
       </table>`;
 }
 
+const RATES_EMPTY =
+  'Henüz banka oranı yok. rate-scout agent’ını gönderip bankaları araştırdığında güncel konut kredisi oranları buraya gelir ve tıklayınca hesaba aktarılır.';
+
+function rateRow(report: RateReport): string {
+  const cheapest = [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0];
+  const kind = report.kind === 'kar_payi' ? '<span class="tag">kâr payı</span>' : '';
+
+  if (!cheapest) {
+    // Kept in the table on purpose: a bank that publishes nothing is a different
+    // answer from a bank nobody checked, and only one of them is worth retrying.
+    return `
+          <tr class="silent">
+            <td>${escape(report.bank)} ${kind}</td>
+            <td class="num">—</td>
+            <td>Oran yayınlamıyor</td>
+            <td class="when">${turkishDate(report.captured_on)}</td>
+          </tr>`;
+  }
+
+  return `
+          <tr>
+            <td>${escape(report.bank)} ${kind}</td>
+            <td class="num"><button type="button" class="use-rate"
+              data-rate="${cheapest.monthly_rate}">%${cheapest.monthly_rate.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</button></td>
+            <td>${escape(cheapest.conditions ?? cheapest.product)}</td>
+            <td class="when">${turkishDate(report.captured_on)}</td>
+          </tr>`;
+}
+
+function ratesTable(reports: RateReport[]): string {
+  if (reports.length === 0) return `<p class="empty">${RATES_EMPTY}</p>`;
+
+  return `
+      <table class="rates">
+        <thead>
+          <tr>
+            <th>Banka</th><th class="num">Aylık</th><th>Koşul</th><th class="when">Okundu</th>
+          </tr>
+        </thead>
+        <tbody>${reports.map(rateRow).join('')}
+        </tbody>
+      </table>
+      <p class="note">Orana tıklayınca hesaba geçer. Oranlar sık değişir — okunma tarihine bak.</p>`;
+}
+
 const FINANCE_FORM = `
       <form id="finance" autocomplete="off">
         <div class="fields">
@@ -219,7 +281,9 @@ const FINANCE_FORM = `
         çoğu zaman istenen fiyatın altında çıkar — gerçekte çekebileceğin kredi buradakinden düşük
         olabilir. Konut kredisinde <strong>BSMV yoktur</strong> (5582 sayılı kanun) ve KKDF de
         uygulanmaz (88/12944 sayılı BKK — bu ikincisini birincil kaynaktan doğrulayamadık),
-        o yüzden hesaba vergi eklenmez; ihtiyaç kredisi için aynısı geçerli değildir. Vade için
+        o yüzden hesaba vergi eklenmez. Ama <strong>üzerine kayıtlı ev varsa BSMV eklenebilir</strong>
+        (bankalar böyle uyguluyor) — bu durumda gerçek maliyet buradakinden yüksek. İhtiyaç
+        kredisinde muafiyet zaten yok. Vade için
         <strong>yasal bir üst sınır yoktur</strong> — 120 ay bankaların yaygın uygulaması. Sigorta, ekspertiz ve
         ipotek masrafları dahil değildir.
       </p>`;
@@ -283,6 +347,9 @@ function panelBody(tab: Tab, data: PageData): string {
     return `
       <h3 class="section">Pazar araştırması</h3>
       ${research}
+
+      <h3 class="section">Banka oranları</h3>
+      ${ratesTable(data.rates)}
 
       <h3 class="section">Finansman</h3>
       ${FINANCE_FORM}`;
@@ -387,6 +454,13 @@ const FINANCE_SCRIPT = `
       .join('');
   }
 
+  for (const button of document.querySelectorAll('.use-rate')) {
+    button.addEventListener('click', () => {
+      $('rate').value = String(button.dataset.rate).replace('.', ',');
+      run();
+    });
+  }
+
   $('finance').addEventListener('input', run);
   run();
 `;
@@ -464,6 +538,16 @@ const STYLE = `
   .note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
   .breakdown { display: grid; grid-template-columns: 1fr auto; gap: .55rem 2rem; margin: 2.5rem 0 0;
     padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
+  .use-rate { font: inherit; font-family: var(--serif); font-size: 1rem; background: none;
+    border: 0; border-bottom: 1px dashed var(--measured); color: var(--measured);
+    cursor: pointer; padding: 0; font-variant-numeric: tabular-nums; }
+  .use-rate:hover { border-bottom-style: solid; }
+  .use-rate:focus-visible { outline: 2px solid var(--measured); outline-offset: 2px; }
+  tr.silent td { color: var(--muted); }
+  /* Conditions are long because they matter — a package rate with four insurance
+     products attached is a different offer. Given room to breathe, not hidden. */
+  .rates td:nth-child(3) { font-size: .82rem; line-height: 1.5; color: var(--muted); }
+  .rates td:first-child { white-space: normal; min-width: 7rem; }
   .breakdown dt { color: var(--muted); }
   .breakdown dd { margin: 0; text-align: right; font-family: var(--serif); font-size: 1.05rem;
     font-variant-numeric: tabular-nums; }

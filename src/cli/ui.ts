@@ -14,6 +14,7 @@ import { build } from 'esbuild';
 
 import { resolveDataDir } from '../config/data-dir.js';
 import { loadModules } from '../modules/registry.js';
+import { loadRateReports } from '../rates/load.js';
 import { renderPage, type PageData } from '../ui/render.js';
 
 /**
@@ -54,6 +55,7 @@ const data: PageData = {
   research: [],
   instruments: [],
   records: [],
+  rates: dataDir === undefined ? [] : loadRateReports(dataDir),
   finance: {
     bundle: compiled.outputFiles[0]?.text ?? '',
     rules: JSON.parse(readFileSync('data/mortgage-rules.json', 'utf8')) as unknown,

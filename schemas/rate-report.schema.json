@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfozmen/mopsos/schemas/rate-report.schema.json",
+  "title": "Bank rate report",
+  "description": "What one bank was offering on housing finance on one day. Rates move constantly, so a report is a dated observation rather than a fact: it is never edited, and a later reading is a new report.",
+  "type": "object",
+  "required": ["schema_version", "bank", "captured_on", "source_url", "offers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "bank": {
+      "description": "The bank's own name, as it writes it.",
+      "type": "string",
+      "minLength": 2
+    },
+    "kind": {
+      "description": "A participation bank sells a profit share, not a loan at interest. The instalment arithmetic is the same, the product is not, and someone choosing on that basis must be able to see which is which.",
+      "type": "string",
+      "enum": ["faiz", "kar_payi"],
+      "default": "faiz"
+    },
+    "captured_on": { "type": "string", "format": "date" },
+    "source_url": {
+      "description": "The page the figures were read from, so the reading can be checked or repeated.",
+      "type": "string",
+      "format": "uri"
+    },
+    "offers": {
+      "description": "Empty is a real answer: a bank that publishes no rate today is not the same as a bank nobody looked at.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["product", "monthly_rate"],
+        "additionalProperties": false,
+        "properties": {
+          "product": { "type": "string", "minLength": 2 },
+          "monthly_rate": {
+            "description": "Percent per month, as Turkish banks quote it. 2.79 means 2.79%.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 20
+          },
+          "max_term_months": { "type": "integer", "minimum": 1, "maximum": 360 },
+          "min_amount": { "type": "number", "minimum": 0 },
+          "max_amount": { "type": "number", "minimum": 0 },
+          "conditions": {
+            "description": "What the rate depends on — salary customer, first home, energy class, a campaign end date. A rate without its conditions is not comparable with another.",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "note": { "type": "string" }
+  }
+}
