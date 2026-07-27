@@ -79,6 +79,21 @@ export function parseMortgageRules(data: unknown): MortgageRules {
     );
   }
 
+  // Optional, and bounded on both sides: a limit below 18 would be nonsense and
+  // one above 120 is a typo, not a bank that lends to the very old. Either way
+  // it silently shortens every term, so it is checked rather than taken.
+  const maxAge = term['conventional_max_age_at_final_instalment'];
+
+  if (
+    maxAge !== undefined &&
+    (typeof maxAge !== 'number' || !Number.isInteger(maxAge) || maxAge < 18 || maxAge > 120)
+  ) {
+    problems.push(
+      'term.conventional_max_age_at_final_instalment must be a whole number of years ' +
+        `between 18 and 120 (got ${JSON.stringify(maxAge)})`,
+    );
+  }
+
   // Optional: absent means nobody has recorded the reduction, and the honest
   // reading of that is "unknown", not "does not apply".
   const reduction = root['existing_home_reduction'] as Record<string, unknown> | undefined;
@@ -102,7 +117,12 @@ export function parseMortgageRules(data: unknown): MortgageRules {
         ratios: Record<EnergyClass, number>;
       }[],
     },
-    term: { conventional_max_months: maxMonths as number },
+    term: {
+      conventional_max_months: maxMonths as number,
+      ...(maxAge === undefined
+        ? {}
+        : { conventional_max_age_at_final_instalment: maxAge as number }),
+    },
     ...(reduction === undefined
       ? {}
       : { existing_home_reduction: { multiplier: multiplier as number } }),

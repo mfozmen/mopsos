@@ -14,13 +14,28 @@ import { findPersonalData } from '../security/personal-data.js';
 
 /**
  * `private/` is skipped because personal data belongs there by design — that is
- * the entire point of the directory. The rest are build and dependency output
- * with nothing authored in them.
+ * the entire point of the directory. The rest are build output, dependencies,
+ * and agent scratch: nothing authored, and all of it git-ignored, so none of it
+ * can reach the public repository this scanner exists to protect.
  *
- * Untracked files are scanned too. That errs towards noise rather than towards
- * missing something, which is the correct direction for a leak detector.
+ * `.playwright-mcp/` earns its place the hard way. It fills with page snapshots
+ * whenever an agent reads a bank site, and every one of those carries the
+ * bank's call-centre number. Twenty findings, none of them real, none of them
+ * committable — and a check that cries wolf is a check that gets waved through,
+ * which is worse than not having it.
+ *
+ * Untracked files are otherwise scanned. That errs towards noise rather than
+ * towards missing something, which is the correct direction for a leak detector.
  */
-const SKIP_DIRECTORIES = new Set(['private', 'node_modules', '.git', 'coverage', 'dist']);
+const SKIP_DIRECTORIES = new Set([
+  'private',
+  'node_modules',
+  '.git',
+  'coverage',
+  'dist',
+  '.playwright-mcp',
+  '.research',
+]);
 
 /**
  * Only the scanner's own tests, which are wall-to-wall fixtures of the very

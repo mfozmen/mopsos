@@ -7,11 +7,13 @@
  *
  * Usage: npm run dev
  */
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { resolveDataDir } from '../config/data-dir.js';
+import { raiseTerminal } from '../server/attention.js';
 import { assertLocalRequest, NotLocalError } from '../server/guards.js';
 import { appendRequest, InvalidRequestError, parseRequest } from '../server/requests.js';
 
@@ -48,6 +50,19 @@ const server = createServer((request, response) => {
         const parsed = parseRequest(JSON.parse(body));
         appendRequest(dataDir, parsed, new Date().toISOString());
         console.log(`\nMOPSOS_REQUEST ${JSON.stringify(parsed)}`);
+
+        // The request is written; now say so where it will be acted on. The
+        // parent process is the terminal hosting this server, which is the
+        // window the Claude Code session is being read in.
+        raiseTerminal({
+          platform: process.platform,
+          pid: process.ppid,
+          bell: (sequence) => process.stdout.write(sequence),
+          spawn: (command, args) => {
+            spawn(command, args, { stdio: 'ignore', detached: false }).unref();
+          },
+        });
+
         response.writeHead(202, { 'content-type': 'application/json' });
         response.end('{"queued":true}');
       } catch (error) {

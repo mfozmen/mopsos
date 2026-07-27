@@ -146,6 +146,18 @@ export interface PageData {
 }
 
 /**
+ * A question mark that explains a field.
+ *
+ * A button rather than a `title=` attribute, because a hover-only tooltip is
+ * unreachable by keyboard and never appears on a phone — which is exactly where
+ * a question mark gets tapped. The text is in the markup, so it is there for a
+ * screen reader whether or not it is visible.
+ */
+function hint(text: string): string {
+  return `<button type="button" class="hint" aria-label="Açıklama">?<span class="hint-body">${escape(text)}</span></button>`;
+}
+
+/**
  * A link out to the bank, or nothing when the recorded address is not one.
  *
  * Only http(s) survives. The address comes out of a file an agent wrote, and a
@@ -319,6 +331,36 @@ function ratesTable(reports: RateReport[]): string {
       </p>`;
 }
 
+/**
+ * Asked once, above everything it affects.
+ *
+ * These two answers decide which of the rates below the reader can actually
+ * get: existing ownership closes every "İlk Evim" rate outright, removes the
+ * KKDF/BSMV exemption and cuts the loan-to-value ratio to a quarter; age
+ * shortens the term, which raises the instalment. Asking underneath the table —
+ * where the ownership question used to live — means reading a comparison that
+ * only half applies to you.
+ *
+ * The ownership question names the household, not the reader, because every
+ * bank defines it that way: "kendisi, eşi veya 18 yaşından küçük çocukları".
+ * Anyone whose spouse owns the flat answers "no" to a question about themselves
+ * and gets a comparison built on a rate they cannot have.
+ */
+const HOUSEHOLD = `
+      <form id="household" class="household" autocomplete="off">
+        <label>Yaşın${hint('Bankalar son taksitin 70 yaşından önce bitmesini ister, o yüzden yaş vadeyi kısaltır — 62 yaşında 120 ay değil 96 ay çıkar. Bu bir kanun değil, bankaların uyguladığı kendi sınırı: BDDK yaş sınırını ve azami vadeyi her bankaya bırakıyor.')}<input id="age" type="text" inputmode="numeric" value="35"><span>yaş</span></label>
+        <label>Sen, eşin veya 18 yaş altı çocuğun üzerine kayıtlı konut${hint('Bankaların hepsi “ilk ev”i hane olarak tanımlıyor: kendisi, eşi veya 18 yaşından küçük çocukları. Varsa üç şey birden değişir — “İlk Evim” oranlarının hiçbirini alamazsın, taksitlere %15 BSMV eklenir (konut kredisi muafiyeti kalkar) ve kullanabileceğin kredi oranı %75 azalır (BDDK 10656). Bu, kurallardaki tek en büyük etki.')}<select id="ownsHome">
+          <option value="no" selected>Yok</option>
+          <option value="yes">Var</option>
+        </select></label>
+        <label>Hanede maaşı kim alıyor${hint('Bu bir filtre değil, bir hatırlatma. Ziraat, Halkbank ve VakıfBank’ın üçünde de kamu/maaş koşullu konut oranı ARANDI ve hiçbiri yayınlamıyor — ama üçünün de kendi belgeleri böyle bir oranın var olduğunu söylüyor. Ziraat’in broşürü: “kurumunuz ile Bankamız arasında imzalanan maaş protokolüne göre değişiklik gösterebilir… şubemiz ile irtibata geçiniz.” Ziraat’in kendi hesaplama servisinde maaşlı/maaşsız oran alanı var, konut için ikisi de sıfır dönüyor. VakıfBank’ın OYAK ve TSK üyelerine özel konut kampanyaları canlı ama oran yazmıyor. Yani aşağıdaki tablo herkese açık oranlar; protokol oranı sormadan öğrenilmiyor.')}<select id="salary">
+          <option value="private" selected>Özel sektör / serbest</option>
+          <option value="public">Kamu (memur, öğretmen, sağlık, TSK, OYAK)</option>
+          <option value="retired">Emekli</option>
+        </select></label>
+      </form>
+      <p class="note advice" id="salaryNote"></p>`;
+
 const FINANCE_FORM = `
       <form id="finance" autocomplete="off">
         <div class="fields">
@@ -326,12 +368,8 @@ const FINANCE_FORM = `
           <label>Peşinat<input id="downPayment" type="text" inputmode="decimal" value="1.000.000"><span>₺</span></label>
           <label>Baktığın ev fiyatı<input id="price" type="text" inputmode="decimal" value="3.500.000"><span>₺</span></label>
           <label>Aylık faiz<input id="rate" type="text" inputmode="decimal" value="2,79"><span>%</span></label>
-          <label>Vade<input id="months" type="text" inputmode="numeric" value="120"><span>ay</span></label>
-          <label>Üzerine kayıtlı ev<select id="ownsHome">
-            <option value="no" selected>Yok</option>
-            <option value="yes">Var</option>
-          </select></label>
-          <label>Enerji sınıfı<select id="energyClass">
+          <label>Vade<input id="months" type="text" inputmode="numeric" value="120"><span>ay</span><span class="cap" id="termCap"></span></label>
+          <label>Enerji sınıfı${hint('Kredi oranı BDDK’nın 29.01.2026 tarihli 11364 sayılı kararıyla enerji sınıfına bağlandı — A/B bir eve, aynı fiyatta D sınıfı bir evden %20 puan daha fazla kredi çıkıyor. Bilmiyorsan “D ve altı”nda bırak: yanlış tarafa düşmek, olmayan bir krediyi varmış gibi göstermekten iyidir.')}<select id="energyClass">
             <option value="A_B">A veya B</option>
             <option value="C">C</option>
             <option value="OTHER" selected>D ve altı / bilinmiyor</option>
@@ -429,6 +467,9 @@ function panelBody(tab: Tab, data: PageData): string {
       ${DISPATCH}
       ${research}
 
+      <h3 class="section">Durumun</h3>
+      ${HOUSEHOLD}
+
       <h3 class="section">Banka oranları</h3>
       ${ratesTable(data.rates)}
 
@@ -470,6 +511,7 @@ const FINANCE_SCRIPT = `
     const months = Math.round(num($('months').value));
     const energyClass = $('energyClass').value;
     const ownsHome = $('ownsHome').value === 'yes';
+    const age = Math.round(num($('age').value));
 
     const fail = (message) => {
       $('maxPrice').textContent = '—';
@@ -490,6 +532,33 @@ const FINANCE_SCRIPT = `
     if (months > rules.term.conventional_max_months) {
       return fail('Bankalar konut kredisinde genelde en fazla ' +
         rules.term.conventional_max_months + ' ay veriyor. Yasal bir üst sınır yok.');
+    }
+
+    // The age limit shortens the term silently, so it is said out loud. Shown as
+    // what banks do, never as law: the pinned rules record in as many words that
+    // no regulation sets either an age limit or a maximum maturity here.
+    const termCap = $('termCap');
+    if (Number.isNaN(age) || age < 18 || age > 100) {
+      termCap.textContent = '';
+      return fail('Yaşını kontrol et.');
+    }
+
+    const allowed = M.maxTermForAge(rules, age);
+    if (allowed === 0) {
+      termCap.textContent = '';
+      return fail(age + ' yaşında bankaların uyguladığı ' +
+        rules.term.conventional_max_age_at_final_instalment +
+        ' yaş sınırı nedeniyle konut kredisi vadesi çıkmıyor.');
+    }
+
+    termCap.textContent = allowed < rules.term.conventional_max_months
+      ? 'yaşın nedeniyle en fazla ' + allowed
+      : '';
+
+    if (months > allowed) {
+      return fail(age + ' yaşında en fazla ' + allowed + ' ay çıkar — bankalar son taksitin ' +
+        rules.term.conventional_max_age_at_final_instalment +
+        ' yaşından önce bitmesini ister. Yasal bir sınır değil, banka uygulaması.');
     }
 
     try {
@@ -543,13 +612,49 @@ const FINANCE_SCRIPT = `
   }
 
   $('finance').addEventListener('input', run);
+  // Not a filter: there is nothing in the record to filter by, because no bank
+  // publishes one. It is the one answer whose useful output is an instruction.
+  const salaryNote = $('salaryNote');
+  const salaryAdvice = {
+    public: 'Kamu maaşı: bankalar kurumunla imzaladıkları maaş protokolüne bağlı oranları ' +
+      'yayınlamıyor. Ziraat, Halkbank ve VakıfBank’ın üçünde de arandı, hiçbirinde yok — ama ' +
+      'üçü de böyle bir oranın var olduğunu kendi belgelerinde söylüyor. Aşağıdaki tablo ' +
+      'herkese açık oranlar; eşinin kurumu üzerinden daha iyisi çıkabilir. Şubeye sormadan ' +
+      'öğrenilmiyor. VakıfBank’ın OYAK ve TSK üyelerine özel konut kampanyaları da oransız.',
+    retired: 'Emekli maaşı: promosyon var (SGK protokolüyle 5.000–12.000 TL), ama incelenen ' +
+      'bankalarda emekliye özel bir konut kredisi oranı yayınlanmıyor. Emekli sayfaları ' +
+      'yalnızca taksit esnekliği veriyor.',
+  };
+
+  // Empty means gone — see .advice:empty in the stylesheet. Setting the hidden
+  // attribute here instead would put that word into the panel's own markup,
+  // where the tab machinery already uses it to mean something else.
+  const showSalaryAdvice = () => {
+    salaryNote.textContent = salaryAdvice[$('salary').value] || '';
+  };
+  $('household').addEventListener('change', showSalaryAdvice);
+  showSalaryAdvice();
+
+  // The household answers feed the same calculation, so they trigger it too.
+  $('household').addEventListener('input', run);
+  $('household').addEventListener('change', run);
   run();
 
   // Only the place is ever sent. The calculator's amounts are personal data and
   // stay in this page.
+  const buttons = [$('ask-rates'), $('ask-market')];
+
+  // The button disables itself while the request is in flight, and the status
+  // line keeps the spinner until the page is reloaded. An agent run takes
+  // minutes, so a state that clears itself after the POST returns would say
+  // "done" while the work has barely started — and a button that looks idle
+  // gets pressed again, which is how six scouts once went out for one job.
   const ask = async (payload, label) => {
     const status = $('ask-status');
+    status.className = 'note working';
     status.textContent = label + ' isteniyor…';
+    for (const button of buttons) button.disabled = true;
+
     try {
       const response = await fetch('/request', {
         method: 'POST',
@@ -557,12 +662,23 @@ const FINANCE_SCRIPT = `
         body: JSON.stringify(payload),
       });
       const data = await response.json();
-      status.textContent = response.ok
-        ? label + ' istendi. Claude Code oturumunda çalışıyor — bitince sayfayı tazele.'
-        : (data.error || 'İstek gönderilemedi.');
+
+      if (response.ok) {
+        status.className = 'note working';
+        status.textContent = label + ' sıraya alındı — Claude Code oturumunda çalışıyor. ' +
+          'Terminale bak; bitince bu sayfayı tazele.';
+        // Left disabled on purpose: the run is still going.
+        return;
+      }
+
+      status.className = 'note failed';
+      status.textContent = data.error || 'İstek gönderilemedi.';
     } catch {
+      status.className = 'note failed';
       status.textContent = 'Sunucuya ulaşılamadı. npm run dev çalışıyor mu?';
     }
+
+    for (const button of buttons) button.disabled = false;
   };
 
   $('ask-rates').addEventListener('click', () => ask({ kind: 'rates' }, 'Banka oranları'));
@@ -676,6 +792,47 @@ const STYLE = `
   .true-rate { font-family: var(--serif); font-variant-numeric: tabular-nums; }
   .true-rate.worse { color: var(--pending); font-weight: 600; }
   .true-rate.unknown { color: var(--muted); cursor: help; }
+
+  /* Asked once, above everything it changes. */
+  .household { display: flex; flex-wrap: wrap; gap: 1.4rem 2.2rem; align-items: end;
+    padding: 1.1rem 1.3rem; background: var(--surface); border-left: 2px solid var(--measured); }
+  .household label { flex: 1 1 14rem; }
+  .household #age { max-width: 5rem; }
+  .cap { color: var(--pending); font-size: .78rem; }
+  .advice { flex-basis: 100%; margin: .9rem 0 0; padding: .8rem 1rem; background: var(--surface);
+    border-left: 2px solid var(--pending); font-size: .82rem; line-height: 1.6; }
+  .advice:empty { display: none; }
+
+  /* A button, not a title= — a hover-only tooltip never appears on a phone,
+     which is where a question mark gets tapped. */
+  .hint { position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 1.05rem; height: 1.05rem; margin-left: .35rem; padding: 0; vertical-align: middle;
+    font: inherit; font-size: .68rem; line-height: 1; color: var(--muted);
+    background: none; border: 1px solid var(--line); border-radius: 50%; cursor: help; }
+  .hint:hover, .hint:focus-visible { color: var(--ground); background: var(--ink);
+    border-color: var(--ink); }
+  .hint:focus-visible { outline: 2px solid var(--measured); outline-offset: 2px; }
+  .hint-body { position: absolute; left: 0; bottom: calc(100% + .5rem); z-index: 5;
+    width: max-content; max-width: min(26rem, 78vw); padding: .7rem .85rem;
+    font-size: .78rem; line-height: 1.55; text-align: left; letter-spacing: 0;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+    box-shadow: 0 6px 22px rgb(0 0 0 / 14%); opacity: 0; visibility: hidden;
+    transition: opacity .12s; }
+  .hint:hover .hint-body, .hint:focus-visible .hint-body { opacity: 1; visibility: visible; }
+  /* Near the right edge the tooltip would run off the page. */
+  .rates .hint-body, .household label:last-child .hint-body { left: auto; right: 0; }
+
+  /* An agent run takes minutes; the spinner stays until the page is reloaded. */
+  .note.working::before { content: ''; display: inline-block; width: .62rem; height: .62rem;
+    margin-right: .5rem; vertical-align: baseline; border: 2px solid var(--line);
+    border-top-color: var(--measured); border-radius: 50%; animation: spin .8s linear infinite; }
+  .note.working { color: var(--ink); }
+  .note.failed { color: var(--pending); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .dispatch button:disabled { opacity: .5; cursor: progress; }
+  @media (prefers-reduced-motion: reduce) {
+    .note.working::before { animation: none; border-top-color: var(--line); }
+  }
   .breakdown dt { color: var(--muted); }
   .breakdown dd { margin: 0; text-align: right; font-family: var(--serif); font-size: 1.05rem;
     font-variant-numeric: tabular-nums; }

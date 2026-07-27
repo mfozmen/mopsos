@@ -49,4 +49,3 @@ Thumbs.db
 
 # Playwright snapshots and console logs from browsing. Scratch, and they pick up
 # whatever was on the page — bank phone numbers, for one.
-.playwright-mcp/

@@ -7,6 +7,7 @@ import {
   type EnergyClass,
   maxLoan,
   maxLoanToValue,
+  maxTermForAge,
   minDownPayment,
   monthlyPayment,
   totalInterest,
@@ -339,5 +340,36 @@ describe('the reduction for someone who already owns a home', () => {
     });
 
     expect(second).toBeLessThan(first);
+  });
+});
+
+describe('maxTermForAge', () => {
+  // Banks reason from the last instalment, not from drawdown: a 58-year-old can
+  // have 12 years of loan, a 68-year-old two.
+  it('gives a 40-year-old the full term banks offer', () => {
+    expect(maxTermForAge(rules, 40)).toBe(120);
+  });
+
+  it('cuts the term so the final instalment lands before the age limit', () => {
+    // 62 today, limit 70: eight years of instalments, not ten.
+    expect(maxTermForAge(rules, 62)).toBe(96);
+  });
+
+  it('is zero, not negative, for someone already past the limit', () => {
+    // A negative term would flow into monthlyPayment and produce a number. Zero
+    // is refusable; a plausible instalment for an impossible loan is not.
+    expect(maxTermForAge(rules, 74)).toBe(0);
+  });
+
+  it('does not invent a limit when the record has none', () => {
+    // Absent means unrecorded, not "no restriction that we checked". The
+    // conventional term still applies; the age rule simply says nothing.
+    const silent = { ...rules, term: { conventional_max_months: 120 } };
+
+    expect(maxTermForAge(silent, 62)).toBe(120);
+  });
+
+  it('rejects an age that is not a whole number of years', () => {
+    expect(() => maxTermForAge(rules, 40.5)).toThrow('whole number');
   });
 });

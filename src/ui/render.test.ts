@@ -1,3 +1,5 @@
+import { Script } from 'node:vm';
+
 import { describe, expect, it } from 'vitest';
 
 import { buildTabs, renderPage, type PageData } from './render.js';
@@ -221,6 +223,79 @@ describe('bank rates', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toMatch(/banka.*araştır/is);
   });
 
+  it('asks who the borrower is before showing rates, not after', () => {
+    // Age and existing ownership decide which of these rates the reader can
+    // actually get. Asking underneath the table makes them read a comparison
+    // that half applies to them.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing.indexOf('id="age"')).toBeGreaterThan(-1);
+    expect(housing.indexOf('id="age"')).toBeLessThan(housing.indexOf('class="rates"'));
+  });
+
+  it('asks about the household, not just the reader', () => {
+    // Every bank defines first-home by the household: "kendisi, eşi veya 18 yaş
+    // altı çocuğu". A question that says only "senin üzerine" gets answered
+    // wrong by anyone whose spouse owns the flat.
+    const housing = panel(renderPage(EMPTY), 'housing');
+    const before = housing.slice(0, housing.indexOf('id="ownsHome"'));
+    const label = before.slice(before.lastIndexOf('<label>'));
+
+    expect(label).toContain('eşin');
+  });
+
+  it('asks about existing ownership once, not twice', () => {
+    const housing = panel(renderPage(EMPTY), 'housing');
+
+    expect(housing.split('id="ownsHome"')).toHaveLength(2);
+  });
+
+  it('does not call the age limit a legal one', () => {
+    // The pinned rules say in as many words that there is no statutory age or
+    // maturity limit for a housing loan. Calling it legal on screen would put a
+    // false statement of law in front of the reader.
+    const housing = panel(renderPage(EMPTY), 'housing');
+    const hint = housing.slice(
+      housing.indexOf('id="age"') - 400,
+      housing.indexOf('id="age"') + 400,
+    );
+
+    expect(hint).toContain('bankaların');
+    expect(hint).not.toContain('yasal');
+  });
+
+  it('puts explanations behind a focusable control, not a hover-only title', () => {
+    // A tooltip that only appears on hover is unreachable by keyboard and
+    // invisible on a phone — which is where a question mark gets tapped.
+    const housing = panel(renderPage(EMPTY), 'housing');
+
+    expect(housing).toContain('class="hint"');
+    expect(housing).toMatch(/<button[^>]+class="hint"/);
+  });
+
+  it('asks whose salary the household lives on', () => {
+    const housing = panel(renderPage(EMPTY), 'housing');
+
+    expect(housing).toContain('id="salary"');
+    expect(housing.indexOf('id="salary"')).toBeLessThan(housing.indexOf('id="finance"'));
+  });
+
+  it('says the public-sector rate exists but is never published', () => {
+    // Ziraat and Halkbank both say in their own documents that a salary
+    // protocol changes the rate, and neither prints a number: Ziraat's own rate
+    // feed carries a salary-present field that returns zero for housing. The
+    // honest answer is not a filter — nothing in the record to filter — but an
+    // instruction to go and ask, which is the only way to find out.
+    const housing = panel(renderPage(EMPTY), 'housing');
+    const question = housing.slice(
+      housing.indexOf('id="salary"') - 1200,
+      housing.indexOf('id="salary"'),
+    );
+
+    expect(question).toContain('protokol');
+    expect(question).toContain('şube');
+  });
+
   it('links the bank to the page the figures were read from', () => {
     // The next question after "who is cheapest" is always "let me see it".
     expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).toContain(
@@ -426,5 +501,25 @@ describe('safety', () => {
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).not.toContain('http://');
     expect(html).not.toContain('https://');
+  });
+});
+
+describe('the page script', () => {
+  /**
+   * The other tests here read the rendered HTML as text, so a page whose script
+   * does not even parse passes every one of them. That is not hypothetical: a
+   * duplicate `const` shipped a page where nothing at all ran, and the suite
+   * stayed green. Parsing it is the cheapest thing that would have caught it.
+   */
+  it('parses', () => {
+    const page = renderPage(EMPTY);
+    const scripts = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const script of scripts) {
+      // Compiled, not run: this asks whether the page parses, and running it
+      // would need a DOM it has no business having here.
+      expect(() => new Script(script ?? '')).not.toThrow();
+    }
   });
 });
