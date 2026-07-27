@@ -1,7 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { effectiveMonthlyRate, IncalculableCostError } from '../finance/effective.js';
+import {
+  annualCostRate,
+  effectiveMonthlyRate,
+  IncalculableCostError,
+} from '../finance/effective.js';
 import { byCodePoint } from '../order.js';
 import { assertValid } from '../schema/validate.js';
 
@@ -42,6 +46,17 @@ export interface RateReport {
   note?: string;
 }
 
+/**
+ * How far our annual cost rate may sit from the bank's own before the example is
+ * treated as incomplete, in percentage points.
+ *
+ * Loose enough to absorb rounding in a published figure — the four banks that
+ * publish both agree to four decimals, so this is pure headroom — and tight
+ * enough to catch a missing charge: leaving out VakıfBank's 33.000 TL of fees
+ * moves the annual rate by nearly four points.
+ */
+const TOLERANCE = 0.5;
+
 /** The finest timestamp a report carries. A date alone sorts as its first minute. */
 function readAt(report: RateReport): string {
   return report.captured_at ?? `${report.captured_on}T00:00:00.000Z`;
@@ -59,8 +74,9 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
   const example = offer.example;
   if (example === undefined) return undefined;
 
+  let monthly: number;
   try {
-    return effectiveMonthlyRate({
+    monthly = effectiveMonthlyRate({
       principal: example.amount,
       months: example.months,
       monthlyPayment: example.instalment,
@@ -72,6 +88,21 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
     if (error instanceof IncalculableCostError) return undefined;
     throw error;
   }
+
+  // Where the bank publishes its own yıllık maliyet oranı, that figure is a
+  // checksum rather than decoration: it was computed from the same cashflow, by
+  // the party that knows every charge in it. Missing it means the example is
+  // short of something — Ziraat's is short of its fees, and taking the
+  // instalment at face value there gives %45,76 against a published %47,29.
+  //
+  // A rate we can see is understated is worse than no rate: it is the same
+  // mistake as the headline, arrived at more convincingly.
+  const published = example.published_annual_cost_rate;
+  if (published !== undefined && Math.abs(annualCostRate(monthly) * 100 - published) > TOLERANCE) {
+    return undefined;
+  }
+
+  return monthly;
 }
 
 /** The cheapest offer in a report, or nothing when the bank published none. */
@@ -95,11 +126,26 @@ export function loadRateReports(root: string): RateReport[] {
   const directory = join(root, 'rates');
   if (!existsSync(directory)) return [];
 
-  const newest = new Map<string, RateReport>();
-
-  for (const file of readdirSync(directory)
+  const newest = new Map<string, { report: RateReport; file: string }>();
+  const files = readdirSync(directory)
     .filter((name) => name.endsWith('.json'))
-    .sort(byCodePoint)) {
+    .sort(byCodePoint);
+
+  // Read first, then decide. A correction says which file it replaces, and that
+  // is the only thing that reliably identifies it: newest-per-bank keys on the
+  // bank's name, and "VakifBank" and "VakıfBank" are two different names for
+  // one bank — which is how two live rates for it once sat in the table at
+  // once, the exact invitation to pick the flattering one that keying by name
+  // is meant to prevent.
+  //
+  // A supersedes pointing at nothing is ignored rather than honoured: a typo
+  // there must not make the report itself vanish, because a bank that quietly
+  // disappears looks the same as a bank nobody checked.
+  const readAtByFile = new Map<string, string>();
+  const claims: { supersedes: string; at: string }[] = [];
+  const replaced = new Set<string>();
+
+  for (const file of files) {
     const path = join(directory, file);
     const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
 
@@ -118,17 +164,37 @@ export function loadRateReports(root: string): RateReport[] {
     // Ordered by the finest timestamp each report carries. Without this two
     // readings of one bank on one day are indistinguishable, and a mistake found
     // in the afternoon cannot supersede the morning's file.
-    const previous = newest.get(report.bank);
-    if (previous === undefined || readAt(previous) <= readAt(report)) {
-      newest.set(report.bank, report);
+    readAtByFile.set(file, readAt(report));
+    if (report.supersedes !== undefined) {
+      claims.push({ supersedes: report.supersedes, at: readAt(report) });
     }
+
+    const previous = newest.get(report.bank);
+    if (previous === undefined || readAt(previous.report) <= readAt(report)) {
+      newest.set(report.bank, { report, file });
+    }
+  }
+
+  // Only a later reading may retire an earlier one. A correction is written
+  // after the thing it corrects, so a file claiming to replace something newer
+  // than itself has its history backwards — and honouring it would delete the
+  // right reading and keep the wrong one, which is the opposite of the job.
+  for (const claim of claims) {
+    const target = readAtByFile.get(claim.supersedes);
+    if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
+  }
+
+  for (const [bank, kept] of newest) {
+    if (replaced.has(kept.file)) newest.delete(bank);
   }
 
   // Cheapest first: "who is cheapest today" is the question being asked. A bank
   // with nothing on offer sorts last rather than vanishing.
-  return [...newest.values()].sort((a, b) => {
-    const left = bestOffer(a)?.monthly_rate ?? Number.POSITIVE_INFINITY;
-    const right = bestOffer(b)?.monthly_rate ?? Number.POSITIVE_INFINITY;
-    return left === right ? byCodePoint(a.bank, b.bank) : left - right;
-  });
+  return [...newest.values()]
+    .map((kept) => kept.report)
+    .sort((a, b) => {
+      const left = bestOffer(a)?.monthly_rate ?? Number.POSITIVE_INFINITY;
+      const right = bestOffer(b)?.monthly_rate ?? Number.POSITIVE_INFINITY;
+      return left === right ? byCodePoint(a.bank, b.bank) : left - right;
+    });
 }

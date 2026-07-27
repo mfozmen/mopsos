@@ -169,6 +169,20 @@ describe("Akbank's own worked examples", () => {
     });
   }
 
+  it('counts ekspertiz as part of what the loan costs, because the banks do', () => {
+    // Arguable in principle — a valuation is a service you buy either way — but
+    // not arguable against the evidence: every bank that publishes both a
+    // worked example and its own cost rate puts ekspertiz inside it. Leaving it
+    // out puts Akbank's İlk Evim 24 ay at %52,83 against a published %66,62,
+    // and breaks the only independent check this arithmetic has.
+    const flow = { principal: 500_000, months: 24, monthlyPayment: 31_300.14 };
+    const withEkspertiz = annualCostRate(effectiveMonthlyRate({ ...flow, fees: 39_250 })) * 100;
+    const without = annualCostRate(effectiveMonthlyRate({ ...flow, fees: 2_500 })) * 100;
+
+    expect(withEkspertiz).toBeCloseTo(66.6197, 2);
+    expect(without).not.toBeCloseTo(66.6197, 0);
+  });
+
   it('shows the %1,99 headline is really over %3 a month', () => {
     // The cheapest-looking row in the whole table. It takes 309.637 TL of the
     // million as interest before handing any of it over, so the rate the
