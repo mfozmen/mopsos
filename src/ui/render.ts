@@ -221,11 +221,60 @@ const FINANCE_FORM = `
         eş ve 18 yaş altı çocuklar dahil. Kredi oranı satış fiyatına değil <strong>ekspertiz
         değerine</strong> uygulanır ve ekspertiz
         çoğu zaman istenen fiyatın altında çıkar — gerçekte çekebileceğin kredi buradakinden düşük
-        olabilir. Konut kredisinde <strong>KKDF ve BSMV yoktur</strong> (5582 sayılı kanun), o yüzden
-        hesaba vergi eklenmez; ihtiyaç kredisi için aynısı geçerli değildir. Vade için
+        olabilir. Konut kredisinde <strong>BSMV yoktur</strong> (5582 sayılı kanun) ve KKDF de
+        uygulanmaz (88/12944 sayılı BKK — bu ikincisini birincil kaynaktan doğrulayamadık),
+        o yüzden hesaba vergi eklenmez; ihtiyaç kredisi için aynısı geçerli değildir. Vade için
         <strong>yasal bir üst sınır yoktur</strong> — 120 ay bankaların yaygın uygulaması. Sigorta, ekspertiz ve
         ipotek masrafları dahil değildir.
       </p>`;
+
+function recordRow(record: SeerRecord): string {
+  return `
+          <tr>
+            <td>${escape(record.seer)}</td>
+            <td class="num">${record.brier.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="num">${percent(record.predicted)}</td>
+            <td class="num">${percent(record.observed)}</td>
+            <td class="num">${tl(record.count)}</td>
+          </tr>`;
+}
+
+function recordTable(records: SeerRecord[]): string {
+  return `
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th class="num">Brier</th>
+            <th class="num">Dediği</th>
+            <th class="num">Olan</th>
+            <th class="num">Ölçülen</th>
+          </tr>
+        </thead>
+        <tbody>${records.map(recordRow).join('')}
+        </tbody>
+      </table>`;
+}
+
+function instrumentTable(returns: InstrumentReturn[]): string {
+  return `
+      <table>
+        <thead>
+          <tr><th>Araç</th><th class="num">Yıllık getiri</th><th class="src">Kaynak</th></tr>
+        </thead>
+        <tbody>${returns
+          .map(
+            (entry) => `
+          <tr>
+            <td>${escape(entry.name)}</td>
+            <td class="num">${percent(entry.annual_return)}</td>
+            <td class="src">${escape(entry.source)}</td>
+          </tr>`,
+          )
+          .join('')}
+        </tbody>
+      </table>`;
+}
 
 function panelBody(tab: Tab, data: PageData): string {
   const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
@@ -237,12 +286,13 @@ function panelBody(tab: Tab, data: PageData): string {
   }
 
   if (tab.id === 'sicil') {
-    // Deliberately no number when there is nothing measured. Zero is the best
-    // possible Brier score and an unmeasured seer must not appear to have earned it.
-    return data.records.length === 0 ? empty : '';
+    // No number at all when nothing has been measured: zero is the best possible
+    // Brier score and an unmeasured agent must not appear to have earned it.
+    return data.records.length === 0 ? empty : recordTable(data.records);
   }
 
-  return data.instruments.some((entry) => entry.module === tab.id) ? '' : empty;
+  const returns = data.instruments.filter((entry) => entry.module === tab.id);
+  return returns.length === 0 ? empty : instrumentTable(returns);
 }
 
 /**

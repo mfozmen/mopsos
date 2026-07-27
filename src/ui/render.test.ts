@@ -182,6 +182,39 @@ describe('empty states say what is missing, not just that something is', () => {
   });
 });
 
+describe('panels never go blank when they have data', () => {
+  it('renders a seer record rather than nothing', () => {
+    // The old renderer was removed and the branch was left returning an empty
+    // string, so a panel with data in it drew nothing at all. Silent blankness
+    // is the failure this project can least afford.
+    const sicil = panel(
+      renderPage({
+        ...EMPTY,
+        records: [{ seer: 'cautious', count: 6, brier: 0.19, predicted: 0.62, observed: 0.5 }],
+      }),
+      'sicil',
+    );
+
+    expect(sicil).toContain('cautious');
+    expect(sicil).toContain('0,19');
+    expect(sicil).not.toMatch(/Henüz/);
+  });
+
+  it('renders an instrument return rather than nothing', () => {
+    const fx = panel(
+      renderPage({
+        ...EMPTY,
+        instruments: [{ module: 'fx', name: 'USD/TRY', annual_return: 0.31, source: 'TCMB' }],
+      }),
+      'fx',
+    );
+
+    expect(fx).toContain('USD/TRY');
+    expect(fx).toContain('TCMB');
+    expect(fx).not.toMatch(/Henüz/);
+  });
+});
+
 describe('research findings', () => {
   const data: PageData = {
     ...EMPTY,

@@ -6,7 +6,7 @@
   "order": 1,
   "horizon_days": {
     "min": 30,
-    "max": 365
+    "max": 180
   },
   "sources": ["market_close"],
   "seers": []
