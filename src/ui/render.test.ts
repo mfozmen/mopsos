@@ -15,7 +15,17 @@ const EMPTY: PageData = {
   research: [],
   instruments: [],
   records: [],
+  rates: [],
   finance: { bundle: 'var Mortgage = {};', rules: { term: { max_months: 120 } } },
+};
+
+const ZIRAAT = {
+  schema_version: 1 as const,
+  bank: 'Ziraat Bankası',
+  kind: 'faiz' as const,
+  captured_on: '2026-07-27',
+  source_url: 'https://example.test/konut',
+  offers: [{ product: 'Konut Kredisi', monthly_rate: 2.79, conditions: 'Maaş müşterisi' }],
 };
 
 /**
@@ -163,6 +173,47 @@ describe('the finance calculator', () => {
     const html = renderPage(EMPTY);
 
     expect(html).not.toMatch(/fetch\(|localStorage|XMLHttpRequest|navigator\.sendBeacon/);
+  });
+});
+
+describe('bank rates', () => {
+  it('says nobody has looked yet, rather than showing an empty table', () => {
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/banka.*araştır/is);
+  });
+
+  it('shows a bank, its rate and what the rate depends on', () => {
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing).toContain('Ziraat Bankası');
+    expect(housing).toContain('2,79');
+    // A rate that requires moving your salary is not comparable with one that
+    // does not, so the condition travels with the number.
+    expect(housing).toContain('Maaş müşterisi');
+  });
+
+  it('says when the rate was read, since rates move weekly', () => {
+    expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).toContain('27.07.2026');
+  });
+
+  it('marks a participation bank as selling a profit share', () => {
+    const katilim = { ...ZIRAAT, bank: 'Kuveyt Türk', kind: 'kar_payi' as const };
+
+    expect(panel(renderPage({ ...EMPTY, rates: [katilim] }), 'housing')).toMatch(/kâr payı/i);
+  });
+
+  it('reports a bank that published nothing instead of dropping it', () => {
+    // "Looked and found nothing" and "nobody looked" are different answers.
+    const silent = { ...ZIRAAT, bank: 'Bir Banka', offers: [] };
+
+    const housing = panel(renderPage({ ...EMPTY, rates: [silent] }), 'housing');
+    expect(housing).toContain('Bir Banka');
+    expect(housing).toMatch(/yayınlamıyor|yok/i);
+  });
+
+  it('lets a rate be pushed into the calculator instead of retyped', () => {
+    expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).toContain(
+      'data-rate="2.79"',
+    );
   });
 });
 

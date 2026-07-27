@@ -12,7 +12,14 @@ const addFormats = addFormatsModule.default;
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../schemas');
 
-export const DOCUMENT_KINDS = ['verdict', 'evidence', 'outcome', 'score', 'module'] as const;
+export const DOCUMENT_KINDS = [
+  'verdict',
+  'evidence',
+  'outcome',
+  'score',
+  'module',
+  'rate-report',
+] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export class ValidationError extends Error {
