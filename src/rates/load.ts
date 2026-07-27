@@ -1,13 +1,26 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { effectiveMonthlyRate, IncalculableCostError } from '../finance/effective.js';
 import { byCodePoint } from '../order.js';
 import { assertValid } from '../schema/validate.js';
+
+export interface RateExample {
+  amount: number;
+  months: number;
+  instalment: number;
+  upfront_interest?: number;
+  fees?: number;
+  /** The bank's own yıllık maliyet oranı, where it publishes one. */
+  published_annual_cost_rate?: number;
+}
 
 export interface RateOffer {
   product: string;
   /** Percent per month, as Turkish banks quote it. */
   monthly_rate: number;
+  /** The bank's worked example, which is what makes the real cost computable. */
+  example?: RateExample;
   max_term_months?: number;
   min_amount?: number;
   max_amount?: number;
@@ -32,6 +45,33 @@ export interface RateReport {
 /** The finest timestamp a report carries. A date alone sorts as its first minute. */
 function readAt(report: RateReport): string {
   return report.captured_at ?? `${report.captured_on}T00:00:00.000Z`;
+}
+
+/**
+ * What an offer really costs per month, or nothing when it cannot be known.
+ *
+ * Nothing — not the quoted rate. Most of these are package rates whose insurance
+ * cost the bank does not publish, so the real cost is unknown and higher than
+ * the headline. Falling back to the quoted rate would present the very number
+ * this exists to correct as though it were the answer.
+ */
+export function trueMonthlyRate(offer: RateOffer): number | undefined {
+  const example = offer.example;
+  if (example === undefined) return undefined;
+
+  try {
+    return effectiveMonthlyRate({
+      principal: example.amount,
+      months: example.months,
+      monthlyPayment: example.instalment,
+      upfrontInterest: example.upfront_interest,
+      fees: example.fees,
+    });
+  } catch (error) {
+    /* v8 ignore next 3 -- only reachable from an example that is not a loan */
+    if (error instanceof IncalculableCostError) return undefined;
+    throw error;
+  }
 }
 
 /** The cheapest offer in a report, or nothing when the bank published none. */

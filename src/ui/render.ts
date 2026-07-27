@@ -1,3 +1,6 @@
+import { annualCostRate } from '../finance/effective.js';
+import { type RateExample, trueMonthlyRate } from '../rates/load.js';
+
 export interface Tab {
   id: string;
   name: string;
@@ -114,6 +117,7 @@ export interface RateOffer {
   monthly_rate: number;
   max_term_months?: number;
   conditions?: string;
+  example?: RateExample;
 }
 
 export interface RateReport {
@@ -139,6 +143,16 @@ export interface PageData {
   records: SeerRecord[];
   rates: RateReport[];
   finance: FinanceBundle;
+}
+
+/**
+ * A link out to the bank, or nothing when the recorded address is not one.
+ *
+ * Only http(s) survives. The address comes out of a file an agent wrote, and a
+ * `javascript:` URL there would be running in the page that holds the amounts.
+ */
+function externalHref(url: string): string | undefined {
+  return /^https?:\/\//.test(url) ? escape(url) : undefined;
 }
 
 function escape(value: string): string {
@@ -217,17 +231,53 @@ const DISPATCH = `
 const RATES_EMPTY =
   'Henüz banka oranı yok. rate-scout agent’ını gönderip bankaları araştırdığında güncel konut kredisi oranları buraya gelir ve tıklayınca hesaba aktarılır.';
 
+/** A monthly rate, as banks quote it — already a percentage, not a fraction. */
+function ratePercent(value: number): string {
+  return `%${value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * What the offer really costs, or why that cannot be said.
+ *
+ * The dash is the point. Most of these are package rates whose insurance cost
+ * the bank does not publish, so the real cost is unknown *and higher* — and
+ * repeating the quoted rate here would present the very number this column
+ * exists to correct as though it were the correction.
+ */
+function trueRateCell(offer: RateOffer): string {
+  const real = trueMonthlyRate(offer);
+  if (real === undefined) {
+    return `<td class="num true-rate unknown" title="Banka örnek ödeme planı yayınlamamış — gerçek maliyet bundan yüksek">—</td>`;
+  }
+
+  const worse = real > offer.monthly_rate + 0.005;
+  return `<td class="num true-rate${worse ? ' worse' : ''}" title="Yıllık maliyet ${percent(annualCostRate(real))}">${ratePercent(real)}</td>`;
+}
+
+function bankCell(report: RateReport): string {
+  const kind = report.kind === 'kar_payi' ? '<span class="tag">kâr payı</span>' : '';
+  const href = externalHref(report.source_url);
+  const name = escape(report.bank);
+
+  // Linked to the page the figures were read from, not the bank's home page:
+  // the next question after "who is cheapest" is always "let me see it", and a
+  // rate you cannot go and check is a rate you have to take on trust.
+  return href === undefined
+    ? `<td>${name} ${kind}</td>`
+    : `<td><a href="${href}" target="_blank" rel="noreferrer noopener">${name}</a> ${kind}</td>`;
+}
+
 function rateRow(report: RateReport): string {
   const cheapest = [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0];
-  const kind = report.kind === 'kar_payi' ? '<span class="tag">kâr payı</span>' : '';
 
   if (!cheapest) {
     // Kept in the table on purpose: a bank that publishes nothing is a different
     // answer from a bank nobody checked, and only one of them is worth retrying.
     return `
           <tr class="silent">
-            <td>${escape(report.bank)} ${kind}</td>
+            ${bankCell(report)}
             <td class="num">—</td>
+            <td class="num true-rate unknown">—</td>
             <td>Oran yayınlamıyor</td>
             <td class="when">${turkishDate(report.captured_on)}</td>
           </tr>`;
@@ -235,9 +285,10 @@ function rateRow(report: RateReport): string {
 
   return `
           <tr>
-            <td>${escape(report.bank)} ${kind}</td>
+            ${bankCell(report)}
             <td class="num"><button type="button" class="use-rate"
-              data-rate="${cheapest.monthly_rate}">%${cheapest.monthly_rate.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</button></td>
+              data-rate="${cheapest.monthly_rate}">${ratePercent(cheapest.monthly_rate)}</button></td>
+            ${trueRateCell(cheapest)}
             <td>${escape(cheapest.conditions ?? cheapest.product)}</td>
             <td class="when">${turkishDate(report.captured_on)}</td>
           </tr>`;
@@ -250,7 +301,7 @@ function ratesTable(reports: RateReport[]): string {
       <table class="rates">
         <thead>
           <tr>
-            <th>Banka</th><th class="num">Aylık</th><th>Koşul</th><th class="when">Okundu</th>
+            <th>Banka</th><th class="num">Söylenen</th><th class="num">Gerçek</th><th>Koşul</th><th class="when">Okundu</th>
           </tr>
         </thead>
         <tbody>${reports.map(rateRow).join('')}
@@ -258,10 +309,13 @@ function ratesTable(reports: RateReport[]): string {
       </table>
       <p class="note">Orana tıklayınca hesaba geçer. Oranlar sık değişir — okunma tarihine bak.</p>
       <p class="caveat">
-        Sıralama <strong>yayınlanan aylık orana göre</strong>; bu “en ucuz” demek değil.
-        Peşin faiz ödemeli bir ürün düşük oran gösterip başta büyük bir ödeme ister,
-        paket oranı sigorta ve ek ürün almayı şart koşar, değişken oran başlangıç
-        değeridir. Koşul sütununu okumadan karşılaştırma.
+        Sıralama <strong>yayınlanan aylık orana göre</strong>; “en ucuz” demek değil.
+        <strong>Gerçek</strong> sütunu bankanın kendi örnek ödeme planından hesaplanır:
+        peşin alınan faiz ve dosya masrafı eline geçen parayı düşürür, taksit aynı kalır —
+        yani ödediğin oran söylenenden yüksektir. <strong>—</strong> ise banka örnek
+        yayınlamamış demektir; o zaman gerçek maliyet <em>bilinmiyor</em> ve söylenenden
+        düşük olmadığı kesin. Paket oranı sigorta ve ek ürün almayı şart koşar, değişken
+        oran başlangıç değeridir.
       </p>`;
 }
 
@@ -612,8 +666,16 @@ const STYLE = `
   tr.silent td { color: var(--muted); }
   /* Conditions are long because they matter — a package rate with four insurance
      products attached is a different offer. Given room to breathe, not hidden. */
-  .rates td:nth-child(3) { font-size: .82rem; line-height: 1.5; color: var(--muted); }
+  .rates td:nth-child(4) { font-size: .82rem; line-height: 1.5; color: var(--muted); }
   .rates td:first-child { white-space: normal; min-width: 7rem; }
+  .rates td:first-child a { color: inherit; text-decoration: none;
+    border-bottom: 1px solid var(--line); }
+  .rates td:first-child a:hover { border-bottom-color: var(--ink); }
+  /* The published rate and the real one sit side by side so the gap is the thing
+     you see first. Grey where it is unknown, marked where it is worse. */
+  .true-rate { font-family: var(--serif); font-variant-numeric: tabular-nums; }
+  .true-rate.worse { color: var(--pending); font-weight: 600; }
+  .true-rate.unknown { color: var(--muted); cursor: help; }
   .breakdown dt { color: var(--muted); }
   .breakdown dd { margin: 0; text-align: right; font-family: var(--serif); font-size: 1.05rem;
     font-variant-numeric: tabular-nums; }

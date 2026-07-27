@@ -221,6 +221,47 @@ describe('bank rates', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toMatch(/banka.*araştır/is);
   });
 
+  it('links the bank to the page the figures were read from', () => {
+    // The next question after "who is cheapest" is always "let me see it".
+    expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).toContain(
+      'href="https://example.test/konut"',
+    );
+  });
+
+  it('opens the bank in a new tab without handing it the referrer', () => {
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing).toContain('rel="noreferrer noopener"');
+  });
+
+  it('shows what a rate really costs beside what the bank calls it', () => {
+    // %1,99 with a third of the loan taken as interest up front is a %3,10 loan.
+    const akbank = {
+      ...ZIRAAT,
+      bank: 'Akbank',
+      offers: [
+        {
+          product: 'Peşin faiz ödemeli',
+          monthly_rate: 1.99,
+          example: { amount: 1000000, months: 120, instalment: 21964, upfront_interest: 309637 },
+        },
+      ],
+    };
+    const housing = panel(renderPage({ ...EMPTY, rates: [akbank] }), 'housing');
+
+    expect(housing).toContain('1,99');
+    expect(housing).toContain('3,10');
+  });
+
+  it('says the real cost is unknown rather than repeating the quoted rate', () => {
+    // Repeating it would present the number this column exists to correct as
+    // though it were the correction.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+    const trueCell = housing.slice(housing.indexOf('class="true-rate"'));
+
+    expect(trueCell.slice(0, 60)).not.toContain('2,79');
+  });
+
   it('shows a bank, its rate and what the rate depends on', () => {
     const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 

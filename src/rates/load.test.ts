@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { bestOffer, loadRateReports } from './load.js';
+import { bestOffer, loadRateReports, trueMonthlyRate } from './load.js';
 
 function report(bank: string, capturedOn: string, monthlyRate: number, extra = {}): string {
   return JSON.stringify({
@@ -171,5 +171,45 @@ describe('a second reading on the same day', () => {
     );
 
     expect(loadRateReports(root)[0]?.offers[0]?.monthly_rate).toBe(2.88);
+  });
+});
+
+describe('what a rate really costs', () => {
+  const withExample = (extra: object) =>
+    JSON.stringify({
+      schema_version: 1,
+      bank: 'Bir Banka',
+      captured_on: '2026-07-28',
+      source_url: 'https://example.test/x',
+      offers: [
+        {
+          product: 'Konut',
+          monthly_rate: 1.99,
+          example: { amount: 1000000, months: 120, instalment: 21964, ...extra },
+        },
+      ],
+    });
+
+  it('is the quoted rate when the example carries no extra charge', () => {
+    const root = rates(['a.json', withExample({})]);
+
+    expect(trueMonthlyRate(loadRateReports(root)[0]!.offers[0]!)).toBeCloseTo(1.99, 1);
+  });
+
+  it('is far above the quoted rate when interest is taken up front', () => {
+    // Akbank's shape: %1,99 quoted, 309.637 TL never arrives.
+    const root = rates(['a.json', withExample({ upfront_interest: 309637 })]);
+
+    expect(trueMonthlyRate(loadRateReports(root)[0]!.offers[0]!)).toBeCloseTo(3.1, 1);
+  });
+
+  it('is unknown when the bank published no example', () => {
+    // Not "equal to the quoted rate". Most of these are package rates whose
+    // insurance cost is unpublished, so the real cost is unknown and higher —
+    // and showing the quoted rate as though it were the cost is the exact
+    // mistake this column exists to correct.
+    const root = rates(['a.json', report('Bir Banka', '2026-07-28', 2.88)]);
+
+    expect(trueMonthlyRate(loadRateReports(root)[0]!.offers[0]!)).toBeUndefined();
   });
 });

@@ -64,6 +64,41 @@
           "conditions": {
             "description": "What the rate depends on — salary customer, first home, energy class, a campaign end date. A rate without its conditions is not comparable with another.",
             "type": "string"
+          },
+          "example": {
+            "description": "The bank's own worked example, which is what makes the real cost computable. A quoted rate prices the face amount; what matters is the rate on what the borrower actually receives, and that needs the amount, the term, the instalment and anything taken at drawdown.",
+            "type": "object",
+            "required": ["amount", "months", "instalment"],
+            "additionalProperties": false,
+            "properties": {
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "months": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "instalment": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "upfront_interest": {
+                "description": "Interest taken at drawdown, so it never reaches the borrower. The whole point of a peşin faizli product.",
+                "type": "number",
+                "minimum": 0
+              },
+              "fees": {
+                "description": "Tahsis, ipotek tesis and anything else payable on the day. Not ekspertiz, which is a service bought either way.",
+                "type": "number",
+                "minimum": 0
+              },
+              "published_annual_cost_rate": {
+                "description": "The bank's own yıllık maliyet oranı, as a percentage. Recorded rather than recomputed: where it disagrees with ours, the disagreement is the interesting part.",
+                "type": "number",
+                "minimum": 0
+              }
+            }
           }
         }
       }
