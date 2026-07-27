@@ -10,7 +10,7 @@
 import { resolveDataDir } from '../config/data-dir.js';
 import { extractPdfText, NotAPdfError } from '../pdf/extract.js';
 import { PdfFetchError } from '../pdf/fetch.js';
-import { OutsideAllowedRootError, readPdf } from '../pdf/read.js';
+import { OutsideAllowedRootError, PdfReadError, readPdf } from '../pdf/read.js';
 
 const target = process.argv[2];
 
@@ -47,6 +47,7 @@ try {
   if (
     error instanceof PdfFetchError ||
     error instanceof OutsideAllowedRootError ||
+    error instanceof PdfReadError ||
     error instanceof NotAPdfError
   ) {
     console.error(error.message);

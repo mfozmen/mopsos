@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { OutsideAllowedRootError, readPdf } from './read.js';
+import { OutsideAllowedRootError, PdfReadError, readPdf } from './read.js';
 import { PdfFetchError } from './fetch.js';
 
 function workspace(): string {
@@ -55,6 +55,22 @@ describe('local files', () => {
     const data = workspace();
 
     expect(await readPdf(join(data, 'docs', 'a.pdf'), [code, data])).toHaveLength(11);
+  });
+
+  it('reports a missing file as unreadable, not as an empty document', async () => {
+    // Anything that is not clearly "no text layer" must not exit as if it were:
+    // the caller would go and take screenshots of a file that is not there.
+    const root = workspace();
+
+    await expect(readPdf('docs/missing.pdf', [root])).rejects.toBeInstanceOf(PdfReadError);
+  });
+
+  it('says it could not read the file rather than leaking an errno', async () => {
+    const root = workspace();
+
+    await expect(readPdf('docs/missing.pdf', [root])).rejects.toThrow(
+      /could not be read.*missing\.pdf/s,
+    );
   });
 
   it('names the roots it would have accepted', async () => {

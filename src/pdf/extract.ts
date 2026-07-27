@@ -1,21 +1,5 @@
 import { extractText, getDocumentProxy } from 'unpdf';
 
-/**
- * pdf.js reaches for `Math.sumPrecise`, which Node 22 does not have, and warns
- * once per document without it. Ordinary summation is accurate enough for glyph
- * positioning, and a warning nobody can act on trains people to ignore warnings.
- */
-declare global {
-  interface Math {
-    sumPrecise?: (values: Iterable<number>) => number;
-  }
-}
-Math.sumPrecise ??= (values) => {
-  let total = 0;
-  for (const value of values) total += value;
-  return total;
-};
-
 export class NotAPdfError extends Error {
   constructor(cause: unknown) {
     super('Not a PDF, or the file is damaged beyond what pdf.js can rebuild');
@@ -42,7 +26,10 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfText> {
   let pages: string[];
 
   try {
-    const document = await getDocumentProxy(bytes);
+    // verbosity 0: pdf.js otherwise warns about a `Math.sumPrecise` it cannot
+    // find on Node 22, which nobody can act on and which trains people to ignore
+    // warnings.
+    const document = await getDocumentProxy(bytes, { verbosity: 0 });
     ({ text: pages } = await extractText(document, { mergePages: false }));
   } catch (error) {
     throw new NotAPdfError(error);

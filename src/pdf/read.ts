@@ -3,6 +3,16 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import { fetchPdf } from './fetch.js';
 
+export class PdfReadError extends Error {
+  constructor(path: string, cause: unknown) {
+    super(
+      `"${path}" could not be read: ` + `${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+    this.name = 'PdfReadError';
+    this.cause = cause;
+  }
+}
+
 export class OutsideAllowedRootError extends Error {
   constructor(target: string, roots: string[]) {
     super(
@@ -42,5 +52,12 @@ function resolveLocal(target: string, roots: string[]): string {
 export async function readPdf(target: string, roots: string[]): Promise<Uint8Array> {
   if (/^https?:\/\//.test(target)) return fetchPdf(target);
 
-  return new Uint8Array(readFileSync(resolveLocal(target, roots)));
+  const path = resolveLocal(target, roots);
+  try {
+    return new Uint8Array(readFileSync(path));
+  } catch (error) {
+    // Typed, so the caller cannot mistake a missing file for a scan and go and
+    // photograph a document that is not there.
+    throw new PdfReadError(path, error);
+  }
 }
