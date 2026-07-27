@@ -40,7 +40,13 @@ describe('renderPage', () => {
   });
 
   it('leads with the longest-horizon call, not a probe', () => {
-    const probe = { ...VERDICT, id: 'p', question: 'Dört haftalık prob.', horizon_days: 28, is_probe: true };
+    const probe = {
+      ...VERDICT,
+      id: 'p',
+      question: 'Dört haftalık prob.',
+      horizon_days: 28,
+      is_probe: true,
+    };
     const html = renderPage({ ...DATA, verdicts: [probe, VERDICT] });
     const headline = html.indexOf('class="headline-question"');
 
