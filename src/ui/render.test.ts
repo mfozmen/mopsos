@@ -168,11 +168,51 @@ describe('the finance calculator', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toMatch(/KKDF|BSMV/);
   });
 
-  it('does not put the reader’s numbers anywhere but the page', () => {
-    // Amounts are personal data. Nothing here may post, store or persist them.
+  it('never sends the reader’s amounts anywhere', () => {
+    // Amounts are personal data. The page does now talk to a local server to
+    // queue research, so a blanket "no fetch" rule no longer holds — what holds
+    // is that no field of the calculator appears in anything it sends.
+    const html = renderPage(EMPTY);
+    const sent = [...html.matchAll(/fetch\([^)]*\{[\s\S]*?\}\)/g)]
+      .map((match) => match[0])
+      .join('');
+
+    for (const field of ['budget', 'downPayment', 'price', 'rate', 'months']) {
+      expect(sent).not.toContain(field);
+    }
+  });
+
+  it('stores nothing in the browser either', () => {
+    expect(renderPage(EMPTY)).not.toMatch(/localStorage|sessionStorage|navigator\.sendBeacon/);
+  });
+
+  it('only ever talks to its own origin', () => {
+    // A relative path cannot leave the machine. An absolute one could.
     const html = renderPage(EMPTY);
 
-    expect(html).not.toMatch(/fetch\(|localStorage|XMLHttpRequest|navigator\.sendBeacon/);
+    for (const [, url] of html.matchAll(/fetch\(['"`]([^'"`]+)/g)) {
+      expect(url?.startsWith('/')).toBe(true);
+    }
+  });
+});
+
+describe('sending the agent from the page', () => {
+  it('offers to refresh the bank rates', () => {
+    expect(panel(renderPage(EMPTY), 'housing')).toContain('id="ask-rates"');
+  });
+
+  it('asks for a place before researching a market', () => {
+    const housing = panel(renderPage(EMPTY), 'housing');
+
+    expect(housing).toContain('id="province"');
+    expect(housing).toContain('id="district"');
+    expect(housing).toContain('id="ask-market"');
+  });
+
+  it('says the request goes to the open Claude session, not into the void', () => {
+    // A button that appears to do nothing is worse than no button. The reader
+    // has to know where the work happens and that it needs the session open.
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/Claude/);
   });
 });
 
