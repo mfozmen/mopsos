@@ -12,19 +12,11 @@ import { assertValid } from '../schema/validate.js';
  */
 export type ModuleStatus = 'configured' | 'incomplete' | 'empty';
 
-/**
- * `target` is the thing being bought — housing. `instrument` is somewhere the
- * money can sit while the down payment grows. The interface is built on that
- * distinction, so the data carries it rather than the UI inferring it from an id.
- */
-export type ModuleKind = 'target' | 'instrument';
-
 export interface AssetModule {
   id: string;
   name: string;
   /** Shown in the interface, which is Turkish. */
   label_tr: string;
-  kind: ModuleKind;
   /** Position in the tab strip. */
   order: number;
   horizon_days: { min: number; max: number };

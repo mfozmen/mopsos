@@ -2,7 +2,6 @@
   "id": "housing",
   "name": "Housing & Mortgage",
   "label_tr": "Konut",
-  "kind": "target",
   "order": 0,
   "horizon_days": {
     "min": 180,

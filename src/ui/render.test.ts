@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { buildTabs, renderPage, type PageData } from './render.js';
 
 const MODULES = [
-  { id: 'housing', label_tr: 'Konut', kind: 'target' as const },
-  { id: 'precious_metals', label_tr: 'Altın & Gümüş', kind: 'instrument' as const },
-  { id: 'fx', label_tr: 'Döviz', kind: 'instrument' as const },
-  { id: 'equities', label_tr: 'Hisse', kind: 'instrument' as const },
-  { id: 'funds', label_tr: 'Fonlar', kind: 'instrument' as const },
+  { id: 'housing', label_tr: 'Konut' },
+  { id: 'precious_metals', label_tr: 'Altın & Gümüş' },
+  { id: 'fx', label_tr: 'Döviz' },
+  { id: 'equities', label_tr: 'Hisse' },
+  { id: 'funds', label_tr: 'Fonlar' },
 ];
 
 const EMPTY: PageData = {
@@ -55,8 +55,16 @@ describe('the tabs', () => {
     expect(buildTabs(MODULES).map((tab) => tab.id)).not.toContain('finansman');
   });
 
-  it('opens on the goal rather than on a place money waits', () => {
-    expect(buildTabs(MODULES)[0]?.id).toBe('konut');
+  it('opens on the one being worked on first', () => {
+    expect(buildTabs(MODULES)[0]?.id).toBe('housing');
+  });
+
+  it('names every tab after its module, so a link cannot drift from the data', () => {
+    expect(
+      buildTabs(MODULES)
+        .slice(0, -1)
+        .map((tab) => tab.id),
+    ).toEqual(MODULES.map((module) => module.id));
   });
 
   it('ends with Sicil, which is a look back rather than a decision', () => {
@@ -88,7 +96,7 @@ describe('the tabs', () => {
   it('hides every panel except the first, so one tab is one screen', () => {
     const html = renderPage(EMPTY);
 
-    expect(panel(html, 'konut')).not.toContain('hidden');
+    expect(panel(html, 'housing')).not.toContain('hidden');
     expect(panel(html, 'fx')).toContain('hidden');
   });
 
@@ -112,7 +120,7 @@ describe('the tabs', () => {
 
 describe('the finance calculator', () => {
   it('lives inside the housing tab, because financing is part of buying a house', () => {
-    const konut = panel(renderPage(EMPTY), 'konut');
+    const konut = panel(renderPage(EMPTY), 'housing');
 
     for (const field of ['price', 'downPayment', 'rate', 'months', 'energyClass', 'budget']) {
       expect(konut).toContain(`id="${field}"`);
@@ -120,11 +128,11 @@ describe('the finance calculator', () => {
   });
 
   it('is a section of that tab, under its own heading', () => {
-    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/Finansman/);
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/Finansman/);
   });
 
   it('leaves the market research above it, since that comes first', () => {
-    const konut = panel(renderPage(EMPTY), 'konut');
+    const konut = panel(renderPage(EMPTY), 'housing');
 
     expect(konut.indexOf('araştırma')).toBeLessThan(konut.indexOf('id="budget"'));
   });
@@ -143,11 +151,11 @@ describe('the finance calculator', () => {
     // The ekspertiz value is routinely below the asking price in Turkey, so the
     // reachable price is lower than this calculation suggests. Saying so is the
     // difference between a tool and a toy.
-    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/ekspertiz/i);
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/ekspertiz/i);
   });
 
   it('says no tax is applied, because that is a real difference from a consumer loan', () => {
-    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/KKDF|BSMV/);
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/KKDF|BSMV/);
   });
 
   it('does not put the reader’s numbers anywhere but the page', () => {
@@ -159,12 +167,14 @@ describe('the finance calculator', () => {
 });
 
 describe('instrument tabs', () => {
-  it('says what each instrument tab will hold rather than just "empty"', () => {
-    const html = renderPage(EMPTY);
+  it('says what each tab will hold rather than just "empty"', () => {
+    // These are investments in their own right, not somewhere a deposit waits.
+    // The copy said the latter, which was the wrong idea of the product.
+    expect(panel(renderPage(EMPTY), 'precious_metals')).toMatch(/getiri/i);
+  });
 
-    // Gold is for parking a down payment, not for its own sake — the empty
-    // state should say so, because that is why the tab exists.
-    expect(panel(html, 'precious_metals')).toMatch(/peşinat/i);
+  it('does not describe an investment as a place to park a deposit', () => {
+    expect(renderPage(EMPTY)).not.toMatch(/peşinat biriktirirken/i);
   });
 
   it('mentions certificates under funds, which is a route to a flat', () => {
@@ -174,7 +184,7 @@ describe('instrument tabs', () => {
 
 describe('empty states say what is missing, not just that something is', () => {
   it('tells you no research has been done rather than showing a blank page', () => {
-    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/araştırma/i);
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/araştırma/i);
   });
 
   it('never shows an unmeasured record as a score', () => {
@@ -242,7 +252,7 @@ describe('research findings', () => {
   };
 
   it('shows a neighbourhood with its figures', () => {
-    const konut = panel(renderPage(data), 'konut');
+    const konut = panel(renderPage(data), 'housing');
 
     expect(konut).toContain('Egekent 2');
     expect(konut).toContain('48.500');
@@ -251,11 +261,11 @@ describe('research findings', () => {
   it('names the source of every figure', () => {
     // A number with no source cannot be checked later, and an unverifiable
     // number is worse than a missing one because it looks like knowledge.
-    expect(panel(renderPage(data), 'konut')).toContain('Endeksa');
+    expect(panel(renderPage(data), 'housing')).toContain('Endeksa');
   });
 
   it('says when the research was done, since the market moves', () => {
-    expect(panel(renderPage(data), 'konut')).toContain('27.07.2026');
+    expect(panel(renderPage(data), 'housing')).toContain('27.07.2026');
   });
 });
 

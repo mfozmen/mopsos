@@ -4,7 +4,7 @@
   "title": "Asset class module",
   "description": "One asset class. Adding a class means adding a folder and this file — nothing central is edited, so a new tab cannot half-exist.",
   "type": "object",
-  "required": ["id", "name", "label_tr", "kind", "order", "horizon_days", "sources", "seers"],
+  "required": ["id", "name", "label_tr", "order", "horizon_days", "sources", "seers"],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -53,11 +53,6 @@
       "description": "The name shown in the interface, which is Turkish. Kept here rather than in the UI so that adding an asset class stays a matter of adding a folder — a label map in the code would be one more central edit.",
       "type": "string",
       "minLength": 1
-    },
-    "kind": {
-      "description": "Which tab this module drives. `target` is the thing being bought; `instrument` is somewhere the money could sit instead while the down payment grows.",
-      "type": "string",
-      "enum": ["target", "instrument"]
     },
     "order": {
       "description": "Where this module sits in the tab strip. Explicit because the alternative is alphabetical by English id, which puts Hisse before Döviz and means nothing to a Turkish reader.",

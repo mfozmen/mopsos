@@ -9,10 +9,10 @@ export interface Tab {
 export interface TabModule {
   id: string;
   label_tr: string;
-  kind: 'target' | 'instrument';
 }
 
-const KONUT_EMPTY =
+/** Where the housing module's own research lands. */
+const HOUSING_EMPTY =
   'Henüz araştırma yok. Bir il ve ilçe seçip agent’ı gönderdiğinde bulduğu mahalle fiyatları, kira getirileri ve piyasa altı ilanlar burada birikir.';
 
 const SICIL: Tab = {
@@ -23,58 +23,56 @@ const SICIL: Tab = {
 };
 
 /**
- * What each instrument tab is for.
+ * What each tab will hold.
  *
- * Every one of them answers the same question from a different angle: while the
- * down payment grows, is this a better place for it than the alternatives? None
- * of them is here as an investment in its own right, and the empty states say so
- * — a tab that does not explain why it exists gets filled with whatever is easy
- * to measure rather than whatever matters.
+ * Each is an investment in its own right, compared against the others on the
+ * same terms: what it returned, over what period, and how reliably. An earlier
+ * version described them as places a house deposit waits, which was the wrong
+ * idea of the product — the goal is investing, and housing is simply the one
+ * being built first.
+ *
+ * A tab that does not say what it will hold gets filled with whatever is easy to
+ * measure rather than whatever matters.
  */
-const INSTRUMENT_EMPTY: Record<string, string> = {
+const MODULE_EMPTY: Record<string, string> = {
   precious_metals:
-    'Henüz kurulmadı. Gram altın ve gümüşün TL getirisi buraya gelecek — peşinat biriktirirken paranın burada durmasının konut fiyatlarına karşı kazandırıp kazandırmadığı sorusu.',
-  fx: 'Henüz kurulmadı. Kur ve TL mevduat faizi yan yana gelecek — peşinatı dövizde tutmanın, faizde tutmanın ve konut fiyat artışının karşılaştırması.',
-  equities:
-    'Henüz kurulmadı. BIST endeksleri ve izlediğin hisseler buraya gelecek. Vadesi peşinat hedefinden kısa olan para için.',
+    'Henüz kurulmadı. Gram altın ve gümüşün TL getirisi buraya gelecek — diğer araçlarla aynı ölçüde karşılaştırılabilir şekilde.',
+  fx: 'Henüz kurulmadı. Kur hareketi ve TL mevduat faizi buraya gelecek; ikisi birlikte, çünkü döviz tutmanın getirisi faizden vazgeçmekle birlikte anlam kazanır.',
+  equities: 'Henüz kurulmadı. BIST endeksleri ve izlediğin hisseler buraya gelecek.',
   funds:
-    'Henüz kurulmadı. Yatırım fonları ve gayrimenkul sertifikaları buraya gelecek — Damla Kent gibi projeler dahil. Daireyi bütün almak yerine sertifika biriktirip sonra daireye çevirme yolu da bir seçenek.',
+    'Henüz kurulmadı. Yatırım fonları ve gayrimenkul sertifikaları buraya gelecek — Damla Kent gibi projeler dahil. Sertifika, daireyi bütün almadan gayrimenkule yatırım yapmanın bir yolu.',
 };
 
-function instrumentTab(module: TabModule): Tab {
+function moduleTab(module: TabModule): Tab {
   return {
     id: module.id,
     name: module.label_tr,
     emptyState:
-      INSTRUMENT_EMPTY[module.id] ??
-      `Henüz kurulmadı. ${module.label_tr} getirileri buraya gelecek.`,
+      module.id === 'housing'
+        ? HOUSING_EMPTY
+        : (MODULE_EMPTY[module.id] ??
+          `Henüz kurulmadı. ${module.label_tr} getirileri buraya gelecek.`),
   };
 }
 
 /**
- * The tab strip, built from the registry rather than written out here.
+ * The tab strip: one tab per investment, in the registry's order, and Sicil last.
  *
- * Every tab is a place the money can go, which is what makes them peers. Konut
- * first because it is the goal, then the instruments where a deposit waits,
- * and Sicil last because it looks backwards rather than forwards.
+ * Every tab is an investment, which is what makes them peers. Housing comes
+ * first because it is the one being built first, not because it is a different
+ * kind of thing — an earlier version encoded that difference in the data and it
+ * was the wrong idea of the product.
  *
- * Financing is deliberately NOT a tab. It is not somewhere money goes — it is
- * part of buying a house, and it sits inside that tab. A tab strip that mixes
- * kinds stops being navigable, because the reader can no longer guess what a
- * tab will contain from what the others contain.
+ * Financing is deliberately NOT a tab. It is not an investment; it is part of
+ * buying a house, and it sits inside that tab. A tab strip that mixes kinds
+ * stops being navigable, because the reader can no longer guess what a tab
+ * holds from what the others hold.
  *
- * Instruments come from the registry so that adding one stays a matter of adding
- * a folder. A list written here would quietly make that untrue.
+ * Tabs come from the registry so that adding an investment stays a matter of
+ * adding a folder. A list written here would quietly make that untrue.
  */
 export function buildTabs(modules: TabModule[]): Tab[] {
-  const target = modules.find((module) => module.kind === 'target');
-  const instruments = modules.filter((module) => module.kind === 'instrument');
-
-  return [
-    { id: 'konut', name: target?.label_tr ?? 'Konut', emptyState: KONUT_EMPTY },
-    ...instruments.map(instrumentTab),
-    SICIL,
-  ];
+  return [...modules.map(moduleTab), SICIL];
 }
 
 export interface Neighbourhood {
@@ -277,7 +275,7 @@ function instrumentTable(returns: InstrumentReturn[]): string {
 function panelBody(tab: Tab, data: PageData): string {
   const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
 
-  if (tab.id === 'konut') {
+  if (tab.id === 'housing') {
     const research = data.research.length === 0 ? empty : data.research.map(reportSection).join('');
 
     // Research first, then how to pay for what it found. That is the order the
@@ -547,7 +545,7 @@ export function renderPage(data: PageData): string {
 <body>
   <div class="wrap">
     <header>
-      <h1 class="brand">Mopsos<small>ev alma hedefi ve parayı bekletecek yerler</small></h1>
+      <h1 class="brand">Mopsos<small>yatırım araştırması</small></h1>
     </header>
 
     <div role="tablist" aria-label="Bölümler">

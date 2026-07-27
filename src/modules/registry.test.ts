@@ -14,7 +14,6 @@ function definition(overrides: Partial<AssetModule> = {}): AssetModule {
     id: 'housing',
     name: 'Housing & Mortgage',
     label_tr: 'Konut',
-    kind: 'target',
     order: 0,
     horizon_days: { min: 180, max: 730 },
     sources: ['evds', 'tuik', 'listing_snapshot'],
@@ -107,22 +106,6 @@ describe('the modules committed to this repository', () => {
       'Hisse',
       'Fonlar',
     ]);
-  });
-
-  it('separates the thing being bought from the places money can wait', () => {
-    // Housing is the goal; the rest are where the down payment sits meanwhile.
-    // The interface is built on that distinction, so the data carries it.
-    const kinds = Object.fromEntries(
-      loadModules(MODULES_DIR).map((module) => [module.id, module.kind]),
-    );
-
-    expect(kinds).toEqual({
-      housing: 'target',
-      precious_metals: 'instrument',
-      fx: 'instrument',
-      equities: 'instrument',
-      funds: 'instrument',
-    });
   });
 
   it('carries a Turkish label for every module, since the interface is Turkish', () => {

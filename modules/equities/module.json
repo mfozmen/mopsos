@@ -2,7 +2,6 @@
   "id": "equities",
   "name": "Equities",
   "label_tr": "Hisse",
-  "kind": "instrument",
   "order": 3,
   "horizon_days": {
     "min": 7,
