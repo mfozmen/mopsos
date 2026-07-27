@@ -250,6 +250,15 @@ describe('bank rates', () => {
     expect(housing).toMatch(/yayınlamıyor|yok/i);
   });
 
+  it('says the order is by published rate, which is not the same as cheapest', () => {
+    // The cheapest published figure in the record is a prepaid-interest product
+    // that wants 309.637 TL up front. Sorting by headline rate is useful and
+    // misleading at once, so the page says which of the two it is doing.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing).toMatch(/en ucuz.*değil|değil.*en ucuz/is);
+  });
+
   it('lets a rate be pushed into the calculator instead of retyped', () => {
     expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).toContain(
       'data-rate="2.79"',

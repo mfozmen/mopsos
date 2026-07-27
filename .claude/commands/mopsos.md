@@ -30,6 +30,17 @@ Start the interface and then watch it for work.
 
 ## When a request arrives
 
+**Claim it before acting.** Another session may be watching the same queue:
+
+```
+npm run queue                          # what is pending
+npm run queue -- claim <requested_at>  # take one
+```
+
+If `npm run queue` no longer lists it, someone else has it — say so and do nothing. Six
+scouts once re-read what six others had read minutes earlier, and the only reason it was not
+pure waste is that the readings happened to agree.
+
 Each line is one JSON request. Act on it, then tell the user in one line what you did.
 
 | `kind`   | What to do                                                                                                                                                                                                                                                                                                                                                                                     |

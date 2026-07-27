@@ -20,7 +20,8 @@
     "scan:personal-data": "tsx src/cli/scan-personal-data.ts",
     "ui": "tsx src/cli/ui.ts",
     "pdf:text": "tsx src/cli/pdf-text.ts",
-    "dev": "tsx src/cli/dev.ts"
+    "dev": "tsx src/cli/dev.ts",
+    "queue": "tsx src/cli/queue.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",
