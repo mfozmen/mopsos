@@ -3,7 +3,9 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['coverage/', 'dist/', 'node_modules/'] },
+  // Being in .gitignore is not enough — ESLint keeps its own list. `.research/`
+  // holds pages agents downloaded to read, and `ui/` is generated.
+  { ignores: ['coverage/', 'dist/', 'node_modules/', '.research/', 'ui/', '.playwright-mcp/'] },
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {
