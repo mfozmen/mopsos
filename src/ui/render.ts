@@ -15,12 +15,6 @@ export interface TabModule {
 const KONUT_EMPTY =
   'Henüz araştırma yok. Bir il ve ilçe seçip agent’ı gönderdiğinde bulduğu mahalle fiyatları, kira getirileri ve piyasa altı ilanlar burada birikir.';
 
-const FINANSMAN: Tab = {
-  id: 'finansman',
-  name: 'Finansman',
-  emptyState: 'Hesaplayıcı hazırlanıyor.',
-};
-
 const SICIL: Tab = {
   id: 'sicil',
   name: 'Sicil',
@@ -60,9 +54,14 @@ function instrumentTab(module: TabModule): Tab {
 /**
  * The tab strip, built from the registry rather than written out here.
  *
- * Konut first because it is the goal, Finansman second because it is how the
- * goal gets paid for, then every instrument the registry knows about, and Sicil
- * last because it looks backwards rather than forwards.
+ * Every tab is a place the money can go, which is what makes them peers. Konut
+ * first because it is the goal, then the instruments where a deposit waits,
+ * and Sicil last because it looks backwards rather than forwards.
+ *
+ * Financing is deliberately NOT a tab. It is not somewhere money goes — it is
+ * part of buying a house, and it sits inside that tab. A tab strip that mixes
+ * kinds stops being navigable, because the reader can no longer guess what a
+ * tab will contain from what the others contain.
  *
  * Instruments come from the registry so that adding one stays a matter of adding
  * a folder. A list written here would quietly make that untrue.
@@ -73,7 +72,6 @@ export function buildTabs(modules: TabModule[]): Tab[] {
 
   return [
     { id: 'konut', name: target?.label_tr ?? 'Konut', emptyState: KONUT_EMPTY },
-    FINANSMAN,
     ...instruments.map(instrumentTab),
     SICIL,
   ];
@@ -279,10 +277,17 @@ function instrumentTable(returns: InstrumentReturn[]): string {
 function panelBody(tab: Tab, data: PageData): string {
   const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
 
-  if (tab.id === 'finansman') return FINANCE_FORM;
-
   if (tab.id === 'konut') {
-    return data.research.length === 0 ? empty : data.research.map(reportSection).join('');
+    const research = data.research.length === 0 ? empty : data.research.map(reportSection).join('');
+
+    // Research first, then how to pay for what it found. That is the order the
+    // decision is made in, so it is the order the panel is read in.
+    return `
+      <h3 class="section">Pazar araştırması</h3>
+      ${research}
+
+      <h3 class="section">Finansman</h3>
+      ${FINANCE_FORM}`;
   }
 
   if (tab.id === 'sicil') {
@@ -420,6 +425,10 @@ const STYLE = `
   [role="tab"]:focus-visible { outline: 2px solid var(--measured); outline-offset: -2px; }
   [role="tabpanel"] { padding-top: 2.5rem; }
   [role="tabpanel"][hidden] { display: none; }
+  h3.section { font-family: var(--sans); font-size: .72rem; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink); font-weight: 600; display: block;
+    margin: 3.5rem 0 1.4rem; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
+  [role="tabpanel"] > h3.section:first-child { margin-top: 0; }
   h3 { font-family: var(--serif); font-size: 1.35rem; font-weight: normal; margin: 0 0 1rem;
     display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
   h3 .dated { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
@@ -538,7 +547,7 @@ export function renderPage(data: PageData): string {
 <body>
   <div class="wrap">
     <header>
-      <h1 class="brand">Mopsos<small>ev alma araştırması</small></h1>
+      <h1 class="brand">Mopsos<small>ev alma hedefi ve parayı bekletecek yerler</small></h1>
     </header>
 
     <div role="tablist" aria-label="Bölümler">

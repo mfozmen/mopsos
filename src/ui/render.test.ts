@@ -38,26 +38,25 @@ describe('the tabs', () => {
     }
   });
 
-  it('opens on the thing being bought, then how to pay for it', () => {
-    expect(
-      buildTabs(MODULES)
-        .slice(0, 2)
-        .map((tab) => tab.id),
-    ).toEqual(['konut', 'finansman']);
-  });
-
-  it('gives every instrument its own tab, in the order the registry lists them', () => {
-    // Adding an instrument is adding a folder. A hardcoded tab list here would
-    // quietly make that untrue.
+  it('lists investments and nothing else, in the order the registry gives them', () => {
+    // Tabs are peers of one kind: places the money can go. Financing is not one
+    // of those — it is part of buying a house, and it belongs inside that tab.
     expect(buildTabs(MODULES).map((tab) => tab.name)).toEqual([
       'Konut',
-      'Finansman',
       'Altın & Gümüş',
       'Döviz',
       'Hisse',
       'Fonlar',
       'Sicil',
     ]);
+  });
+
+  it('has no separate financing tab', () => {
+    expect(buildTabs(MODULES).map((tab) => tab.id)).not.toContain('finansman');
+  });
+
+  it('opens on the goal rather than on a place money waits', () => {
+    expect(buildTabs(MODULES)[0]?.id).toBe('konut');
   });
 
   it('ends with Sicil, which is a look back rather than a decision', () => {
@@ -90,7 +89,7 @@ describe('the tabs', () => {
     const html = renderPage(EMPTY);
 
     expect(panel(html, 'konut')).not.toContain('hidden');
-    expect(panel(html, 'finansman')).toContain('hidden');
+    expect(panel(html, 'fx')).toContain('hidden');
   });
 
   it('wires each tab to the panel it controls', () => {
@@ -112,16 +111,22 @@ describe('the tabs', () => {
 });
 
 describe('the finance calculator', () => {
-  it('asks for what the reader knows: price, down payment, rate, term, energy class', () => {
-    const finansman = panel(renderPage(EMPTY), 'finansman');
+  it('lives inside the housing tab, because financing is part of buying a house', () => {
+    const konut = panel(renderPage(EMPTY), 'konut');
 
-    for (const field of ['price', 'downPayment', 'rate', 'months', 'energyClass']) {
-      expect(finansman).toContain(`id="${field}"`);
+    for (const field of ['price', 'downPayment', 'rate', 'months', 'energyClass', 'budget']) {
+      expect(konut).toContain(`id="${field}"`);
     }
   });
 
-  it('asks for a monthly budget, since that is the question that was asked first', () => {
-    expect(panel(renderPage(EMPTY), 'finansman')).toContain('id="budget"');
+  it('is a section of that tab, under its own heading', () => {
+    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/Finansman/);
+  });
+
+  it('leaves the market research above it, since that comes first', () => {
+    const konut = panel(renderPage(EMPTY), 'konut');
+
+    expect(konut.indexOf('araştırma')).toBeLessThan(konut.indexOf('id="budget"'));
   });
 
   it('carries the arithmetic into the page rather than reimplementing it', () => {
@@ -138,11 +143,11 @@ describe('the finance calculator', () => {
     // The ekspertiz value is routinely below the asking price in Turkey, so the
     // reachable price is lower than this calculation suggests. Saying so is the
     // difference between a tool and a toy.
-    expect(panel(renderPage(EMPTY), 'finansman')).toMatch(/ekspertiz/i);
+    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/ekspertiz/i);
   });
 
   it('says no tax is applied, because that is a real difference from a consumer loan', () => {
-    expect(panel(renderPage(EMPTY), 'finansman')).toMatch(/KKDF|BSMV/);
+    expect(panel(renderPage(EMPTY), 'konut')).toMatch(/KKDF|BSMV/);
   });
 
   it('does not put the reader’s numbers anywhere but the page', () => {
