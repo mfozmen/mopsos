@@ -41,6 +41,12 @@ Thumbs.db
 # Screenshots and browser automation output
 .playwright-mcp/
 *.png
+*.jpeg
+*.jpg
 
 # Scratch space for agents downloading source documents to read.
 .research/
+
+# Playwright snapshots and console logs from browsing. Scratch, and they pick up
+# whatever was on the page — bank phone numbers, for one.
+.playwright-mcp/
