@@ -1,0 +1,48 @@
+{
+  "$comment": "Turkish housing loan rules. Pinned rather than looked up at runtime, and every rule carries where it came from and when it was captured — the same discipline as recording the first print of a series. Most tables on the open web still show the 2023 decision and are wrong.",
+  "loan_to_value": {
+    "source": {
+      "authority": "BDDK",
+      "decision": "11364",
+      "decision_date": "2026-01-29",
+      "url": "https://www.bddk.org.tr/Mevzuat/DokumanGetir/1327",
+      "document": "data/sources/bddk-11364-2026-01-29.pdf",
+      "captured_on": "2026-07-27",
+      "verified": true
+    },
+    "note": "Ratio of loan to the value of the housing taken as collateral. The 29.01.2026 decision removed the new/second-hand distinction; the ratio now depends only on value and energy class.",
+    "energy_classes": {
+      "A_B": "A or B on the Enerji Kimlik Belgesi (Law 5627)",
+      "C": "C",
+      "OTHER": "D and below, or unknown"
+    },
+    "brackets": [
+      { "value_up_to": 5000000, "ratios": { "A_B": 0.9, "C": 0.8, "OTHER": 0.7 } },
+      { "value_up_to": 7000000, "ratios": { "A_B": 0.8, "C": 0.7, "OTHER": 0.6 } },
+      { "value_up_to": 10000000, "ratios": { "A_B": 0.7, "C": 0.6, "OTHER": 0.5 } },
+      { "value_up_to": 20000000, "ratios": { "A_B": 0.5, "C": 0.4, "OTHER": 0.3 } },
+      { "value_up_to": null, "ratios": { "A_B": 0.4, "C": 0.3, "OTHER": 0.2 } }
+    ]
+  },
+  "term": {
+    "source": {
+      "authority": "BDDK",
+      "regulation": "Bankaların Kredi İşlemlerine İlişkin Yönetmelik, madde 12",
+      "captured_on": "2026-07-27",
+      "verified": false,
+      "note": "Taken from secondary sources and NOT yet read in the regulation itself. Treated as provisional until it is."
+    },
+    "max_months": 120,
+    "max_age_at_final_instalment": 70
+  },
+  "taxes": {
+    "source": {
+      "authority": "Law 5582, Konut Finansmanı",
+      "captured_on": "2026-07-27",
+      "verified": true
+    },
+    "kkdf_rate": 0,
+    "bsmv_rate": 0,
+    "note": "Housing finance loans are exempt from both. This is the difference from a consumer loan and it changes the payment materially, so it is recorded as a rule rather than left as an assumption in code."
+  }
+}
