@@ -17,7 +17,8 @@
     "test:coverage": "vitest run --coverage",
     "prepare": "husky",
     "due": "tsx src/cli/due.ts",
-    "scan:personal-data": "tsx src/cli/scan-personal-data.ts"
+    "scan:personal-data": "tsx src/cli/scan-personal-data.ts",
+    "ui": "tsx src/cli/ui.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",
