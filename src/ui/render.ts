@@ -894,6 +894,17 @@ const SCRIPT = `
 `;
 
 /**
+ * The page's hand-written scripts, in the order they run.
+ *
+ * Exported so a test can compile them. Pulling them back out of the rendered
+ * HTML with a regex was the obvious alternative and the wrong one: matching
+ * tags by pattern misses the forms HTML actually allows — `</script >` is legal
+ * and a naive pattern skips it — and there is no reason to re-derive something
+ * we are holding.
+ */
+export const PAGE_SCRIPTS: readonly string[] = [SCRIPT, FINANCE_SCRIPT];
+
+/**
  * The whole page, as one self-contained document.
  *
  * Read-only by construction: generated from the record, with no way to write
@@ -946,8 +957,7 @@ ${panels}
   </div>
   <script>${data.finance.bundle}</script>
   <script>window.__MOPSOS_RULES__ = ${JSON.stringify(data.finance.rules)};</script>
-  <script>${SCRIPT}</script>
-  <script>${FINANCE_SCRIPT}</script>
+  ${PAGE_SCRIPTS.map((script) => `<script>${script}</script>`).join('')}
 </body>
 </html>
 `;

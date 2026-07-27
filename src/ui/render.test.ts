@@ -2,7 +2,7 @@ import { Script } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
-import { buildTabs, renderPage, type PageData } from './render.js';
+import { buildTabs, PAGE_SCRIPTS, renderPage, type PageData } from './render.js';
 
 const MODULES = [
   { id: 'housing', label_tr: 'Konut' },
@@ -509,21 +509,15 @@ describe('the page script', () => {
    * The other tests here read the rendered HTML as text, so a page whose script
    * does not even parse passes every one of them. That is not hypothetical: a
    * duplicate `const` shipped a page where nothing at all ran, and the suite
-   * stayed green. Parsing it is the cheapest thing that would have caught it.
+   * stayed green. Compiling it is the cheapest thing that would have caught it.
    */
   it('parses', () => {
-    const page = renderPage(EMPTY);
-    // Case-insensitive: this only ever reads our own output, which is
-    // lowercase, but a tag-matching pattern that silently misses <SCRIPT>
-    // is the shape of a real bug wherever one is used to filter rather
-    // than to find.
-    const scripts = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+    expect(PAGE_SCRIPTS.length).toBeGreaterThan(0);
 
-    expect(scripts.length).toBeGreaterThan(0);
-    for (const script of scripts) {
+    for (const script of PAGE_SCRIPTS) {
       // Compiled, not run: this asks whether the page parses, and running it
       // would need a DOM it has no business having here.
-      expect(() => new Script(script ?? '')).not.toThrow();
+      expect(() => new Script(script)).not.toThrow();
     }
   });
 });
