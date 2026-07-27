@@ -32,6 +32,21 @@ repository**; it is public.
 
 Path: `<data-dir>/rates/<YYYY-MM-DD>-<bank-slug>.json`
 
+**Finish by running `npm run check:rates`.** It validates every report and prints what each
+offer really costs. It exits non-zero if any example is unusable, and it is the only thing
+between a malformed file and a bank silently disappearing from the comparison. If it complains
+about your file, fix the file — do not hand back a run it rejects.
+
+It also runs the checksum: where the bank publishes its own yıllık maliyet oranı and our
+arithmetic cannot reproduce it, your example is missing a charge. That is worth going back for.
+It is how Ziraat's reading was found to be short of its fees.
+
+**Write nothing else anywhere.** Working notes, page dumps and half-finished extracts go in
+your own scratch directory, never in the repository. Two runs have already left files like
+`vb-fees.md` in the code repository's root; that is a public repository, and a dropped page
+dump is how a bank's call-centre number ends up in a commit. The report is the only file you
+create.
+
 ```json
 {
   "schema_version": 1,
@@ -94,7 +109,15 @@ Path: `<data-dir>/rates/<YYYY-MM-DD>-<bank-slug>.json`
     wrong. Record it even when it looks odd.
   - **No example published? Leave the field out.** Do not estimate one. An absent example
     makes the interface say the real cost is unknown, which is true and useful; an invented
-    one makes it say something false with a number attached.
+    one makes it say something false with a number attached. A rate in a fee table is not a
+    worked example: without an instalment there is nothing to compute from.
+  - **The key names above are exact.** `amount`, `months`, `instalment`, `upfront_interest`,
+    `fees`, `published_annual_cost_rate` — in English, spelled that way. Three runs each
+    invented their own Turkish names (`tutar_tl`, `kredi_tutari`, `taksit_tutari`) and all
+    three files were rejected on load, which meant those banks vanished from the comparison
+    entirely. Turkish belongs in `conditions` and `note`, never in a key.
+  - `fees` is one number: every up-front charge added together — tahsis + ekspertiz + ipotek
+    tesis. Adding up figures the bank printed is not computing a figure.
 
 - **A package rate must list what has to be bought.** "%2,89 if you also take four insurance
   products" is not the same offer as "%2,89", and the difference is the whole comparison.

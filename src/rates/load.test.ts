@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { bestOffer, loadRateReports, trueMonthlyRate } from './load.js';
+import {
+  bestOffer,
+  loadRateReports,
+  type RateExample,
+  type RateOffer,
+  trueMonthlyRate,
+} from './load.js';
 
 function report(bank: string, capturedOn: string, monthlyRate: number, extra = {}): string {
   return JSON.stringify({
@@ -211,5 +217,82 @@ describe('what a rate really costs', () => {
     const root = rates(['a.json', report('Bir Banka', '2026-07-28', 2.88)]);
 
     expect(trueMonthlyRate(loadRateReports(root)[0]!.offers[0]!)).toBeUndefined();
+  });
+});
+
+describe("the bank's own cost rate as a checksum", () => {
+  const offer = (example: RateExample): RateOffer => ({
+    product: 'Konut',
+    monthly_rate: 3.19,
+    example,
+  });
+
+  it('is unknown when our arithmetic cannot reproduce what the bank published', () => {
+    // Ziraat: 1.000.000 TL / 120 ay, taksit 32.654,09, its own yıllık maliyet
+    // oranı %47,2938. From the instalment alone we get %45,76 — the gap is fees
+    // the scout did not record. The example is incomplete, and the honest answer
+    // is that we do not know, not a rate we can see is understated.
+    expect(
+      trueMonthlyRate(
+        offer({
+          amount: 1_000_000,
+          months: 120,
+          instalment: 32_654.09,
+          published_annual_cost_rate: 47.2938,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it('accepts the example when the two agree', () => {
+    // Halkbank Yeni Evlilere Özel, fees included: reproduces %37,9263 exactly.
+    expect(
+      trueMonthlyRate(
+        offer({
+          amount: 1_000_000,
+          months: 120,
+          instalment: 27_252.33,
+          fees: 36_802,
+          published_annual_cost_rate: 37.9263,
+        }),
+      ),
+    ).toBeCloseTo(2.72, 2);
+  });
+
+  it('still answers when the bank published no cost rate to check against', () => {
+    // No checksum is not a failed checksum. The example is all there is, and it
+    // is still better than the headline.
+    expect(
+      trueMonthlyRate(offer({ amount: 1_000_000, months: 120, instalment: 27_252.33 })),
+    ).toBeCloseTo(2.6, 1);
+  });
+});
+
+describe('supersedes', () => {
+  it('drops the reading a later one replaces, even under a different spelling', () => {
+    // A scout wrote "VakifBank", the correction wrote "VakıfBank", and because
+    // newest-per-bank keys on the name both survived — two live rates for one
+    // bank, which is exactly the invitation to pick the flattering one that
+    // keying by name exists to prevent. The field says which file is dead; the
+    // spelling is not what makes it dead.
+    const root = rates(
+      ['a-vakif.json', report('VakifBank', '2026-07-28', 2.95)],
+      ['b-vakif.json', report('VakıfBank', '2026-07-28', 3.29, { supersedes: 'a-vakif.json' })],
+    );
+
+    const banks = loadRateReports(root).map((r) => r.bank);
+
+    expect(banks).toEqual(['VakıfBank']);
+  });
+
+  it('ignores a supersedes pointing at a file that is not there', () => {
+    // A typo in the field must not make the report itself disappear: a bank that
+    // silently vanishes looks the same as a bank nobody checked.
+    const root = rates([
+      'only.json',
+      report('Bir Banka', '2026-07-28', 2.95, { supersedes: 'never-existed.json' }),
+    ]);
+
+    expect(loadRateReports(root).map((r) => r.bank)).toEqual(['Bir Banka']);
   });
 });

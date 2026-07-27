@@ -97,6 +97,15 @@
                 "description": "The bank's own yıllık maliyet oranı, as a percentage. Recorded rather than recomputed: where it disagrees with ours, the disagreement is the interesting part.",
                 "type": "number",
                 "minimum": 0
+              },
+              "note": {
+                "type": "string",
+                "description": "Caveats attached to these figures — what the fees cover, what varies."
+              },
+              "source_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "The page this example was copied from, when it differs from the report source."
               }
             }
           }
