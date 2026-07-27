@@ -22,7 +22,15 @@ export interface MortgageRules {
    * housing loan — madde 12(3) excludes them from the consumer-loan regime by
    * name. This is what banks offer.
    */
-  term: { conventional_max_months: number };
+  term: {
+    conventional_max_months: number;
+    /**
+     * The age banks want the last instalment to fall before. Also practice, not
+     * regulation — BDDK leaves customer age limits to each bank. Absent means
+     * unrecorded, not "unlimited".
+     */
+    conventional_max_age_at_final_instalment?: number;
+  };
   /**
    * BDDK 10656, kept in force by 11364: the ratio is reduced by 75% when the
    * borrower already owns a home. Absent means unrecorded, not inapplicable.
@@ -156,6 +164,31 @@ export function assertTermAllowed(rules: MortgageRules, months: number): void {
         `${String(rules.term.conventional_max_months)} months banks conventionally offer`,
     ]);
   }
+}
+
+/**
+ * The longest term the borrower's age leaves room for.
+ *
+ * Banks reason from the **last instalment**, not from drawdown: at 62 against a
+ * limit of 70 the answer is eight years of payments, not ten. It is the one
+ * rule that silently shortens a loan and therefore raises the instalment, and a
+ * calculator that ignores it quotes a payment the borrower will never be
+ * offered.
+ *
+ * Never more than the term banks conventionally offer, and never below zero — a
+ * negative term would flow into `monthlyPayment` and come back as a plausible
+ * number for an impossible loan.
+ */
+export function maxTermForAge(rules: MortgageRules, age: number): number {
+  if (!Number.isInteger(age) || age < 0) {
+    throw new InvalidLoanError([`age must be a whole number of years (got ${String(age)})`]);
+  }
+
+  const conventional = rules.term.conventional_max_months;
+  const limit = rules.term.conventional_max_age_at_final_instalment;
+  if (limit === undefined) return conventional;
+
+  return Math.max(0, Math.min(conventional, (limit - age) * 12));
 }
 
 /** Whether the borrower's household already owns a home. */
