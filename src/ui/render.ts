@@ -113,11 +113,19 @@ export interface SeerRecord {
   observed: number;
 }
 
+export interface FinanceBundle {
+  /** The compiled mortgage module, so the page and the tests share one implementation. */
+  bundle: string;
+  /** The pinned BDDK rules, applied identically in the browser. */
+  rules: unknown;
+}
+
 export interface PageData {
   modules: TabModule[];
   research: ResearchReport[];
   instruments: InstrumentReturn[];
   records: SeerRecord[];
+  finance: FinanceBundle;
 }
 
 function escape(value: string): string {
@@ -173,8 +181,56 @@ function reportSection(report: ResearchReport): string {
       </table>`;
 }
 
+const FINANCE_FORM = `
+      <form id="finance" autocomplete="off">
+        <div class="fields">
+          <label>Aylık ödeyebileceğin<input id="budget" type="text" inputmode="decimal" value="60.000"><span>₺</span></label>
+          <label>Peşinat<input id="downPayment" type="text" inputmode="decimal" value="1.000.000"><span>₺</span></label>
+          <label>Baktığın ev fiyatı<input id="price" type="text" inputmode="decimal" value="3.500.000"><span>₺</span></label>
+          <label>Aylık faiz<input id="rate" type="text" inputmode="decimal" value="2,79"><span>%</span></label>
+          <label>Vade<input id="months" type="text" inputmode="numeric" value="120"><span>ay</span></label>
+          <label>Üzerine kayıtlı ev<select id="ownsHome">
+            <option value="no" selected>Yok</option>
+            <option value="yes">Var</option>
+          </select></label>
+          <label>Enerji sınıfı<select id="energyClass">
+            <option value="A_B">A veya B</option>
+            <option value="C">C</option>
+            <option value="OTHER" selected>D ve altı / bilinmiyor</option>
+          </select></label>
+        </div>
+      </form>
+
+      <div class="answers">
+        <section class="answer">
+          <h4>Bu bütçeyle en fazla</h4>
+          <p class="big" id="maxPrice">—</p>
+          <p class="note" id="maxPriceNote"></p>
+        </section>
+        <section class="answer">
+          <h4>Baktığın ev için aylık</h4>
+          <p class="big" id="payment">—</p>
+          <p class="note" id="paymentNote"></p>
+        </section>
+      </div>
+
+      <dl class="breakdown" id="breakdown"></dl>
+
+      <p class="caveat">
+        Üzerine kayıtlı bir ev varsa kredi oranı <strong>%75 azaltılır</strong> (BDDK 10656) —
+        eş ve 18 yaş altı çocuklar dahil. Kredi oranı satış fiyatına değil <strong>ekspertiz
+        değerine</strong> uygulanır ve ekspertiz
+        çoğu zaman istenen fiyatın altında çıkar — gerçekte çekebileceğin kredi buradakinden düşük
+        olabilir. Konut kredisinde <strong>KKDF ve BSMV yoktur</strong> (5582 sayılı kanun), o yüzden
+        hesaba vergi eklenmez; ihtiyaç kredisi için aynısı geçerli değildir. Vade için
+        <strong>yasal bir üst sınır yoktur</strong> — 120 ay bankaların yaygın uygulaması. Sigorta, ekspertiz ve
+        ipotek masrafları dahil değildir.
+      </p>`;
+
 function panelBody(tab: Tab, data: PageData): string {
   const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
+
+  if (tab.id === 'finansman') return FINANCE_FORM;
 
   if (tab.id === 'konut') {
     return data.research.length === 0 ? empty : data.research.map(reportSection).join('');
@@ -188,6 +244,99 @@ function panelBody(tab: Tab, data: PageData): string {
 
   return data.instruments.some((entry) => entry.module === tab.id) ? '' : empty;
 }
+
+/**
+ * The calculator, running against the same compiled module the tests run
+ * against. Nothing here posts, stores or persists what is typed: amounts are
+ * personal data, and this page is generated from a public repository.
+ */
+const FINANCE_SCRIPT = `
+  const rules = window.__MOPSOS_RULES__;
+  const M = window.Mortgage;
+  const $ = (id) => document.getElementById(id);
+  // Reading and writing numbers comes from the compiled module rather than from
+  // hand-written lines in this string. That is where the last silent bug came
+  // from: one backslash too few left /./g in the page, a regex matching every
+  // character, and every field quietly read as zero.
+  const money = M.formatTry;
+  const num = M.parseTurkishNumber;
+
+  function run() {
+    const budget = num($('budget').value);
+    const downPayment = num($('downPayment').value);
+    const price = num($('price').value);
+    const rate = num($('rate').value);
+    const months = Math.round(num($('months').value));
+    const energyClass = $('energyClass').value;
+    const ownsHome = $('ownsHome').value === 'yes';
+
+    const fail = (message) => {
+      $('maxPrice').textContent = '—';
+      $('payment').textContent = '—';
+      $('maxPriceNote').textContent = '';
+      $('paymentNote').textContent = message;
+      $('breakdown').innerHTML = '';
+    };
+
+    if ([budget, downPayment, price, rate].some(Number.isNaN) || Number.isNaN(months)) {
+      return fail('Sayıları kontrol et.');
+    }
+
+    // Checked here rather than by catching the module's error: that error is
+    // written for whoever reads the code, and this interface is Turkish. The
+    // number still comes from the pinned rules, so there is one source for it.
+    if (months < 1) return fail('Vade en az 1 ay olmalı.');
+    if (months > rules.term.conventional_max_months) {
+      return fail('Bankalar konut kredisinde genelde en fazla ' +
+        rules.term.conventional_max_months + ' ay veriyor. Yasal bir üst sınır yok.');
+    }
+
+    try {
+      const reachable = M.affordability({ rules, monthlyBudget: budget, downPayment,
+        monthlyRatePercent: rate, months, energyClass, ownsHome });
+      $('maxPrice').textContent = money(reachable);
+      $('maxPriceNote').textContent = reachable <= downPayment
+        ? 'Bu bütçe krediyi çevirmiyor; ancak peşinatın kadarına bakabilirsin.'
+        : 'Peşinat ' + money(downPayment) + ' + kredi ' + money(reachable - downPayment);
+    } catch (error) {
+      $('maxPrice').textContent = '—';
+      $('maxPriceNote').textContent = error.problems ? error.problems.join(' ') : error.message;
+    }
+
+    const ratio = M.maxLoanToValue(rules, price, energyClass, { ownsHome });
+    const cap = M.maxLoan(rules, price, energyClass, { ownsHome });
+    const wanted = price - downPayment;
+    const loan = Math.max(0, Math.min(wanted, cap));
+
+    if (loan <= 0) {
+      $('payment').textContent = money(0);
+      $('paymentNote').textContent = 'Peşinat fiyatı zaten karşılıyor.';
+      $('breakdown').innerHTML = '';
+      return;
+    }
+
+    const payment = M.monthlyPayment(loan, rate, months);
+    $('payment').textContent = money(payment);
+    $('paymentNote').textContent = wanted > cap
+      ? 'Bu fiyat ve enerji sınıfında kredi en fazla ' + money(cap) + '. En az ' +
+        money(M.minDownPayment(rules, price, energyClass, { ownsHome })) + ' peşinat gerekiyor.'
+      : (payment > budget ? 'Aylık bütçenin üzerinde.' : 'Aylık bütçenin içinde.');
+
+    const rows = [
+      ['Kredi', money(loan)],
+      ['Kredi / değer oranı', '%' + (ratio * 100).toLocaleString('tr-TR') +
+        (ownsHome ? ' (mevcut ev nedeniyle dörtte bire indi)' : '')],
+      ['Toplam geri ödeme', money(M.totalRepayment(loan, rate, months))],
+      ['Toplam faiz', money(M.totalInterest(loan, rate, months))],
+    ];
+    $('breakdown').innerHTML = rows
+      .map(([term, value]) => '<dt>' + term + '</dt><dd>' + value + '</dd>')
+      .join('');
+  }
+
+  $('finance').addEventListener('input', run);
+  run();
+`;
 
 const STYLE = `
   :root {
@@ -235,6 +384,35 @@ const STYLE = `
   .empty { color: var(--muted); font-family: var(--serif); font-size: 1.05rem;
     background: var(--surface); border: 1px solid var(--line); padding: 1.25rem 1.4rem; margin: 0;
     max-width: 40rem; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1.1rem 1.5rem; margin-bottom: 2.5rem; }
+  .fields label { display: grid; grid-template-columns: 1fr auto; gap: .3rem .5rem;
+    font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    font-weight: 600; align-items: center; }
+  .fields input, .fields select { grid-column: 1; font: inherit; font-family: var(--serif);
+    font-size: 1.15rem; text-transform: none; letter-spacing: 0; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 2px;
+    padding: .45rem .6rem; width: 100%; }
+  .fields select { font-size: .95rem; }
+  .fields input:focus-visible, .fields select:focus-visible { outline: 2px solid var(--measured);
+    outline-offset: 1px; }
+  .fields span { grid-column: 2; grid-row: 2; font-family: var(--serif); font-size: 1rem;
+    text-transform: none; letter-spacing: 0; }
+  .answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 2rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+  .answer h4 { margin: 0 0 .4rem; font-size: .7rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; }
+  .big { font-family: var(--serif); font-size: 2.4rem; line-height: 1.1; margin: 0;
+    color: var(--measured); font-variant-numeric: oldstyle-nums; }
+  .note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
+  .breakdown { display: grid; grid-template-columns: 1fr auto; gap: .55rem 2rem; margin: 2.5rem 0 0;
+    padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
+  .breakdown dt { color: var(--muted); }
+  .breakdown dd { margin: 0; text-align: right; font-family: var(--serif); font-size: 1.05rem;
+    font-variant-numeric: tabular-nums; }
+  .caveat { margin: 2.5rem 0 0; padding: 1.1rem 1.3rem; background: var(--surface);
+    border-left: 2px solid var(--pending); font-size: .85rem; color: var(--muted); }
+  .caveat strong { color: var(--ink); font-weight: 600; }
   footer { margin-top: 5rem; padding-top: 1rem; border-top: 1px solid var(--line);
     font-size: .75rem; color: var(--muted); }
   @media (max-width: 34rem) { .src { display: none; } }
@@ -323,7 +501,10 @@ ${panels}
       Yeniden üretmek için: <code>npm run ui</code>
     </footer>
   </div>
+  <script>${data.finance.bundle}</script>
+  <script>window.__MOPSOS_RULES__ = ${JSON.stringify(data.finance.rules)};</script>
   <script>${SCRIPT}</script>
+  <script>${FINANCE_SCRIPT}</script>
 </body>
 </html>
 `;

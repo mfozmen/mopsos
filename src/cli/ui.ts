@@ -7,12 +7,31 @@
  *
  * Usage: npm run ui
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+
+import { build } from 'esbuild';
 
 import { resolveDataDir } from '../config/data-dir.js';
 import { loadModules } from '../modules/registry.js';
 import { renderPage, type PageData } from '../ui/render.js';
+
+/**
+ * The calculator runs in the browser, so the arithmetic has to get there — and
+ * it gets there by compiling the same module the tests run against. A second,
+ * hand-written copy of a payment formula would disagree with this one
+ * eventually, and the disagreement would be silent.
+ */
+const compiled = await build({
+  entryPoints: ['src/finance/browser.ts'],
+  bundle: true,
+  format: 'iife',
+  globalName: 'Mortgage',
+  platform: 'browser',
+  target: 'es2022',
+  write: false,
+  minify: true,
+});
 
 let dataDir: string | undefined;
 try {
@@ -36,6 +55,10 @@ const data: PageData = {
   research: [],
   instruments: [],
   records: [],
+  finance: {
+    bundle: compiled.outputFiles[0]?.text ?? '',
+    rules: JSON.parse(readFileSync('data/mortgage-rules.json', 'utf8')) as unknown,
+  },
 };
 
 mkdirSync('ui', { recursive: true });

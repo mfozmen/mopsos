@@ -15,12 +15,18 @@ const EMPTY: PageData = {
   research: [],
   instruments: [],
   records: [],
+  finance: { bundle: 'var Mortgage = {};', rules: { term: { max_months: 120 } } },
 };
 
+/**
+ * One panel's markup. Bounded by the next panel or the footer rather than the
+ * next `<section>`, because panels contain sections of their own.
+ */
 function panel(html: string, id: string): string {
   const start = html.indexOf(`id="panel-${id}"`);
-  const end = html.indexOf('<section', start + 1);
-  return html.slice(start, end === -1 ? undefined : end);
+  const next = html.indexOf('id="panel-', start + 1);
+  const end = next === -1 ? html.indexOf('<footer', start) : next;
+  return html.slice(start, end);
 }
 
 describe('the tabs', () => {
@@ -102,6 +108,48 @@ describe('the tabs', () => {
     expect(html).toContain('role="tablist"');
     expect(html).toContain('role="tab"');
     expect(html).toContain('role="tabpanel"');
+  });
+});
+
+describe('the finance calculator', () => {
+  it('asks for what the reader knows: price, down payment, rate, term, energy class', () => {
+    const finansman = panel(renderPage(EMPTY), 'finansman');
+
+    for (const field of ['price', 'downPayment', 'rate', 'months', 'energyClass']) {
+      expect(finansman).toContain(`id="${field}"`);
+    }
+  });
+
+  it('asks for a monthly budget, since that is the question that was asked first', () => {
+    expect(panel(renderPage(EMPTY), 'finansman')).toContain('id="budget"');
+  });
+
+  it('carries the arithmetic into the page rather than reimplementing it', () => {
+    // One implementation of a payment formula. Two would disagree eventually,
+    // and the disagreement would be silent.
+    expect(renderPage(EMPTY)).toContain('var Mortgage = {};');
+  });
+
+  it('carries the pinned rules, so the browser applies the same limits', () => {
+    expect(renderPage(EMPTY)).toContain('"max_months":120');
+  });
+
+  it('warns that the ratio applies to the appraised value, not the asking price', () => {
+    // The ekspertiz value is routinely below the asking price in Turkey, so the
+    // reachable price is lower than this calculation suggests. Saying so is the
+    // difference between a tool and a toy.
+    expect(panel(renderPage(EMPTY), 'finansman')).toMatch(/ekspertiz/i);
+  });
+
+  it('says no tax is applied, because that is a real difference from a consumer loan', () => {
+    expect(panel(renderPage(EMPTY), 'finansman')).toMatch(/KKDF|BSMV/);
+  });
+
+  it('does not put the reader’s numbers anywhere but the page', () => {
+    // Amounts are personal data. Nothing here may post, store or persist them.
+    const html = renderPage(EMPTY);
+
+    expect(html).not.toMatch(/fetch\(|localStorage|XMLHttpRequest|navigator\.sendBeacon/);
   });
 });
 

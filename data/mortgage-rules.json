@@ -1,5 +1,5 @@
 {
-  "$comment": "Turkish housing loan rules. Pinned rather than looked up at runtime, and every rule carries where it came from and when it was captured — the same discipline as recording the first print of a series. Most tables on the open web still show the 2023 decision and are wrong.",
+  "$comment": "Turkish housing loan rules. Pinned rather than looked up at runtime, and every rule carries where it came from, when it was captured, and whether it was read in a primary source. Most tables on the open web still show the 2023 decision and are wrong.",
   "loan_to_value": {
     "source": {
       "authority": "BDDK",
@@ -10,7 +10,7 @@
       "captured_on": "2026-07-27",
       "verified": true
     },
-    "note": "Ratio of loan to the value of the housing taken as collateral. The 29.01.2026 decision removed the new/second-hand distinction; the ratio now depends only on value and energy class.",
+    "note": "Ratio of the loan to the APPRAISED value of the housing taken as collateral — not the asking price. Madde 12(1) requires a licensed valuation and requires that figure to be the base. The 29.01.2026 decision removed the new/second-hand distinction; the ratio now depends only on value and energy class, and carries no absolute ceiling.",
     "energy_classes": {
       "A_B": "A or B on the Enerji Kimlik Belgesi (Law 5627)",
       "C": "C",
@@ -24,25 +24,46 @@
       { "value_up_to": null, "ratios": { "A_B": 0.4, "C": 0.3, "OTHER": 0.2 } }
     ]
   },
-  "term": {
+  "existing_home_reduction": {
     "source": {
       "authority": "BDDK",
-      "regulation": "Bankaların Kredi İşlemlerine İlişkin Yönetmelik, madde 12",
+      "decision": "10656",
+      "decision_date": "2023-08-24",
+      "url": "https://www.bddk.org.tr/Mevzuat/EkGetir/1210?ekId=277",
+      "still_in_force_per": "Kurul Kararı 11364 (29.01.2026), which applies it to the new ratios",
       "captured_on": "2026-07-27",
-      "verified": false,
-      "note": "Taken from secondary sources and NOT yet read in the regulation itself. Treated as provisional until it is."
+      "verified": true
     },
-    "max_months": 120,
-    "max_age_at_final_instalment": 70
+    "multiplier": 0.25,
+    "note": "If the borrower, their spouse, or a child under 18 already owns at least one home, the ratio above is reduced by 75% — a quarter of it applies. The single largest effect in this file. Not counted as ownership: homes in villages and in places that became neighbourhoods under Law 6360; a share of 50% or less in one home's title, unless there are shares in more than one; and a sole home demolished or condemned as riskli yapı under Law 6306 (Kurul Kararı 10849, 15.02.2024)."
+  },
+  "term": {
+    "source": {
+      "authority": "Bank practice, not regulation",
+      "checked": "Bankaların Kredi İşlemlerine İlişkin Yönetmelik madde 12, and all 20 Kurul Kararları attached to it between 19.03.2020 and 29.01.2026",
+      "captured_on": "2026-07-27",
+      "verified": true
+    },
+    "note": "There is NO legal maximum maturity for a housing loan. Madde 12(3) sets one for consumer loans and excludes konut edinme kredileri from it by name; no Kurul Kararı sets one for housing. The figure below is what banks commonly offer, kept as a default, and must never be presented as a legal limit. The consumer-loan limits (36/24/12 months by size, Kurul Kararı 11152) are a different product and are routinely confused with this one.",
+    "conventional_max_months": 120,
+    "conventional_max_age_at_final_instalment": 70,
+    "age_note": "Also practice rather than regulation. BDDK's Kredi Tahsis ve İzleme Rehberi leaves customer age limits and maximum maturities to each bank, and reasons from expected retirement age rather than a fixed 70."
   },
   "taxes": {
-    "source": {
-      "authority": "Law 5582, Konut Finansmanı",
+    "bsmv_rate": 0,
+    "bsmv_source": {
+      "authority": "Law 5582 madde 30, amending Gider Vergileri Kanunu (6802) madde 29/(y)",
+      "url": "https://www5.tbmm.gov.tr/tutanaklar/KANUNLAR_KARARLAR/kanuntbmmc091/kanuntbmmc091/kanuntbmmc09105582.pdf",
       "captured_on": "2026-07-27",
       "verified": true
     },
     "kkdf_rate": 0,
-    "bsmv_rate": 0,
-    "note": "Housing finance loans are exempt from both. This is the difference from a consumer loan and it changes the payment materially, so it is recorded as a rule rather than left as an assumption in code."
+    "kkdf_source": {
+      "authority": "Bakanlar Kurulu Kararı 88/12944 and its rate schedule, which carves out loans made for the purchase of real estate",
+      "captured_on": "2026-07-27",
+      "verified": false,
+      "note": "Correct in practice but not read in a primary source — mevzuat.gov.tr, resmigazete.gov.tr and gib.gov.tr were all unreachable. NOT from Law 5582: that law contains no KKDF provision, and an earlier version of this file attributed it there wrongly."
+    },
+    "note": "The two exemptions turn on different tests, which is the trap. BSMV follows whether the transaction is konut finansmanı as defined in 6362 SPKn madde 57, which includes borrowing against a home already owned. KKDF follows whether the loan is FOR THE PURCHASE of real estate. So a konut-teminatlı ihtiyaç kredisi is BSMV-exempt but KKDF-liable, and treating housing collateral as implying both are zero understates its cost."
   }
 }
