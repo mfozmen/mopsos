@@ -20,9 +20,18 @@ export interface RateReport {
   /** A participation bank sells a profit share; the product differs even where the arithmetic does not. */
   kind: 'faiz' | 'kar_payi';
   captured_on: string;
+  /** To the minute, when recorded. Present only on readings that need to be ordered within a day. */
+  captured_at?: string;
+  /** The file this reading replaces, when it is a correction. */
+  supersedes?: string;
   source_url: string;
   offers: RateOffer[];
   note?: string;
+}
+
+/** The finest timestamp a report carries. A date alone sorts as its first minute. */
+function readAt(report: RateReport): string {
+  return report.captured_at ?? `${report.captured_on}T00:00:00.000Z`;
 }
 
 /** The cheapest offer in a report, or nothing when the bank published none. */
@@ -66,8 +75,11 @@ export function loadRateReports(root: string): RateReport[] {
     // so a report that does state its kind keeps it.
     const parsed = data as RateReport;
     const report: RateReport = { ...parsed, kind: parsed.kind ?? 'faiz' };
+    // Ordered by the finest timestamp each report carries. Without this two
+    // readings of one bank on one day are indistinguishable, and a mistake found
+    // in the afternoon cannot supersede the morning's file.
     const previous = newest.get(report.bank);
-    if (previous === undefined || previous.captured_on <= report.captured_on) {
+    if (previous === undefined || readAt(previous) <= readAt(report)) {
       newest.set(report.bank, report);
     }
   }

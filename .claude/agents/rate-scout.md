@@ -83,6 +83,13 @@ check the figure or repeat the reading.
 **Do not edit an existing report.** Rates move; a new reading is a new file. The old ones are
 how we will later see where the market went.
 
+**If today's file already exists**, another run got there first. Read anyway and compare. If
+your reading agrees, say so and write nothing — a confirmation is worth reporting and not
+worth storing twice. If it differs, or you found a condition the earlier reading missed,
+**write a correction**: `<YYYY-MM-DD>-<bank-slug>-<HHmm>.json`, with `captured_at` set to the
+minute and `supersedes` naming the earlier file. The earlier file stays. Append-only means
+the record is never silently improved — not that a mistake has to stand.
+
 **Say when a rate is a campaign** and when it ends, in `conditions`. A campaign rate presented
 as the standing rate makes a bank look permanently cheaper than it is.
 

@@ -7,7 +7,9 @@
   "required": ["schema_version", "bank", "captured_on", "source_url", "offers"],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": {
+      "const": 1
+    },
     "bank": {
       "description": "The bank's own name, as it writes it.",
       "type": "string",
@@ -19,7 +21,10 @@
       "enum": ["faiz", "kar_payi"],
       "default": "faiz"
     },
-    "captured_on": { "type": "string", "format": "date" },
+    "captured_on": {
+      "type": "string",
+      "format": "date"
+    },
     "source_url": {
       "description": "The page the figures were read from, so the reading can be checked or repeated.",
       "type": "string",
@@ -33,16 +38,29 @@
         "required": ["product", "monthly_rate"],
         "additionalProperties": false,
         "properties": {
-          "product": { "type": "string", "minLength": 2 },
+          "product": {
+            "type": "string",
+            "minLength": 2
+          },
           "monthly_rate": {
             "description": "Percent per month, as Turkish banks quote it. 2.79 means 2.79%.",
             "type": "number",
             "exclusiveMinimum": 0,
             "maximum": 20
           },
-          "max_term_months": { "type": "integer", "minimum": 1, "maximum": 360 },
-          "min_amount": { "type": "number", "minimum": 0 },
-          "max_amount": { "type": "number", "minimum": 0 },
+          "max_term_months": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 360
+          },
+          "min_amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "max_amount": {
+            "type": "number",
+            "minimum": 0
+          },
           "conditions": {
             "description": "What the rate depends on — salary customer, first home, energy class, a campaign end date. A rate without its conditions is not comparable with another.",
             "type": "string"
@@ -50,6 +68,17 @@
         }
       }
     },
-    "note": { "type": "string" }
+    "note": {
+      "type": "string"
+    },
+    "captured_at": {
+      "description": "When the reading was taken, to the minute. Optional, and the reason it exists is corrections: two readings of one bank on one day are indistinguishable by date alone, so without this a mistake found the same afternoon could not supersede the morning's file.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "supersedes": {
+      "description": "The file this reading replaces, when it is a correction. The earlier one stays on disk — append-only means the record is never silently improved, not that a mistake has to stand.",
+      "type": "string"
+    }
   }
 }
