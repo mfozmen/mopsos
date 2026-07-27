@@ -44,7 +44,15 @@ Path: `<data-dir>/rates/<YYYY-MM-DD>-<bank-slug>.json`
       "product": "Konut Kredisi",
       "monthly_rate": 2.79,
       "max_term_months": 120,
-      "conditions": "Maaşını bankaya taşıyan müşteriler için"
+      "conditions": "Maaşını bankaya taşıyan müşteriler için",
+      "example": {
+        "amount": 1000000,
+        "months": 120,
+        "instalment": 21964.48,
+        "upfront_interest": 309637.03,
+        "fees": 41750,
+        "published_annual_cost_rate": 47.9673
+      }
     }
   ],
   "note": "…"
@@ -66,6 +74,28 @@ Path: `<data-dir>/rates/<YYYY-MM-DD>-<bank-slug>.json`
   oranı, tavan %8,00". A starting rate sorts above fixed rates while being the one figure that
   is guaranteed not to last. Recording it as though it were fixed is the single easiest way to
   make this table lie.
+- **`example` is the most valuable field on the page. Copy the bank's worked example
+  whenever it publishes one** — the tutar, vade and taksit from its "Yıllık Maliyet Oranları"
+  or "Örnek Ödeme Planı" table, plus any peşin faiz and the tahsis/ekspertiz/rehin fees.
+
+  It is what makes the real cost computable. The quoted rate is what the bank calls the
+  loan; the example is what the loan does. Akbank quotes %1,99 on a product that takes
+  309.637 TL of a 1.000.000 TL loan as interest before handing any of it over — the rate
+  actually paid is %3,32 a month, which is dearer than every other bank in the table. Without
+  the example that row reads as the cheapest offer on the market.
+
+  Rules for it:
+  - **Copy, never compute.** Every number in `example` is one the bank printed. If the fees
+    are stated as a rate ("tahsis binde 5"), work out the lira amount for _that_ example's
+    tutar and say in `conditions` that you did.
+  - `upfront_interest` only when the bank actually takes interest at drawdown. Most do not.
+  - `published_annual_cost_rate` is the bank's own yıllık maliyet oranı, unconverted. It is
+    the check: our arithmetic must reproduce it, and a mismatch means one of us read the page
+    wrong. Record it even when it looks odd.
+  - **No example published? Leave the field out.** Do not estimate one. An absent example
+    makes the interface say the real cost is unknown, which is true and useful; an invented
+    one makes it say something false with a number attached.
+
 - **A package rate must list what has to be bought.** "%2,89 if you also take four insurance
   products" is not the same offer as "%2,89", and the difference is the whole comparison.
 
