@@ -3,6 +3,10 @@
 private/*
 !private/README.md
 
+# The private data repository, if it ever gets cloned in here by mistake.
+# It belongs beside this repository, not inside it.
+mopsos-data/
+
 # Secrets
 .env
 .env.*
