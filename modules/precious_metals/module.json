@@ -1,9 +1,12 @@
 {
   "id": "precious_metals",
   "name": "Precious Metals",
+  "label_tr": "Altın & Gümüş",
+  "kind": "instrument",
+  "order": 1,
   "horizon_days": {
     "min": 30,
-    "max": 180
+    "max": 365
   },
   "sources": ["market_close"],
   "seers": []

@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderPage, TABS, type PageData } from './render.js';
+import { buildTabs, renderPage, type PageData } from './render.js';
+
+const MODULES = [
+  { id: 'housing', label_tr: 'Konut', kind: 'target' as const },
+  { id: 'precious_metals', label_tr: 'Altın & Gümüş', kind: 'instrument' as const },
+  { id: 'fx', label_tr: 'Döviz', kind: 'instrument' as const },
+  { id: 'equities', label_tr: 'Hisse', kind: 'instrument' as const },
+  { id: 'funds', label_tr: 'Fonlar', kind: 'instrument' as const },
+];
 
 const EMPTY: PageData = {
+  modules: MODULES,
   research: [],
-  alternatives: [],
+  instruments: [],
   records: [],
 };
 
@@ -14,23 +23,50 @@ function panel(html: string, id: string): string {
   return html.slice(start, end === -1 ? undefined : end);
 }
 
-describe('the four tabs', () => {
-  it('shows every tab, named in Turkish', () => {
+describe('the tabs', () => {
+  it('shows every tab, named in Turkish and safely escaped', () => {
     const html = renderPage(EMPTY);
 
-    for (const tab of TABS) {
-      expect(html).toContain(tab.name);
+    for (const tab of buildTabs(MODULES)) {
+      expect(html).toContain(tab.name.replaceAll('&', '&amp;'));
     }
   });
 
-  it('has exactly four', () => {
-    // Konut, Finansman, Alternatifler, Sicil. A fifth means a decision was made
-    // somewhere other than here.
-    expect(TABS).toHaveLength(4);
+  it('opens on the thing being bought, then how to pay for it', () => {
+    expect(
+      buildTabs(MODULES)
+        .slice(0, 2)
+        .map((tab) => tab.id),
+    ).toEqual(['konut', 'finansman']);
   });
 
-  it('leads with Konut, which is what the tool is for', () => {
-    expect(TABS[0]?.id).toBe('konut');
+  it('gives every instrument its own tab, in the order the registry lists them', () => {
+    // Adding an instrument is adding a folder. A hardcoded tab list here would
+    // quietly make that untrue.
+    expect(buildTabs(MODULES).map((tab) => tab.name)).toEqual([
+      'Konut',
+      'Finansman',
+      'Altın & Gümüş',
+      'Döviz',
+      'Hisse',
+      'Fonlar',
+      'Sicil',
+    ]);
+  });
+
+  it('ends with Sicil, which is a look back rather than a decision', () => {
+    const tabs = buildTabs(MODULES);
+
+    expect(tabs[tabs.length - 1]?.id).toBe('sicil');
+  });
+
+  it('picks up an instrument nobody has thought of yet', () => {
+    const withCrypto = [
+      ...MODULES,
+      { id: 'crypto', label_tr: 'Kripto', kind: 'instrument' as const },
+    ];
+
+    expect(buildTabs(withCrypto).map((tab) => tab.id)).toContain('crypto');
   });
 
   it('marks exactly one tab selected', () => {
@@ -41,7 +77,7 @@ describe('the four tabs', () => {
     const tablist = html.slice(start, html.indexOf('role="tabpanel"', start));
 
     expect(tablist.match(/aria-selected="true"/g)).toHaveLength(1);
-    expect(tablist.match(/aria-selected="false"/g)).toHaveLength(TABS.length - 1);
+    expect(tablist.match(/aria-selected="false"/g)).toHaveLength(buildTabs(MODULES).length - 1);
   });
 
   it('hides every panel except the first, so one tab is one screen', () => {
@@ -54,7 +90,7 @@ describe('the four tabs', () => {
   it('wires each tab to the panel it controls', () => {
     const html = renderPage(EMPTY);
 
-    for (const tab of TABS) {
+    for (const tab of buildTabs(MODULES)) {
       expect(html).toContain(`aria-controls="panel-${tab.id}"`);
       expect(html).toContain(`id="panel-${tab.id}"`);
     }
@@ -66,6 +102,20 @@ describe('the four tabs', () => {
     expect(html).toContain('role="tablist"');
     expect(html).toContain('role="tab"');
     expect(html).toContain('role="tabpanel"');
+  });
+});
+
+describe('instrument tabs', () => {
+  it('says what each instrument tab will hold rather than just "empty"', () => {
+    const html = renderPage(EMPTY);
+
+    // Gold is for parking a down payment, not for its own sake — the empty
+    // state should say so, because that is why the tab exists.
+    expect(panel(html, 'precious_metals')).toMatch(/peşinat/i);
+  });
+
+  it('mentions certificates under funds, which is a route to a flat', () => {
+    expect(panel(renderPage(EMPTY), 'funds')).toMatch(/sertifika/i);
   });
 });
 

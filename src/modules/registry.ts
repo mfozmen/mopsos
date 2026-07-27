@@ -12,9 +12,21 @@ import { assertValid } from '../schema/validate.js';
  */
 export type ModuleStatus = 'configured' | 'incomplete' | 'empty';
 
+/**
+ * `target` is the thing being bought — housing. `instrument` is somewhere the
+ * money can sit while the down payment grows. The interface is built on that
+ * distinction, so the data carries it rather than the UI inferring it from an id.
+ */
+export type ModuleKind = 'target' | 'instrument';
+
 export interface AssetModule {
   id: string;
   name: string;
+  /** Shown in the interface, which is Turkish. */
+  label_tr: string;
+  kind: ModuleKind;
+  /** Position in the tab strip. */
+  order: number;
   horizon_days: { min: number; max: number };
   sources: ResolutionSource[];
   seers: string[];
@@ -43,7 +55,7 @@ export function loadModules(root: string): Required<AssetModule>[] {
     .map((entry) => entry.name)
     .sort((a, b) => (a < b ? -1 : 1));
 
-  return folders.map((folder) => {
+  const modules = folders.map((folder) => {
     const path = join(root, folder, 'module.json');
     const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
 
@@ -62,4 +74,9 @@ export function loadModules(root: string): Required<AssetModule>[] {
 
     return { ...module, status: statusOf(module.seers) };
   });
+
+  // Read in a stable order, returned in the intended one. Sorting by folder name
+  // would order the tabs by English identifier, which puts Hisse before Döviz
+  // and means nothing to the person reading them.
+  return modules.sort((a, b) => a.order - b.order);
 }

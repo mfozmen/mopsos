@@ -1,9 +1,12 @@
 {
   "id": "equities",
   "name": "Equities",
+  "label_tr": "Hisse",
+  "kind": "instrument",
+  "order": 3,
   "horizon_days": {
     "min": 7,
-    "max": 84
+    "max": 365
   },
   "sources": ["market_close"],
   "seers": []

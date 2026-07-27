@@ -1,40 +1,83 @@
 export interface Tab {
   id: string;
   name: string;
-  /** Shown under the tab name when the panel has nothing in it yet. */
+  /** Shown when the panel has nothing in it yet. */
   emptyState: string;
 }
 
+/** The minimum a module has to declare for the interface to place it. */
+export interface TabModule {
+  id: string;
+  label_tr: string;
+  kind: 'target' | 'instrument';
+}
+
+const KONUT_EMPTY =
+  'Henüz araştırma yok. Bir il ve ilçe seçip agent’ı gönderdiğinde bulduğu mahalle fiyatları, kira getirileri ve piyasa altı ilanlar burada birikir.';
+
+const FINANSMAN: Tab = {
+  id: 'finansman',
+  name: 'Finansman',
+  emptyState: 'Hesaplayıcı hazırlanıyor.',
+};
+
+const SICIL: Tab = {
+  id: 'sicil',
+  name: 'Sicil',
+  emptyState:
+    'Henüz ölçülmüş bir öngörü yok. Agent’ın vadesi gelen ilk tahmini ölçüldüğünde sicil burada başlar.',
+};
+
 /**
- * The four tabs, in the order the work happens: find a place, work out what you
- * can afford there, compare it against not buying, and check whether the agent
- * that told you all this has been right before.
+ * What each instrument tab is for.
+ *
+ * Every one of them answers the same question from a different angle: while the
+ * down payment grows, is this a better place for it than the alternatives? None
+ * of them is here as an investment in its own right, and the empty states say so
+ * — a tab that does not explain why it exists gets filled with whatever is easy
+ * to measure rather than whatever matters.
  */
-export const TABS: Tab[] = [
-  {
-    id: 'konut',
-    name: 'Konut',
+const INSTRUMENT_EMPTY: Record<string, string> = {
+  precious_metals:
+    'Henüz kurulmadı. Gram altın ve gümüşün TL getirisi buraya gelecek — peşinat biriktirirken paranın burada durmasının konut fiyatlarına karşı kazandırıp kazandırmadığı sorusu.',
+  fx: 'Henüz kurulmadı. Kur ve TL mevduat faizi yan yana gelecek — peşinatı dövizde tutmanın, faizde tutmanın ve konut fiyat artışının karşılaştırması.',
+  equities:
+    'Henüz kurulmadı. BIST endeksleri ve izlediğin hisseler buraya gelecek. Vadesi peşinat hedefinden kısa olan para için.',
+  funds:
+    'Henüz kurulmadı. Yatırım fonları ve gayrimenkul sertifikaları buraya gelecek — Damla Kent gibi projeler dahil. Daireyi bütün almak yerine sertifika biriktirip sonra daireye çevirme yolu da bir seçenek.',
+};
+
+function instrumentTab(module: TabModule): Tab {
+  return {
+    id: module.id,
+    name: module.label_tr,
     emptyState:
-      'Henüz araştırma yok. Bir il ve ilçe seçip agent’ı gönderdiğinde bulduğu mahalle fiyatları burada birikir.',
-  },
-  {
-    id: 'finansman',
-    name: 'Finansman',
-    emptyState: 'Hesaplayıcı hazırlanıyor.',
-  },
-  {
-    id: 'alternatifler',
-    name: 'Alternatifler',
-    emptyState:
-      'Henüz kurulmadı. Mevduat, altın ve gayrimenkul sertifikası getirileri buraya gelecek — “şimdi mi almalı, beklemeli mi” sorusu burada cevaplanır.',
-  },
-  {
-    id: 'sicil',
-    name: 'Sicil',
-    emptyState:
-      'Henüz ölçülmüş bir öngörü yok. Agent’ın vadesi gelen ilk tahmini ölçüldüğünde sicil burada başlar.',
-  },
-];
+      INSTRUMENT_EMPTY[module.id] ??
+      `Henüz kurulmadı. ${module.label_tr} getirileri buraya gelecek.`,
+  };
+}
+
+/**
+ * The tab strip, built from the registry rather than written out here.
+ *
+ * Konut first because it is the goal, Finansman second because it is how the
+ * goal gets paid for, then every instrument the registry knows about, and Sicil
+ * last because it looks backwards rather than forwards.
+ *
+ * Instruments come from the registry so that adding one stays a matter of adding
+ * a folder. A list written here would quietly make that untrue.
+ */
+export function buildTabs(modules: TabModule[]): Tab[] {
+  const target = modules.find((module) => module.kind === 'target');
+  const instruments = modules.filter((module) => module.kind === 'instrument');
+
+  return [
+    { id: 'konut', name: target?.label_tr ?? 'Konut', emptyState: KONUT_EMPTY },
+    FINANSMAN,
+    ...instruments.map(instrumentTab),
+    SICIL,
+  ];
+}
 
 export interface Neighbourhood {
   name: string;
@@ -54,7 +97,9 @@ export interface ResearchReport {
   neighbourhoods: Neighbourhood[];
 }
 
-export interface AlternativeReturn {
+export interface InstrumentReturn {
+  /** Module id the figure belongs to. */
+  module: string;
   name: string;
   annual_return: number;
   source: string;
@@ -69,8 +114,9 @@ export interface SeerRecord {
 }
 
 export interface PageData {
+  modules: TabModule[];
   research: ResearchReport[];
-  alternatives: AlternativeReturn[];
+  instruments: InstrumentReturn[];
   records: SeerRecord[];
 }
 
@@ -140,11 +186,7 @@ function panelBody(tab: Tab, data: PageData): string {
     return data.records.length === 0 ? empty : '';
   }
 
-  if (tab.id === 'alternatifler') {
-    return data.alternatives.length === 0 ? empty : '';
-  }
-
-  return empty;
+  return data.instruments.some((entry) => entry.module === tab.id) ? '' : empty;
 }
 
 const STYLE = `
@@ -237,20 +279,25 @@ const SCRIPT = `
  * back to it, and nothing loaded from the network.
  */
 export function renderPage(data: PageData): string {
-  const tablist = TABS.map(
-    (tab, index) =>
-      `<button role="tab" id="tab-${tab.id}" data-tab="${tab.id}"
+  const tabs = buildTabs(data.modules);
+  const tablist = tabs
+    .map(
+      (tab, index) =>
+        `<button role="tab" id="tab-${tab.id}" data-tab="${tab.id}"
                 aria-controls="panel-${tab.id}" aria-selected="${index === 0}"
                 tabindex="${index === 0 ? 0 : -1}">${escape(tab.name)}</button>`,
-  ).join('\n        ');
+    )
+    .join('\n        ');
 
-  const panels = TABS.map(
-    (tab, index) => `
+  const panels = tabs
+    .map(
+      (tab, index) => `
       <section role="tabpanel" id="panel-${tab.id}" aria-labelledby="tab-${tab.id}"${
         index === 0 ? '' : ' hidden'
       }>${panelBody(tab, data)}
       </section>`,
-  ).join('');
+    )
+    .join('');
 
   return `<!doctype html>
 <html lang="tr">

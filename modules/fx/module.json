@@ -1,9 +1,12 @@
 {
   "id": "fx",
   "name": "FX",
+  "label_tr": "Döviz",
+  "kind": "instrument",
+  "order": 2,
   "horizon_days": {
     "min": 7,
-    "max": 56
+    "max": 365
   },
   "sources": ["evds", "market_close"],
   "seers": []
