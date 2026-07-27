@@ -79,9 +79,9 @@ export function parseMortgageRules(data: unknown): MortgageRules {
     );
   }
 
-  // Optional, and bounded on both sides: a limit below 18 would be nonsense and
-  // one above 120 is a typo, not a bank that lends to the very old. Either way
-  // it silently shortens every term, so it is checked rather than taken.
+  // Optional, and bounded on both sides: below 18 is nonsense and above 120 is a
+  // typo rather than a bank that lends to the very old. It silently shortens
+  // every term, so it is checked rather than taken.
   const maxAge = term['conventional_max_age_at_final_instalment'];
 
   if (

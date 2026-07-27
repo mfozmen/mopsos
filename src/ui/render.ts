@@ -514,6 +514,10 @@ const FINANCE_SCRIPT = `
     const age = Math.round(num($('age').value));
 
     const fail = (message) => {
+      // Cleared here rather than at each site: the term cap is about age, and
+      // leaving it up beside a failure that is not about age reads as a reason
+      // for that failure.
+      $('termCap').textContent = '';
       $('maxPrice').textContent = '—';
       $('payment').textContent = '—';
       $('maxPriceNote').textContent = '';
@@ -537,21 +541,18 @@ const FINANCE_SCRIPT = `
     // The age limit shortens the term silently, so it is said out loud. Shown as
     // what banks do, never as law: the pinned rules record in as many words that
     // no regulation sets either an age limit or a maximum maturity here.
-    const termCap = $('termCap');
     if (Number.isNaN(age) || age < 18 || age > 100) {
-      termCap.textContent = '';
       return fail('Yaşını kontrol et.');
     }
 
     const allowed = M.maxTermForAge(rules, age);
     if (allowed === 0) {
-      termCap.textContent = '';
       return fail(age + ' yaşında bankaların uyguladığı ' +
         rules.term.conventional_max_age_at_final_instalment +
         ' yaş sınırı nedeniyle konut kredisi vadesi çıkmıyor.');
     }
 
-    termCap.textContent = allowed < rules.term.conventional_max_months
+    $('termCap').textContent = allowed < rules.term.conventional_max_months
       ? 'yaşın nedeniyle en fazla ' + allowed
       : '';
 

@@ -107,4 +107,43 @@ describe('parseMortgageRules', () => {
       }),
     ).toThrow(/open-ended/i);
   });
+
+  /**
+   * The age limit silently shortens every term, and a rule that shortens
+   * silently is the kind that has to be checked rather than trusted: a
+   * validator that quietly accepts anything looks exactly like one that works.
+   */
+  describe('the age at the final instalment', () => {
+    const withAge = (conventional_max_age_at_final_instalment: unknown) => () =>
+      parseMortgageRules({
+        loan_to_value: {
+          brackets: [{ value_up_to: null, ratios: { A_B: 0.4, C: 0.3, OTHER: 0.2 } }],
+        },
+        term: { conventional_max_months: 120, conventional_max_age_at_final_instalment },
+      });
+
+    it('is kept, because the loader used to drop it and nothing noticed', () => {
+      expect(withAge(70)().term.conventional_max_age_at_final_instalment).toBe(70);
+    });
+
+    it('is allowed to be absent, which means unrecorded rather than unlimited', () => {
+      expect(withAge(undefined)().term.conventional_max_age_at_final_instalment).toBeUndefined();
+    });
+
+    it('rejects an age that is not a whole number of years', () => {
+      expect(withAge(70.5)).toThrow(/whole number of years/i);
+    });
+
+    it('rejects an age below any age a bank lends at', () => {
+      expect(withAge(17)).toThrow(/between 18 and 120/i);
+    });
+
+    it('rejects an age no borrower reaches, which is a typo not a policy', () => {
+      expect(withAge(700)).toThrow(/between 18 and 120/i);
+    });
+
+    it('rejects an age that is not a number at all', () => {
+      expect(withAge('70')).toThrow(/between 18 and 120/i);
+    });
+  });
 });
