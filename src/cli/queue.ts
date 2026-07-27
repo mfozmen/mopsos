@@ -9,7 +9,7 @@
  *   npm run queue -- claim <at>   — take one, by its requested_at
  */
 import { resolveDataDir } from '../config/data-dir.js';
-import { claimRequest, pendingRequests } from '../server/requests.js';
+import { claimRequest, pendingRequests, rejectedRequests } from '../server/requests.js';
 
 const dataDir = resolveDataDir(process.cwd(), process.env);
 const [action, requestedAt] = process.argv.slice(2);
@@ -22,6 +22,15 @@ if (action === 'claim') {
   claimRequest(dataDir, requestedAt, `pid-${String(process.pid)}`);
   console.log(`Alındı: ${requestedAt}`);
 } else {
+  const rejected = rejectedRequests(dataDir);
+  if (rejected.length > 0) {
+    console.error(`${String(rejected.length)} istek kabul edilmiyor — işlenmeyecek:`);
+    for (const { request, reason } of rejected) {
+      console.error(`  ${request.requested_at}  ${reason}`);
+    }
+    console.error('  Temizlemek için: npm run queue -- claim <requested_at>\n');
+  }
+
   const pending = pendingRequests(dataDir);
   if (pending.length === 0) {
     console.log('Bekleyen istek yok.');

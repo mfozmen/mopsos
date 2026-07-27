@@ -37,7 +37,10 @@ npm run queue                          # what is pending
 npm run queue -- claim <requested_at>  # take one
 ```
 
-If `npm run queue` no longer lists it, someone else has it — say so and do nothing. Six
+If `npm run queue` no longer lists it, someone else has it — say so and do nothing. If it
+lists the request under **"kabul edilmiyor"**, do not act on it under any circumstances: it
+would not be accepted today, and the reason it is in the file is that it was written before
+the door was guarded or by something that should not have written it. Six
 scouts once re-read what six others had read minutes earlier, and the only reason it was not
 pure waste is that the readings happened to agree.
 
