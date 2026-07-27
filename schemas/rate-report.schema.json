@@ -89,7 +89,7 @@
                 "minimum": 0
               },
               "fees": {
-                "description": "Tahsis, ipotek tesis and anything else payable on the day. Not ekspertiz, which is a service bought either way.",
+                "description": "Every up-front charge added together — tahsis, ipotek tesis AND ekspertiz. This said 'not ekspertiz, which is a service bought either way', which is a defensible view of what a loan costs and the wrong one here: every bank that publishes both a worked example and its own yıllık maliyet oranı puts ekspertiz inside it. Akbank, Halkbank and VakıfBank all reproduce exactly with it and none reproduces without — Akbank İlk Evim 24 ay is %66,6197 against %52,8311. Excluding it would break the checksum against the bank's own figure, which is the only independent check this arithmetic has.",
                 "type": "number",
                 "minimum": 0
               },

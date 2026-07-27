@@ -285,6 +285,31 @@ describe('supersedes', () => {
     expect(banks).toEqual(['VakıfBank']);
   });
 
+  it('ignores a claim to replace something newer than itself', () => {
+    // Otherwise a stale file deletes the correct one. A correction is written
+    // after the thing it corrects; a file claiming to replace a later reading
+    // has its history backwards, and honouring it would make the bank vanish
+    // while leaving the wrong reading in place.
+    const root = rates(
+      [
+        'a-late.json',
+        report('Bir Banka', '2026-07-28', 2.95, { captured_at: '2026-07-28T10:00:00+03:00' }),
+      ],
+      [
+        'b-early.json',
+        report('Bir Banka', '2026-07-28', 9.99, {
+          captured_at: '2026-07-28T09:00:00+03:00',
+          supersedes: 'a-late.json',
+        }),
+      ],
+    );
+
+    const loaded = loadRateReports(root);
+
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]?.offers[0]?.monthly_rate).toBe(2.95);
+  });
+
   it('ignores a supersedes pointing at a file that is not there', () => {
     // A typo in the field must not make the report itself disappear: a bank that
     // silently vanishes looks the same as a bank nobody checked.

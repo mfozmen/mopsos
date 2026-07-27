@@ -141,7 +141,8 @@ export function loadRateReports(root: string): RateReport[] {
   // A supersedes pointing at nothing is ignored rather than honoured: a typo
   // there must not make the report itself vanish, because a bank that quietly
   // disappears looks the same as a bank nobody checked.
-  const present = new Set(files);
+  const readAtByFile = new Map<string, string>();
+  const claims: { supersedes: string; at: string }[] = [];
   const replaced = new Set<string>();
 
   for (const file of files) {
@@ -163,14 +164,24 @@ export function loadRateReports(root: string): RateReport[] {
     // Ordered by the finest timestamp each report carries. Without this two
     // readings of one bank on one day are indistinguishable, and a mistake found
     // in the afternoon cannot supersede the morning's file.
-    if (report.supersedes !== undefined && present.has(report.supersedes)) {
-      replaced.add(report.supersedes);
+    readAtByFile.set(file, readAt(report));
+    if (report.supersedes !== undefined) {
+      claims.push({ supersedes: report.supersedes, at: readAt(report) });
     }
 
     const previous = newest.get(report.bank);
     if (previous === undefined || readAt(previous.report) <= readAt(report)) {
       newest.set(report.bank, { report, file });
     }
+  }
+
+  // Only a later reading may retire an earlier one. A correction is written
+  // after the thing it corrects, so a file claiming to replace something newer
+  // than itself has its history backwards — and honouring it would delete the
+  // right reading and keep the wrong one, which is the opposite of the job.
+  for (const claim of claims) {
+    const target = readAtByFile.get(claim.supersedes);
+    if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
   }
 
   for (const [bank, kept] of newest) {
