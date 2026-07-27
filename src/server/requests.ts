@@ -136,8 +136,44 @@ export function readClaims(root: string): Claim[] {
     .map((line) => JSON.parse(line) as Claim);
 }
 
-/** Requests nobody has taken yet. */
-export function pendingRequests(root: string): QueuedRequest[] {
+function unclaimed(root: string): QueuedRequest[] {
   const claimed = new Set(readClaims(root).map((claim) => claim.request));
   return readRequests(root).filter((request) => !claimed.has(request.requested_at));
+}
+
+/**
+ * Checked again on the way out, not only on the way in.
+ *
+ * Guarding the door does not clean what is already inside. A request written
+ * before the guards existed — or by a future bug, or by hand — is still read
+ * back and handed to an agent as part of its instructions, so the same gate
+ * applies in both directions.
+ */
+function check(request: QueuedRequest): string | undefined {
+  try {
+    parseRequest(request);
+    return undefined;
+  } catch (error) {
+    return error instanceof InvalidRequestError ? error.message : 'İstek okunamadı';
+  }
+}
+
+/** Requests nobody has taken yet, and that would still be accepted today. */
+export function pendingRequests(root: string): QueuedRequest[] {
+  return unclaimed(root).filter((request) => check(request) === undefined);
+}
+
+/**
+ * Queued requests that would not be accepted today, with why.
+ *
+ * Reported rather than dropped in silence: a refused line sitting in the file
+ * with nobody looking at it is how a poisoned queue stays poisoned. Claiming one
+ * clears it, which is how it gets dealt with.
+ */
+export function rejectedRequests(root: string): { request: QueuedRequest; reason: string }[] {
+  return unclaimed(root)
+    .map((request) => ({ request, reason: check(request) }))
+    .filter(
+      (entry): entry is { request: QueuedRequest; reason: string } => entry.reason !== undefined,
+    );
 }
