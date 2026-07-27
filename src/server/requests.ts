@@ -4,6 +4,17 @@ import { join } from 'node:path';
 const QUEUE = 'requests.jsonl';
 const MAX_PLACE_LENGTH = 80;
 
+/**
+ * Letters, spaces, hyphens and apostrophes. Nothing else.
+ *
+ * An allowlist rather than an escape, because this value is read back out of the
+ * queue and handed to an agent as part of its instructions. Anything that is not
+ * a place name — a newline, a backtick, a semicolon, a tag — is a way to put
+ * words in that agent's mouth, and escaping is the wrong tool for a field that
+ * has no legitimate use for any of them.
+ */
+const PLACE = /^[\p{L}\p{M}][\p{L}\p{M} '’-]*$/u;
+
 export type Request = { kind: 'rates' } | { kind: 'market'; province: string; district: string };
 
 export interface QueuedRequest {
@@ -27,7 +38,13 @@ function place(value: unknown, field: string): string {
   if (value.length > MAX_PLACE_LENGTH) {
     throw new InvalidRequestError(`${field} bir yer adı için fazla uzun`);
   }
-  return value.trim();
+
+  const trimmed = value.trim();
+  if (!PLACE.test(trimmed)) {
+    throw new InvalidRequestError(`${field} bir yer adı gibi görünmüyor`);
+  }
+
+  return trimmed;
 }
 
 /**

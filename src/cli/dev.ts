@@ -12,16 +12,38 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { resolveDataDir } from '../config/data-dir.js';
+import { assertLocalRequest, NotLocalError } from '../server/guards.js';
 import { appendRequest, InvalidRequestError, parseRequest } from '../server/requests.js';
+
+/** Ample for {kind, province, district}, and small enough that nothing can pile up. */
+const MAX_BODY_BYTES = 8 * 1024;
 
 const PORT = Number(process.env['PORT'] ?? 8787);
 const dataDir = resolveDataDir(process.cwd(), process.env);
 
 const server = createServer((request, response) => {
   if (request.method === 'POST' && request.url === '/request') {
+    try {
+      assertLocalRequest(request.headers, PORT);
+    } catch (error) {
+      response.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(
+        JSON.stringify({ error: error instanceof NotLocalError ? error.message : 'Reddedildi' }),
+      );
+      return;
+    }
+
     let body = '';
-    request.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')));
+    request.on('data', (chunk: Buffer) => {
+      body += chunk.toString('utf8');
+      if (body.length > MAX_BODY_BYTES) {
+        response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
+        response.end('{"error":"İstek fazla büyük"}');
+        request.destroy();
+      }
+    });
     request.on('end', () => {
+      if (response.writableEnded) return;
       try {
         const parsed = parseRequest(JSON.parse(body));
         appendRequest(dataDir, parsed, new Date().toISOString());
