@@ -2,7 +2,6 @@
   "id": "fx",
   "name": "FX",
   "label_tr": "Döviz",
-  "kind": "instrument",
   "order": 2,
   "horizon_days": {
     "min": 7,

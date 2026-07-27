@@ -42,7 +42,7 @@ try {
   console.warn(`${error instanceof Error ? error.message : String(error)}\n`);
 }
 
-// Tabs come from the registry, so adding an instrument stays a matter of adding
+// Tabs come from the registry, so adding an investment stays a matter of adding
 // a folder. Nothing reads research, instrument returns or records yet — those
 // arrive with the market agent and the resolution runner. Empty here means empty
 // on the page, which is the honest state today.
@@ -50,7 +50,6 @@ const data: PageData = {
   modules: loadModules('modules').map((module) => ({
     id: module.id,
     label_tr: module.label_tr,
-    kind: module.kind,
   })),
   research: [],
   instruments: [],

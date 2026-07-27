@@ -2,7 +2,6 @@
   "id": "funds",
   "name": "Funds & Certificates",
   "label_tr": "Fonlar",
-  "kind": "instrument",
   "order": 4,
   "horizon_days": {
     "min": 30,
