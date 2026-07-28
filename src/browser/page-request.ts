@@ -22,14 +22,46 @@ export interface PageRequest {
  * A bank is on the public internet. Anything here is not the job, and one of
  * them is actively dangerous: 169.254.169.254 is the cloud metadata service,
  * which hands out credentials over plain unauthenticated http to whatever asks.
+ */
+const PRIVATE_IPV4 =
+  /^(127(\.\d+){3}|0\.0\.0\.0|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2})$/;
+
+/** `::1`, `::`, unique-local `fc00::/7` and link-local `fe80::/10`. */
+const PRIVATE_IPV6 = /^(::1?|f[cde][0-9a-f]{2}:.*)$/i;
+
+/** `::ffff:a9fe:a9fe` — an IPv4 address written as IPv6, as `new URL` leaves it. */
+const MAPPED_IPV4 = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+
+/**
+ * Whether a hostname is one only this machine or its network can reach.
+ *
+ * `new URL` normalises more than it looks: `2130706433` and `0x7f000001` both
+ * arrive as `127.0.0.1`, so those need no special case. What it does NOT do is
+ * put an IPv4-mapped address back into dotted form — `::ffff:169.254.169.254`
+ * comes back as `[::ffff:a9fe:a9fe]`, and a check reading the dotted form never
+ * sees it. Same metadata service, same credentials, one notation away.
  *
  * Matched on the literal host rather than resolved, which is the honest limit of
- * this guard: a public name that resolves to a private address gets through. It
+ * this guard: a public name pointing at a private address still gets through. It
  * closes the case that arises here — an agent reasoning its way to the wrong url
  * — and does not pretend to be a network policy.
  */
-const PRIVATE_HOST =
-  /^(localhost|127(\.\d+){3}|0\.0\.0\.0|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2}|\[?::1\]?|\[?f[cde][0-9a-f]{2}:.*)$/i;
+function isPrivateHost(hostname: string): boolean {
+  if (hostname.toLowerCase() === 'localhost') return true;
+  if (PRIVATE_IPV4.test(hostname)) return true;
+
+  const bare = hostname.replace(/^\[|\]$/g, '');
+  if (PRIVATE_IPV6.test(bare)) return true;
+
+  const mapped = MAPPED_IPV4.exec(bare);
+  if (mapped === null) return false;
+
+  const high = Number.parseInt(mapped[1] ?? '', 16);
+  const low = Number.parseInt(mapped[2] ?? '', 16);
+  const dotted = [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
+
+  return PRIVATE_IPV4.test(dotted);
+}
 
 const MAX_WAIT_SECONDS = 60;
 const DEFAULT_WAIT_SECONDS = 5;
@@ -66,7 +98,7 @@ export function parsePageRequest(argv: string[], defaultOut: string): PageReques
     throw new BadPageRequestError(`Only http and https can be opened, not ${parsed.protocol}`);
   }
 
-  if (PRIVATE_HOST.test(parsed.hostname)) {
+  if (isPrivateHost(parsed.hostname)) {
     throw new BadPageRequestError(
       `Only addresses on the public internet can be opened, and ${parsed.hostname} is not one`,
     );

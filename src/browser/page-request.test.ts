@@ -42,6 +42,30 @@ describe('parsePageRequest', () => {
     }
   });
 
+  it('sees through an IPv4 address wearing IPv6 clothes', () => {
+    // new URL() rewrites ::ffff:169.254.169.254 as [::ffff:a9fe:a9fe], so a
+    // check that reads the dotted form never sees it. Same metadata service,
+    // same credentials, one notation away.
+    for (const url of [
+      'http://[::ffff:169.254.169.254]/latest/meta-data/',
+      'http://[::ffff:127.0.0.1]/',
+      'http://[0:0:0:0:0:ffff:7f00:1]/',
+      'http://[::ffff:10.0.0.1]/',
+      'http://[::]/',
+    ]) {
+      expect(() => parsePageRequest([url], '/tmp/out'), url).toThrow(/public/i);
+    }
+  });
+
+  it('sees through a decimal or hexadecimal address too', () => {
+    // These normalise to 127.0.0.1 before the check runs, which is the check
+    // working rather than luck — but worth holding, because it is the kind of
+    // thing a rewrite of the parsing would quietly lose.
+    for (const url of ['http://2130706433/', 'http://0x7f000001/']) {
+      expect(() => parsePageRequest([url], '/tmp/out'), url).toThrow(/public/i);
+    }
+  });
+
   it('lets an ordinary public address through', () => {
     for (const url of [
       'https://www.akbank.com/x',
