@@ -1,0 +1,74 @@
+/**
+ * Opens one page in this run's own browser and writes down what it says.
+ *
+ * The Playwright MCP server is a single process driving a single browser, and
+ * every subagent in a session talks to that same one. Three readings in one
+ * afternoon were lost to it: an agent navigated, went away to think, and came
+ * back to somebody else's page. Scope does not help — one session, one server,
+ * one tab, however it is installed.
+ *
+ * So an agent that needs more than a glance drives its own browser instead.
+ * That is what this is. It is deliberately not a scraper: one page, one visit,
+ * both a text dump and a screenshot, then it exits.
+ *
+ * Usage: npm run read:page -- <url> [outputDir] [waitSeconds]
+ */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+import { chromium } from 'playwright';
+
+import { BadPageRequestError, launchAdvice, parsePageRequest } from '../browser/page-request.js';
+
+// A real browser saying who it is. Not a disguise: the point is to read a public
+// page the way a person would, and pretending to be something else is where
+// reading a website turns into evading one.
+const VIEWPORT = { width: 1440, height: 2000 };
+
+async function main(): Promise<void> {
+  const request = parsePageRequest(process.argv.slice(2), process.cwd());
+  mkdirSync(dirname(request.text), { recursive: true });
+
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: VIEWPORT, locale: 'tr-TR' });
+    await page.goto(request.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+    // Rate tables are drawn by script. Settling is what makes the difference
+    // between an empty page and the numbers.
+    await page.waitForTimeout(request.waitSeconds * 1000);
+
+    // Playwright's own reader rather than an evaluate into the page: this file
+    // is compiled against Node's libraries, and `document` does not exist here.
+    const text = await page.locator('body').innerText();
+    writeFileSync(request.text, text, 'utf8');
+    await page.screenshot({ path: request.screenshot, fullPage: true });
+
+    console.log(`${request.url}\n  ${request.text}  (${String(text.length)} karakter)`);
+    console.log(`  ${request.screenshot}`);
+
+    // Said out loud, because a page that loaded empty and a page that was
+    // refused look identical in a text file nobody opens.
+    if (text.trim().length < 200) {
+      console.error('\nSayfa neredeyse boş geldi — engellenmiş ya da hâlâ yükleniyor olabilir.');
+      process.exitCode = 1;
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+main().catch((error: unknown) => {
+  if (error instanceof BadPageRequestError) {
+    console.error(error.message);
+    process.exit(2);
+  }
+
+  const advice = launchAdvice(error);
+  if (advice !== undefined) {
+    console.error(advice);
+    process.exit(3);
+  }
+
+  throw error;
+});
