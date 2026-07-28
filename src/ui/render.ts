@@ -80,10 +80,15 @@ export function buildTabs(modules: TabModule[]): Tab[] {
 
 export interface Neighbourhood {
   name: string;
-  sale_per_m2: number;
-  rent_per_m2: number;
-  /** Annual gross rental yield, as a fraction. */
-  gross_yield: number;
+  /**
+   * Optional, because "nothing usable was found here" is a finding rather than a
+   * failure — and one worth showing, since it says where to look next.
+   */
+  sale_per_m2?: number;
+  rent_per_m2?: number;
+  /** Annual gross rental yield, as a fraction. Derived from the two above. */
+  gross_yield?: number;
+  /** How many listings the figures rest on. A median over three of them is noise. */
   listing_count: number;
   /** Where the figures came from. A figure with no source does not get shown. */
   source: string;
@@ -189,13 +194,18 @@ function turkishDate(iso: string): string {
   return `${day}.${month}.${year}`;
 }
 
+/** A dash where nothing was found. Zero would be a lie and NaN a bug report. */
+function figure(value: number | undefined, format: (value: number) => string): string {
+  return value === undefined ? '—' : format(value);
+}
+
 function neighbourhoodRow(neighbourhood: Neighbourhood): string {
   return `
           <tr>
             <td>${escape(neighbourhood.name)}</td>
-            <td class="num">${tl(neighbourhood.sale_per_m2)}</td>
-            <td class="num">${tl(neighbourhood.rent_per_m2)}</td>
-            <td class="num">${percent(neighbourhood.gross_yield)}</td>
+            <td class="num">${figure(neighbourhood.sale_per_m2, tl)}</td>
+            <td class="num">${figure(neighbourhood.rent_per_m2, tl)}</td>
+            <td class="num">${figure(neighbourhood.gross_yield, percent)}</td>
             <td class="num">${tl(neighbourhood.listing_count)}</td>
             <td class="src">${escape(neighbourhood.source)}</td>
           </tr>`;
