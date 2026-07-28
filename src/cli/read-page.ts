@@ -32,6 +32,9 @@ import {
 // reading a website turns into evading one.
 const VIEWPORT = { width: 1440, height: 2000 };
 
+/** Enough for a real site's redirects, few enough that a loop cannot run away. */
+const MAX_REDIRECTS = 10;
+
 async function main(): Promise<void> {
   // Never the working directory, which is the public repository. The briefs
   // forbid leaving working files there and this is the tool they use.
@@ -50,19 +53,61 @@ async function main(): Promise<void> {
     const refused: string[] = [];
     await page.route('**/*', async (route) => {
       const url = route.request().url();
-      if (allowsRequestTo(url)) return route.continue();
+      if (!allowsRequestTo(url)) {
+        refused.push(url);
+        return route.abort('blockedbyclient');
+      }
 
-      refused.push(url);
-      return route.abort('blockedbyclient');
+      // The redirect chain is walked here rather than by the browser, and this
+      // is the only arrangement that actually works.
+      //
+      // Left alone, the browser follows a redirect inside the request it was
+      // already allowed to make and never comes back through this handler — so
+      // the connection to the private address happens, and all that can be done
+      // afterwards is to refuse to write down what came back. That is
+      // suppressing the disclosure, not preventing the request, and it is not
+      // enough where the GET itself is the event. Handing back the 3xx instead
+      // of following it was tried and changes nothing: the browser still
+      // follows it unrouted.
+      //
+      // So each hop is fetched from here, checked before the next one is made,
+      // and only the final response is handed to the page.
+      let response = await route.fetch({ maxRedirects: 0 });
+
+      for (let hop = 0; hop < MAX_REDIRECTS; hop += 1) {
+        const location = response.headers()['location'];
+        if (response.status() < 300 || response.status() >= 400 || location === undefined) break;
+
+        const next = new URL(location, response.url()).toString();
+        if (!allowsRequestTo(next)) {
+          refused.push(next);
+          return route.abort('blockedbyclient');
+        }
+
+        response = await route.fetch({ url: next, maxRedirects: 0 });
+      }
+
+      return route.fulfill({ response });
     });
 
-    await page.goto(request.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    // A navigation refused by the handler above rejects here, which is the guard
+    // working rather than a failure to report.
+    await page
+      .goto(request.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      .catch((error: unknown) => {
+        if (refused.length === 0) throw error;
+      });
 
-    // Checked again, because the route handler above does not see this one.
-    // Playwright follows a server redirect inside the request it already let
-    // through, so a public domain answering 302 to 127.0.0.1 arrives with
-    // nothing refused and a page happily read — which is exactly what happened
-    // when this was tried against a real redirector.
+    // Said before anything else, because a refusal is the most important thing
+    // that can have happened.
+    if (refused.length > 0) {
+      console.error(`Refused ${String(refused.length)} request(s) to non-public addresses:`);
+      for (const url of refused.slice(0, 5)) console.error(`  ${url}`);
+    }
+
+    // Belt to the handler's braces. The handler stops the connection; this
+    // catches anything that reached a private address by a route it does not
+    // see, and refuses to write down what came back.
     const landed = new URL(page.url());
     if (isPrivateHost(landed.hostname)) {
       console.error(
