@@ -20,22 +20,24 @@ if (action === 'claim') {
     process.exit(2);
   }
   claimRequest(dataDir, requestedAt, `pid-${String(process.pid)}`);
-  console.log(`Alındı: ${requestedAt}`);
+  console.log(`Claimed: ${requestedAt}`);
 } else {
   const rejected = rejectedRequests(dataDir);
   if (rejected.length > 0) {
-    console.error(`${String(rejected.length)} istek kabul edilmiyor — işlenmeyecek:`);
+    console.error(
+      `${String(rejected.length)} request(s) would be refused today and will not be acted on:`,
+    );
     for (const { request, reason } of rejected) {
       console.error(`  ${request.requested_at}  ${reason}`);
     }
-    console.error('  Temizlemek için: npm run queue -- claim <requested_at>\n');
+    console.error('  To clear one: npm run queue -- claim <requested_at>\n');
   }
 
   const pending = pendingRequests(dataDir);
   if (pending.length === 0) {
-    console.log('Bekleyen istek yok.');
+    console.log('Nothing pending.');
   } else {
-    console.log(`${String(pending.length)} bekleyen istek:`);
+    console.log(`${String(pending.length)} pending:`);
     for (const request of pending) {
       const where =
         request.province === undefined ? '' : ` ${request.province}/${String(request.district)}`;
