@@ -1,0 +1,99 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { loadMarketReports } from './load.js';
+
+function neighbourhood(extra: Record<string, unknown> = {}) {
+  return {
+    name: 'Egekent 2',
+    sale_per_m2: 48_000,
+    rent_per_m2: 180,
+    listing_count: 62,
+    basis: 'listing_median',
+    confidence: 'medium',
+    source: 'İlan sitesi araması, 3+1 daireler',
+    source_url: 'https://example.test/egekent-2',
+    ...extra,
+  };
+}
+
+function report(extra: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    schema_version: 1,
+    province: 'İzmir',
+    district: 'Çiğli',
+    captured_on: '2026-07-28',
+    neighbourhoods: [neighbourhood()],
+    ...extra,
+  });
+}
+
+function market(...files: [string, string][]): string {
+  const root = mkdtempSync(join(tmpdir(), 'mopsos-market-'));
+  mkdirSync(join(root, 'market'), { recursive: true });
+  for (const [name, body] of files) writeFileSync(join(root, 'market', name), body, 'utf8');
+  return root;
+}
+
+describe('loadMarketReports', () => {
+  it('reads a report', () => {
+    const [loaded] = loadMarketReports(market(['a.json', report()]));
+
+    expect(loaded?.place).toBe('İzmir / Çiğli');
+    expect(loaded?.neighbourhoods[0]?.sale_per_m2).toBe(48_000);
+  });
+
+  it('returns nothing when no research has been done', () => {
+    expect(loadMarketReports(mkdtempSync(join(tmpdir(), 'mopsos-empty-')))).toEqual([]);
+  });
+
+  it('works out the yield itself rather than trusting the agent with arithmetic', () => {
+    // 180 × 12 / 48.000 = 4,5%. Derived here so it cannot disagree with the two
+    // numbers it comes from — an agent that reports all three can report a yield
+    // that does not follow from its own figures, and nothing would catch it.
+    const [loaded] = loadMarketReports(market(['a.json', report()]));
+
+    expect(loaded?.neighbourhoods[0]?.gross_yield).toBeCloseTo(0.045, 4);
+  });
+
+  it('refuses a figure with no source', () => {
+    // The rule the whole record rests on: a number nobody can go and check is
+    // not evidence, and it is worse than a gap because it looks like evidence.
+    const bad = report({ neighbourhoods: [neighbourhood({ source: undefined })] });
+
+    expect(() => loadMarketReports(market(['a.json', bad]))).toThrow(/source/i);
+  });
+
+  it('refuses a malformed report rather than skipping it', () => {
+    // A neighbourhood that quietly disappears looks the same as one nobody
+    // researched, and only one of those means somebody should go and look.
+    expect(() => loadMarketReports(market(['a.json', '{"schema_version":1}']))).toThrow(/a\.json/);
+  });
+
+  it('keeps the newest reading per district and leaves the old one on disk', () => {
+    const root = market(
+      ['2026-06-01-izmir-cigli.json', report({ captured_on: '2026-06-01' })],
+      ['2026-07-28-izmir-cigli.json', report({ captured_on: '2026-07-28' })],
+    );
+
+    const loaded = loadMarketReports(root);
+
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]?.dated).toBe('2026-07-28');
+  });
+
+  it('separates districts that share a province', () => {
+    const root = market(
+      ['a.json', report({ district: 'Çiğli' })],
+      ['b.json', report({ district: 'Karşıyaka' })],
+    );
+
+    expect(loadMarketReports(root).map((r) => r.place)).toEqual([
+      'İzmir / Karşıyaka',
+      'İzmir / Çiğli',
+    ]);
+  });
+});

@@ -80,13 +80,22 @@ export function buildTabs(modules: TabModule[]): Tab[] {
 
 export interface Neighbourhood {
   name: string;
-  sale_per_m2: number;
-  rent_per_m2: number;
-  /** Annual gross rental yield, as a fraction. */
-  gross_yield: number;
+  /**
+   * Optional, because "nothing usable was found here" is a finding rather than a
+   * failure — and one worth showing, since it says where to look next.
+   */
+  sale_per_m2?: number;
+  rent_per_m2?: number;
+  /** Annual gross rental yield, as a fraction. Derived from the two above. */
+  gross_yield?: number;
+  /** How many listings the figures rest on. A median over three of them is noise. */
   listing_count: number;
   /** Where the figures came from. A figure with no source does not get shown. */
   source: string;
+  /** What qualifies the figure — thin data, a mix that would not hold still. */
+  note?: string;
+  /** How far the scout trusts its own figure. */
+  confidence?: 'high' | 'medium' | 'low';
 }
 
 export interface ResearchReport {
@@ -94,6 +103,8 @@ export interface ResearchReport {
   /** ISO date the research was done. */
   dated: string;
   neighbourhoods: Neighbourhood[];
+  /** What the run could not do — a site that refused it, a source it fell back to. */
+  note?: string;
 }
 
 export interface InstrumentReturn {
@@ -189,15 +200,40 @@ function turkishDate(iso: string): string {
   return `${day}.${month}.${year}`;
 }
 
+/**
+ * Shown beside the count, because a figure whose reliability was recorded and
+ * then not displayed is presented as though it were certain — which is the
+ * opposite of what recording it was for.
+ *
+ * High is not marked. Everything on the page is a best reading; saying so on
+ * the ones that are fine would make the word meaningless on the ones that are
+ * not.
+ */
+const CONFIDENCE: Record<string, string> = { medium: 'orta güven', low: 'düşük güven' };
+
+/** A dash where nothing was found. Zero would be a lie and NaN a bug report. */
+function figure(value: number | undefined, format: (value: number) => string): string {
+  return value === undefined ? '—' : format(value);
+}
+
 function neighbourhoodRow(neighbourhood: Neighbourhood): string {
   return `
           <tr>
             <td>${escape(neighbourhood.name)}</td>
-            <td class="num">${tl(neighbourhood.sale_per_m2)}</td>
-            <td class="num">${tl(neighbourhood.rent_per_m2)}</td>
-            <td class="num">${percent(neighbourhood.gross_yield)}</td>
-            <td class="num">${tl(neighbourhood.listing_count)}</td>
-            <td class="src">${escape(neighbourhood.source)}</td>
+            <td class="num">${figure(neighbourhood.sale_per_m2, tl)}</td>
+            <td class="num">${figure(neighbourhood.rent_per_m2, tl)}</td>
+            <td class="num">${figure(neighbourhood.gross_yield, percent)}</td>
+            <td class="num">${tl(neighbourhood.listing_count)}${
+              neighbourhood.confidence === undefined ||
+              CONFIDENCE[neighbourhood.confidence] === undefined
+                ? ''
+                : `<span class="caution">${CONFIDENCE[neighbourhood.confidence] ?? ''}</span>`
+            }</td>
+            <td class="src">${escape(neighbourhood.source)}${
+              neighbourhood.note === undefined
+                ? ''
+                : `<span class="caution">${escape(neighbourhood.note)}</span>`
+            }</td>
           </tr>`;
 }
 
@@ -217,7 +253,15 @@ function reportSection(report: ResearchReport): string {
         </thead>
         <tbody>${report.neighbourhoods.map(neighbourhoodRow).join('')}
         </tbody>
-      </table>`;
+      </table>${
+        // What the run could not do belongs beside what it did. A report that
+        // only shows its findings reads as complete, and this one rarely is:
+        // half the value of a reading is knowing where it stopped.
+        report.note === undefined
+          ? ''
+          : `
+      <p class="caution run">${escape(report.note)}</p>`
+      }`;
 }
 
 /**
@@ -855,6 +899,10 @@ const STYLE = `
   .household input:focus-visible, .household select:focus-visible {
     outline: 2px solid var(--measured); outline-offset: 1px; }
   .cap { color: var(--pending); font-size: .78rem; }
+  /* What a figure does not tell you, kept beside the figure. */
+  .caution { display: block; margin-top: .3rem; color: var(--pending); font-style: italic; }
+  .caution.run { margin: .9rem 0 0; padding-left: .8rem; border-left: 2px solid var(--pending);
+    font-size: .82rem; line-height: 1.6; }
   .advice { flex-basis: 100%; margin: .9rem 0 0; padding: .8rem 1rem; background: var(--surface);
     border-left: 2px solid var(--pending); font-size: .82rem; line-height: 1.6; }
   .advice:empty { display: none; }

@@ -545,6 +545,89 @@ describe('safety', () => {
   });
 });
 
+describe('market research', () => {
+  const report = (neighbourhood: Record<string, unknown>) => ({
+    place: 'İzmir / Çiğli',
+    dated: '2026-07-28',
+    neighbourhoods: [
+      {
+        name: 'Egekent 2',
+        listing_count: 62,
+        basis: 'listing_median' as const,
+        confidence: 'medium' as const,
+        source: 'İlan araması, 3+1',
+        ...neighbourhood,
+      },
+    ],
+  });
+
+  it('shows a dash where a figure was not found, never NaN', () => {
+    // "Nothing usable was found here" is a finding. Printing NaN turns it into
+    // a bug report, and printing 0 turns it into a lie.
+    const housing = panel(
+      renderPage({ ...EMPTY, research: [report({ rent_per_m2: 180 })] }),
+      'housing',
+    );
+
+    expect(housing).toContain('Egekent 2');
+    expect(housing).not.toContain('NaN');
+  });
+
+  it('shows what the scout could not find, not just what it could', () => {
+    // The brief asks for it in as many words — a blocked site, four listings, a
+    // mix that would not hold still. Validating it and storing it while never
+    // showing it is the same as not asking for it.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [
+          {
+            ...report({ note: 'Sadece 4 ilan; medyan güvenilir değil.' }),
+            note: 'Sahibinden bu ilçede robots.txt ile kapalı, hepsiemlak kullanıldı.',
+          },
+        ],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('Sadece 4 ilan');
+    expect(housing).toContain('robots.txt ile kapalı');
+  });
+
+  it('says how much the scout trusts a figure', () => {
+    // The brief spends a table on high/medium/low and the schema requires it.
+    // A figure whose reliability is recorded and then not shown is presented as
+    // though it were certain, which is the opposite of what recording it meant.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [report({ sale_per_m2: 48_000, confidence: 'low' as const })],
+      }),
+      'housing',
+    );
+    const row = housing.slice(
+      housing.indexOf('Egekent 2'),
+      housing.indexOf('</tr>', housing.indexOf('Egekent 2')),
+    );
+
+    expect(row).toContain('düşük');
+  });
+
+  it('says how many listings a figure rests on', () => {
+    // A median over three listings is noise wearing a number's clothes. The
+    // count is what tells them apart, so it travels with the figure.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [report({ sale_per_m2: 48_000, rent_per_m2: 180, gross_yield: 0.045 })],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('62');
+  });
+});
+
 describe('the page script', () => {
   /**
    * The other tests here read the rendered HTML as text, so a page whose script
