@@ -6,19 +6,20 @@ Start the interface and then watch it for work.
 
 1. Regenerate the page from the record and start the local server:
 
-   ```
-   npm run ui
-   npm run dev
-   ```
+   Dispatch the **`ui-launcher`** subagent. It builds the page, checks whether the port is
+   already taken, starts the server if it is not, and reports what is in the record. Doing it
+   there rather than here keeps the boring output — build logs, a fifteen-bank cost listing —
+   out of the session the user is actually reading.
 
-   Run `npm run dev` with `run_in_background: true` — it does not exit. If port 8787 is
-   already taken, the server is already up; do not start a second one.
+   It deliberately does **not** watch the queue; that is step 3, and it has to happen here.
 
 2. Open `http://127.0.0.1:8787` in the browser for the user, and tell them the address in
    case it does not open by itself.
 
 3. Arm a **persistent Monitor** on the request queue so their button presses reach this
-   session:
+   session. **This cannot be delegated.** A subagent ends when its task does and takes its
+   monitor with it, and a queue nobody is watching swallows every button press in silence —
+   which is the one failure mode this project refuses to ship:
 
    ```
    tail -n 0 -F "<data-dir>/requests.jsonl"

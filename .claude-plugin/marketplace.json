@@ -1,0 +1,19 @@
+{
+  "name": "mopsos",
+  "owner": {
+    "name": "Mehmet Fahri Özmen",
+    "url": "https://github.com/mfozmen"
+  },
+  "description": "The Mopsos investment research tool, as an installable plugin.",
+  "plugins": [
+    {
+      "name": "mopsos",
+      "source": "./plugin",
+      "description": "Opens the Mopsos interface, takes research requests from it, and runs the agents that answer them.",
+      "homepage": "https://github.com/mfozmen/mopsos",
+      "repository": "https://github.com/mfozmen/mopsos",
+      "license": "MIT",
+      "keywords": ["research", "housing", "mortgage", "turkey", "investment"]
+    }
+  ]
+}

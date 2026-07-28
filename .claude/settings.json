@@ -1,0 +1,8 @@
+{
+  "extraKnownMarketplaces": {
+    "mopsos": { "source": "./" }
+  },
+  "enabledPlugins": {
+    "mopsos@mopsos": true
+  }
+}
