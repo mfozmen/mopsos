@@ -111,13 +111,24 @@ npm ci
 cp .env.example .env   # fill in your own keys
 ```
 
-| Command                 | What it does                        |
-| ----------------------- | ----------------------------------- |
-| `npm run lint`          | ESLint over the repository          |
-| `npm run format`        | Prettier, write mode                |
-| `npm run typecheck`     | `tsc --noEmit`                      |
-| `npm test`              | Vitest                              |
-| `npm run test:coverage` | Vitest with an lcov coverage report |
+Research agents that read a bank's site drive their own browser rather than the shared one, so
+they need its binary once:
+
+```bash
+npx playwright install chromium
+```
+
+Only needed if you dispatch those agents. The interface and the tests do not use it.
+
+| Command                 | What it does                                                        |
+| ----------------------- | ------------------------------------------------------------------- |
+| `npm run lint`          | ESLint over the repository                                          |
+| `npm run format`        | Prettier, write mode                                                |
+| `npm run typecheck`     | `tsc --noEmit`                                                      |
+| `npm test`              | Vitest                                                              |
+| `npm run test:coverage` | Vitest with an lcov coverage report                                 |
+| `npm run check:rates`   | What each recorded bank offer really costs                          |
+| `npm run read:page`     | Open one page in this run's own browser and write down what it says |
 
 ## Repository layout
 

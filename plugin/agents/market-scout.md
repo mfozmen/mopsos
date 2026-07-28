@@ -14,6 +14,39 @@ investment" — it is **which neighbourhood, at what price per square metre, and
 rent for**. A district-level average answers nothing: the whole point of the exercise is that
 neighbourhoods inside one district differ by more than districts differ from each other.
 
+## The shared browser, and when not to use it
+
+The `browser_*` tools drive **one browser, shared with every other agent in this session**.
+That is not a setting anyone can change: one session runs one Playwright MCP server, which
+runs one browser with one tab, whoever installed it and at whatever scope.
+
+It has already cost three readings in one afternoon. An agent navigates, goes away to think,
+comes back — and is looking at somebody else's page. Worse, it can look like it worked: the
+figures you read are real, they are just the wrong bank's.
+
+So:
+
+- **A glance** — one page, read it, done — the shared tools are fine.
+- **Anything longer**: a calculator you drive, several terms compared, a page you return to
+  after thinking — use **your own browser**:
+
+  ```
+  npm run read:page -- <url> [outputDir] [waitSeconds]
+  ```
+
+  It opens one page in a browser belonging to this run alone, writes the visible text and a
+  full-page screenshot, and exits. Nobody can navigate it out from under you.
+
+  Give it a longer wait when a rate table is drawn by script — `10` or `15` rather than the
+  default `5`. It says so when a page comes back nearly empty, because a page that loaded
+  blank and a page that refused you look identical in a text file nobody opens.
+
+  It is one page per invocation, on purpose. It is a way to read reliably, not a way to read
+  faster: the pace rules below still apply exactly as written.
+
+**If you find yourself looking at a page you did not open, that is this.** Do not re-navigate
+and hope. Switch to your own browser and start the reading again.
+
 ## The one rule everything else follows from
 
 **A figure with no source does not go in the report.** Not as an estimate, not as "roughly",
