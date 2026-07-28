@@ -296,6 +296,47 @@ describe('bank rates', () => {
     expect(question).toContain('şube');
   });
 
+  it('leads with the product, not with four hundred words of conditions', () => {
+    // The conditions run to fifteen lines for some banks and were swallowing the
+    // table whole, which defeats the one question it exists to answer.
+    const wordy = {
+      ...ZIRAAT,
+      offers: [
+        {
+          product: 'Yeni Evlilere Özel',
+          monthly_rate: 2.6,
+          conditions: 'Paket oranı. '.repeat(60),
+        },
+      ],
+    };
+    const row = panel(renderPage({ ...EMPTY, rates: [wordy] }), 'housing');
+    const cell = row.slice(
+      row.indexOf('<td class="terms"'),
+      row.indexOf('</td>', row.indexOf('<td class="terms"')),
+    );
+
+    expect(cell).toContain('Yeni Evlilere Özel');
+    expect(cell.indexOf('Yeni Evlilere Özel')).toBeLessThan(cell.indexOf('Paket oranı.'));
+  });
+
+  it('keeps the conditions on the page, one click away', () => {
+    // Hidden, not dropped. A package rate that requires four insurance products
+    // is a different offer, and the difference is the whole comparison — it just
+    // does not belong in front of the number it qualifies.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing).toContain('<details');
+    expect(housing).toContain(ZIRAAT.offers[0]?.conditions ?? 'NO CONDITIONS IN FIXTURE');
+  });
+
+  it('says nothing about conditions when the bank published none', () => {
+    // An empty disclosure triangle invites a click that reveals nothing.
+    const bare = { ...ZIRAAT, offers: [{ product: 'Konut Kredisi', monthly_rate: 2.79 }] };
+    const housing = panel(renderPage({ ...EMPTY, rates: [bare] }), 'housing');
+
+    expect(housing).not.toContain('<details');
+  });
+
   it('links the bank to the page the figures were read from', () => {
     // The next question after "who is cheapest" is always "let me see it".
     expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).toContain(

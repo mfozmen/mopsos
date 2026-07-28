@@ -279,6 +279,33 @@ function bankCell(report: RateReport): string {
     : `<td><a href="${href}" target="_blank" rel="noreferrer noopener">${name}</a> ${kind}</td>`;
 }
 
+/**
+ * The product, with its conditions folded away behind it.
+ *
+ * The conditions matter — a package rate that requires four insurance products
+ * is a different offer, and the difference is the whole comparison. But they run
+ * to fifteen lines for some banks, and printed in full they swallowed the table
+ * that exists to answer one question. So the product name leads and the rest is
+ * one click behind a native <details>, which needs no script and stays
+ * searchable in the page.
+ *
+ * No conditions, no triangle: an empty disclosure invites a click that reveals
+ * nothing.
+ */
+function termsCell(offer: RateOffer): string {
+  const product = escape(offer.product);
+  if (offer.conditions === undefined || offer.conditions.trim().length === 0) {
+    return `<td class="terms">${product}</td>`;
+  }
+
+  return `<td class="terms">
+              <details>
+                <summary>${product}</summary>
+                <p>${escape(offer.conditions)}</p>
+              </details>
+            </td>`;
+}
+
 function rateRow(report: RateReport): string {
   const cheapest = [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0];
 
@@ -290,7 +317,7 @@ function rateRow(report: RateReport): string {
             ${bankCell(report)}
             <td class="num">—</td>
             <td class="num true-rate unknown">—</td>
-            <td>Oran yayınlamıyor</td>
+            <td class="terms">Oran yayınlamıyor</td>
             <td class="when">${turkishDate(report.captured_on)}</td>
           </tr>`;
   }
@@ -301,7 +328,7 @@ function rateRow(report: RateReport): string {
             <td class="num"><button type="button" class="use-rate"
               data-rate="${cheapest.monthly_rate}">${ratePercent(cheapest.monthly_rate)}</button></td>
             ${trueRateCell(cheapest)}
-            <td>${escape(cheapest.conditions ?? cheapest.product)}</td>
+            ${termsCell(cheapest)}
             <td class="when">${turkishDate(report.captured_on)}</td>
           </tr>`;
 }
@@ -313,7 +340,7 @@ function ratesTable(reports: RateReport[]): string {
       <table class="rates">
         <thead>
           <tr>
-            <th>Banka</th><th class="num">Söylenen</th><th class="num">Gerçek</th><th>Koşul</th><th class="when">Okundu</th>
+            <th>Banka</th><th class="num">Söylenen</th><th class="num">Gerçek</th><th>Ürün</th><th class="when">Okundu</th>
           </tr>
         </thead>
         <tbody>${reports.map(rateRow).join('')}
@@ -783,7 +810,11 @@ const STYLE = `
   tr.silent td { color: var(--muted); }
   /* Conditions are long because they matter — a package rate with four insurance
      products attached is a different offer. Given room to breathe, not hidden. */
-  .rates td:nth-child(4) { font-size: .82rem; line-height: 1.5; color: var(--muted); }
+  .rates td.terms { font-size: .88rem; line-height: 1.5; max-width: 30rem; white-space: normal; }
+  .rates summary { cursor: pointer; color: var(--ink); }
+  .rates summary::marker { color: var(--muted); }
+  .rates details[open] summary { margin-bottom: .5rem; }
+  .rates details p { margin: 0; font-size: .8rem; line-height: 1.6; color: var(--muted); }
   .rates td:first-child { white-space: normal; min-width: 7rem; }
   .rates td:first-child a { color: inherit; text-decoration: none;
     border-bottom: 1px solid var(--line); }
