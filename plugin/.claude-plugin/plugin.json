@@ -1,0 +1,8 @@
+{
+  "name": "mopsos",
+  "description": "Investment research for Turkish assets, with a track record. Opens the local interface, dispatches research agents from it, and keeps every reading in a private, append-only file record.",
+  "author": { "name": "Mehmet Fahri Özmen" },
+  "homepage": "https://github.com/mfozmen/mopsos",
+  "repository": "https://github.com/mfozmen/mopsos",
+  "license": "MIT"
+}

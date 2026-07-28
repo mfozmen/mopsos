@@ -148,8 +148,13 @@ the seer. The schema supports this as a first-class concept: a verdict can be th
 ## 4. Architecture decisions (settled — do not relitigate)
 
 - **The agent runtime is Claude Code itself.** No separate orchestration layer. Each seer is
-  a Claude Code subagent defined under `.claude/agents/`. The user triggers a research run
-  and the subagents run in parallel.
+  a Claude Code subagent, and the user triggers a research run in which the subagents run in
+  parallel. They live in `plugin/agents/`, packaged as an installable plugin alongside the
+  `/mopsos` command; `.claude/settings.json` enables it for this repository so a clone works
+  without setup. They were under `.claude/agents/` until the plugin existed, and had to move
+  rather than be copied — a project's own `.claude/agents/` overrides a plugin agent of the
+  same name, so copies would have meant the plugin's versions never running while two files
+  drifted apart.
 - **Output is a file written into the repository.** Each run produces versioned JSON/Markdown
   under `research/` (verdict + evidence). No database, no queue, no cron, no webhooks. A run
   is opened as a **pull request**; the user reviews and merges. That gives every prediction
