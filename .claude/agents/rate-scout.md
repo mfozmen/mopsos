@@ -104,9 +104,19 @@ create.
     are stated as a rate ("tahsis binde 5"), work out the lira amount for _that_ example's
     tutar and say in `conditions` that you did.
   - `upfront_interest` only when the bank actually takes interest at drawdown. Most do not.
-  - `published_annual_cost_rate` is the bank's own yıllık maliyet oranı, unconverted. It is
-    the check: our arithmetic must reproduce it, and a mismatch means one of us read the page
-    wrong. Record it even when it looks odd.
+  - `published_annual_cost_rate` is the bank's own yıllık maliyet oranı, unconverted.
+    **Record it whenever the bank prints one, even when it does not reconcile.** It is the
+    check, and the check is one-sided:
+    - Our figure coming out **below** it means your example is missing a charge. The interface
+      will refuse to show a cost at all rather than show an understated one — go back for the
+      missing fee. Ziraat's reading was short of its ekspertiz and ipotek tesis this way.
+    - Our figure coming out **above** it means the bank's own formula does not reconcile with
+      its own cashflow, and ours is the conservative number. That is fine and the interface
+      still shows ours. Yapı Kredi prints %41,6431 where its own instalment and its own fees
+      give %42,35, with the implied fee drifting five thousand lira across terms while the
+      printed fee does not move. Record the published figure anyway and say so in
+      `example.note` — the discrepancy is evidence about the bank, and dropping the field
+      throws it away.
   - **No example published? Leave the field out.** Do not estimate one. An absent example
     makes the interface say the real cost is unknown, which is true and useful; an invented
     one makes it say something false with a number attached. A rate in a fee table is not a
