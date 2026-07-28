@@ -47,8 +47,8 @@ export interface RateReport {
 }
 
 /**
- * How far our annual cost rate may sit from the bank's own before the example is
- * treated as incomplete, in percentage points.
+ * How far our annual cost rate may sit BELOW the bank's own before the example
+ * is treated as incomplete, in percentage points.
  *
  * Loose enough to absorb rounding in a published figure — the four banks that
  * publish both agree to four decimals, so this is pure headroom — and tight
@@ -56,6 +56,20 @@ export interface RateReport {
  * moves the annual rate by nearly four points.
  */
 const TOLERANCE = 0.5;
+
+/**
+ * How far ABOVE the bank's own figure ours may sit before it is our mistake
+ * rather than their formula, in percentage points.
+ *
+ * The one-sided rule reads "above" as the bank's arithmetic not reconciling
+ * with its own cashflow, which is what Yapı Kredi's does — by 0,7 points. That
+ * is not a licence for any gap at all. A fee entered twice or a decimal point
+ * moved lands far outside anything a formula disagreement produces, and it
+ * lands on the side that looks conservative, where nothing else would question
+ * it. Ten points is wider than every disagreement seen so far by an order of
+ * magnitude and narrower than any of those mistakes.
+ */
+const OVERSTATEMENT_LIMIT = 10;
 
 /** The finest timestamp a report carries. A date alone sorts as its first minute. */
 function readAt(report: RateReport): string {
@@ -91,15 +105,25 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
 
   // Where the bank publishes its own yıllık maliyet oranı, that figure is a
   // checksum rather than decoration: it was computed from the same cashflow, by
-  // the party that knows every charge in it. Missing it means the example is
-  // short of something — Ziraat's is short of its fees, and taking the
-  // instalment at face value there gives %45,76 against a published %47,29.
+  // the party that knows every charge in it.
   //
-  // A rate we can see is understated is worse than no rate: it is the same
-  // mistake as the headline, arrived at more convincingly.
+  // The check is **one-sided**, because the two directions do not mean the same
+  // thing. Coming out BELOW the published figure means our example is short of a
+  // charge — Ziraat's was short of its fees, giving %45,76 against a published
+  // %47,29 — and a rate we can see is understated is worse than no rate at all:
+  // it is the same mistake as the headline, arrived at more convincingly.
+  //
+  // Coming out ABOVE it means the bank's own formula does not reconcile with its
+  // own cashflow, and that ours is the conservative number. Yapı Kredi prints
+  // %41,6431 where its published instalment and its published fees give %42,35,
+  // and the fee implied by its formula drifts by five thousand lira across terms
+  // while its printed fee does not move. Suppressing that would hide a figure we
+  // trust in favour of nothing at all.
   const published = example.published_annual_cost_rate;
-  if (published !== undefined && Math.abs(annualCostRate(monthly) * 100 - published) > TOLERANCE) {
-    return undefined;
+  if (published !== undefined) {
+    const ours = annualCostRate(monthly) * 100;
+    if (ours < published - TOLERANCE) return undefined;
+    if (ours > published + OVERSTATEMENT_LIMIT) return undefined;
   }
 
   return monthly;
