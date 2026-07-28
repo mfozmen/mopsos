@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { allowsRequestTo, launchAdvice, parsePageRequest } from './page-request.js';
+import { allowsRequestTo, isRefusalError, launchAdvice, parsePageRequest } from './page-request.js';
 
 describe('parsePageRequest', () => {
   it('takes a url and where to put what it reads', () => {
@@ -174,5 +174,26 @@ describe('allowsRequestTo', () => {
 
   it('refuses anything it cannot read as a url', () => {
     expect(allowsRequestTo('not a url')).toBe(false);
+  });
+});
+
+describe('isRefusalError', () => {
+  it('recognises the guard turning a navigation away', () => {
+    expect(
+      isRefusalError(new Error('page.goto: net::ERR_BLOCKED_BY_CLIENT at http://127.0.0.1/')),
+    ).toBe(true);
+  });
+
+  it('does not claim a real navigation failure as its own', () => {
+    // Swallowing any error whenever something was refused would report a page
+    // that failed to load as a page that loaded, whenever an unrelated
+    // subresource happened to be refused in the same run.
+    for (const message of [
+      'page.goto: Timeout 60000ms exceeded',
+      'page.goto: net::ERR_NAME_NOT_RESOLVED',
+      'page.goto: net::ERR_CONNECTION_REFUSED',
+    ]) {
+      expect(isRefusalError(new Error(message)), message).toBe(false);
+    }
   });
 });

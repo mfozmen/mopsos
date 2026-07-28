@@ -181,3 +181,16 @@ export function launchAdvice(error: unknown): string | undefined {
 
   return 'No browser installed. Run this once: npx playwright install chromium';
 }
+
+/**
+ * Whether a navigation failed because the guard turned it away.
+ *
+ * Worth telling apart from any other failure. A run can refuse a subresource —
+ * an ad script pointing somewhere it should not — while the page itself fails
+ * for an ordinary reason, and treating "something was refused" as licence to
+ * swallow every error would report that page as read when it was not.
+ */
+export function isRefusalError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('ERR_BLOCKED_BY_CLIENT');
+}

@@ -23,6 +23,7 @@ import {
   allowsRequestTo,
   BadPageRequestError,
   isPrivateHost,
+  isRefusalError,
   launchAdvice,
   parsePageRequest,
 } from '../browser/page-request.js';
@@ -95,7 +96,10 @@ async function main(): Promise<void> {
     await page
       .goto(request.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       .catch((error: unknown) => {
-        if (refused.length === 0) throw error;
+        // Only the guard's own refusal. Any other failure is a page that did
+        // not load, and reporting it as read because a subresource happened to
+        // be refused in the same run is how a half-read page becomes evidence.
+        if (!isRefusalError(error)) throw error;
       });
 
     // Said before anything else, because a refusal is the most important thing
