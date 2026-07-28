@@ -28,7 +28,7 @@ for (const report of reports) {
     const quoted = `%${offer.monthly_rate.toFixed(2)}`;
 
     if (offer.example === undefined) {
-      console.log(`  ${quoted}  ${offer.product}  — örnek yok, gerçek maliyet bilinmiyor`);
+      console.log(`  ${quoted}  ${offer.product}  — no example published, real cost unknown`);
       continue;
     }
 
@@ -39,24 +39,24 @@ for (const report of reports) {
       unusable += 1;
       const published = offer.example.published_annual_cost_rate;
       console.log(
-        `  ${quoted}  ${offer.product}  — ÖRNEK EKSİK` +
+        `  ${quoted}  ${offer.product}  — EXAMPLE INCOMPLETE` +
           (published === undefined
             ? ''
-            : `: bankanın yayınladığı %${published.toFixed(4)} yeniden üretilemiyor`),
+            : `: cannot reproduce the bank's published %${published.toFixed(4)}`),
       );
       continue;
     }
 
     console.log(
-      `  ${quoted} -> %${real.toFixed(2)}  (yıllık %${(annualCostRate(real) * 100).toFixed(2)})` +
+      `  ${quoted} -> %${real.toFixed(2)}  (annual %${(annualCostRate(real) * 100).toFixed(2)})` +
         `  ${offer.product}`,
     );
   }
 }
 
 console.log(
-  `\n${String(reports.length)} banka, ${String(withExample)} örnek, ` +
-    `${String(unusable)} tanesi eksik.`,
+  `\n${String(reports.length)} banks, ${String(withExample)} examples, ` +
+    `${String(unusable)} of them incomplete.`,
 );
 
 // Non-zero so a scout that runs this as its last step cannot miss the problem.
