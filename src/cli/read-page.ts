@@ -44,13 +44,13 @@ async function main(): Promise<void> {
     writeFileSync(request.text, text, 'utf8');
     await page.screenshot({ path: request.screenshot, fullPage: true });
 
-    console.log(`${request.url}\n  ${request.text}  (${String(text.length)} karakter)`);
+    console.log(`${request.url}\n  ${request.text}  (${String(text.length)} characters)`);
     console.log(`  ${request.screenshot}`);
 
     // Said out loud, because a page that loaded empty and a page that was
     // refused look identical in a text file nobody opens.
     if (text.trim().length < 200) {
-      console.error('\nSayfa neredeyse boş geldi — engellenmiş ya da hâlâ yükleniyor olabilir.');
+      console.error('\nThe page came back nearly empty — blocked, or still loading.');
       process.exitCode = 1;
     }
   } finally {

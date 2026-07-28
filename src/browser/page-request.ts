@@ -79,5 +79,5 @@ export function launchAdvice(error: unknown): string | undefined {
   const message = error instanceof Error ? error.message : String(error);
   if (!message.includes("Executable doesn't exist")) return undefined;
 
-  return 'Tarayıcı kurulu değil. Bir kez çalıştır: npx playwright install chromium';
+  return 'No browser installed. Run this once: npx playwright install chromium';
 }

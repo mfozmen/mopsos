@@ -50,6 +50,10 @@ describe('launchAdvice', () => {
     );
 
     expect(advice).toContain('npx playwright install chromium');
+    // English, like everything else outside the application UI: this is read by
+    // an agent as often as by a person, and the agent-facing half of this
+    // repository is English throughout.
+    expect(advice).toMatch(/^[ -~]+$/);
   });
 
   it('says nothing about anything else, rather than guessing', () => {
