@@ -16,6 +16,21 @@ export interface PageRequest {
   waitSeconds: number;
 }
 
+/**
+ * Addresses only this machine, or its network, can reach.
+ *
+ * A bank is on the public internet. Anything here is not the job, and one of
+ * them is actively dangerous: 169.254.169.254 is the cloud metadata service,
+ * which hands out credentials over plain unauthenticated http to whatever asks.
+ *
+ * Matched on the literal host rather than resolved, which is the honest limit of
+ * this guard: a public name that resolves to a private address gets through. It
+ * closes the case that arises here — an agent reasoning its way to the wrong url
+ * — and does not pretend to be a network policy.
+ */
+const PRIVATE_HOST =
+  /^(localhost|127(\.\d+){3}|0\.0\.0\.0|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2}|\[?::1\]?|\[?f[cde][0-9a-f]{2}:.*)$/i;
+
 const MAX_WAIT_SECONDS = 60;
 const DEFAULT_WAIT_SECONDS = 5;
 
@@ -49,6 +64,12 @@ export function parsePageRequest(argv: string[], defaultOut: string): PageReques
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new BadPageRequestError(`Only http and https can be opened, not ${parsed.protocol}`);
+  }
+
+  if (PRIVATE_HOST.test(parsed.hostname)) {
+    throw new BadPageRequestError(
+      `Only addresses on the public internet can be opened, and ${parsed.hostname} is not one`,
+    );
   }
 
   const directory = out ?? defaultOut;

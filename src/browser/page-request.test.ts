@@ -17,10 +17,39 @@ describe('parsePageRequest', () => {
     // This runs whatever it is given, in a browser, on the user's machine. The
     // url arrives from an agent's own reasoning about a bank's website, and
     // file: would read the disk while javascript: would run whatever followed.
-    expect(() => parsePageRequest(['file:///C:/Users/fahri/.ssh/id_rsa'], '/tmp/out')).toThrow(
+    expect(() => parsePageRequest(['file:///home/someone/.ssh/id_rsa'], '/tmp/out')).toThrow(
       /http/i,
     );
     expect(() => parsePageRequest(['javascript:fetch("/x")'], '/tmp/out')).toThrow(/http/i);
+  });
+
+  it('refuses an address that only this machine can reach', () => {
+    // The url comes from an agent reasoning about a bank's website, and this
+    // opens it in a browser running here. A bank is on the public internet; a
+    // link-local or loopback address is something only this machine can see,
+    // and reaching one is never the job. 169.254.169.254 is the cloud metadata
+    // service — credentials, on an unauthenticated http endpoint.
+    for (const url of [
+      'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+      'http://localhost:8787/',
+      'http://127.0.0.1/',
+      'http://[::1]/',
+      'http://192.168.1.1/',
+      'http://10.0.0.5/admin',
+      'http://172.16.4.4/',
+    ]) {
+      expect(() => parsePageRequest([url], '/tmp/out'), url).toThrow(/public/i);
+    }
+  });
+
+  it('lets an ordinary public address through', () => {
+    for (const url of [
+      'https://www.akbank.com/x',
+      'http://172.32.0.1/',
+      'https://93.184.216.34/',
+    ]) {
+      expect(() => parsePageRequest([url], '/tmp/out'), url).not.toThrow();
+    }
   });
 
   it('refuses something that is not a url at all', () => {
