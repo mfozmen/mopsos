@@ -1,8 +1,9 @@
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { launchAdvice, parsePageRequest } from './page-request.js';
+import { allowsRequestTo, launchAdvice, parsePageRequest } from './page-request.js';
 
 describe('parsePageRequest', () => {
   it('takes a url and where to put what it reads', () => {
@@ -84,6 +85,18 @@ describe('parsePageRequest', () => {
     expect(() => parsePageRequest([], '/tmp/out')).toThrow(/url/i);
   });
 
+  it('never writes into the working directory by default', () => {
+    // The working directory is the public repository. The scout briefs forbid
+    // dropping working files there in as many words — after two runs left page
+    // dumps in the root — and an optional argument defaulting to cwd builds the
+    // same mistake into the tool. A screenshot of a bank page is exactly the
+    // kind of thing that must not land in a commit by accident.
+    const request = parsePageRequest(['https://example.test/x'], tmpdir());
+
+    expect(request.text.startsWith(process.cwd())).toBe(false);
+    expect(request.text.startsWith(tmpdir())).toBe(true);
+  });
+
   it('waits longer when asked, within a bound', () => {
     // A rate table drawn by script can take a while. An unbounded wait turns a
     // blocked page into a hung run, which reads as "still working" forever.
@@ -111,5 +124,25 @@ describe('launchAdvice', () => {
 
   it('says nothing about anything else, rather than guessing', () => {
     expect(launchAdvice(new Error('net::ERR_CONNECTION_REFUSED'))).toBeUndefined();
+  });
+});
+
+describe('allowsRequestTo', () => {
+  it('stops a redirect landing somewhere the first check would have refused', () => {
+    // The realistic way past the url check: a public domain the attacker already
+    // controls, answering 302 to the metadata service. goto follows it without
+    // asking, so every request gets checked rather than only the one typed.
+    expect(allowsRequestTo('http://169.254.169.254/latest/meta-data/')).toBe(false);
+    expect(allowsRequestTo('http://[::ffff:127.0.0.1]/')).toBe(false);
+    expect(allowsRequestTo('http://localhost:8787/')).toBe(false);
+  });
+
+  it('lets an ordinary page and its own assets load', () => {
+    expect(allowsRequestTo('https://www.akbank.com/konut')).toBe(true);
+    expect(allowsRequestTo('https://cdn.akbank.com/style.css')).toBe(true);
+  });
+
+  it('refuses anything it cannot read as a url', () => {
+    expect(allowsRequestTo('not a url')).toBe(false);
   });
 });

@@ -46,7 +46,7 @@ const MAPPED_IPV4 = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
  * closes the case that arises here — an agent reasoning its way to the wrong url
  * — and does not pretend to be a network policy.
  */
-function isPrivateHost(hostname: string): boolean {
+export function isPrivateHost(hostname: string): boolean {
   if (hostname.toLowerCase() === 'localhost') return true;
   if (PRIVATE_IPV4.test(hostname)) return true;
 
@@ -65,6 +65,30 @@ function isPrivateHost(hostname: string): boolean {
 
 const MAX_WAIT_SECONDS = 60;
 const DEFAULT_WAIT_SECONDS = 5;
+
+/**
+ * Whether a request the browser is about to make should be allowed out.
+ *
+ * The url check happens once, before anything loads. A redirect happens after,
+ * and `goto` follows them without asking: a public domain that answers 302 to
+ * 169.254.169.254 walks straight past a guard that only read what was typed.
+ * That is the realistic way past this, because it needs nothing but a domain
+ * the attacker already controls.
+ *
+ * So every request the page makes is checked, not just the first — redirects
+ * and subresources alike.
+ *
+ * What this still does not stop is a public name that simply resolves to a
+ * private address. Nothing at the url layer can: the name looks ordinary and
+ * only DNS knows otherwise. Said plainly rather than left implied.
+ */
+export function allowsRequestTo(url: string): boolean {
+  try {
+    return !isPrivateHost(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Turns the command line into something safe to open in a browser.

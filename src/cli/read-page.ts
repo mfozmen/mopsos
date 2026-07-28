@@ -13,12 +13,19 @@
  *
  * Usage: npm run read:page -- <url> [outputDir] [waitSeconds]
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 import { chromium } from 'playwright';
 
-import { BadPageRequestError, launchAdvice, parsePageRequest } from '../browser/page-request.js';
+import {
+  allowsRequestTo,
+  BadPageRequestError,
+  isPrivateHost,
+  launchAdvice,
+  parsePageRequest,
+} from '../browser/page-request.js';
 
 // A real browser saying who it is. Not a disguise: the point is to read a public
 // page the way a person would, and pretending to be something else is where
@@ -26,13 +33,45 @@ import { BadPageRequestError, launchAdvice, parsePageRequest } from '../browser/
 const VIEWPORT = { width: 1440, height: 2000 };
 
 async function main(): Promise<void> {
-  const request = parsePageRequest(process.argv.slice(2), process.cwd());
+  // Never the working directory, which is the public repository. The briefs
+  // forbid leaving working files there and this is the tool they use.
+  const request = parsePageRequest(
+    process.argv.slice(2),
+    mkdtempSync(join(tmpdir(), 'mopsos-page-')),
+  );
   mkdirSync(dirname(request.text), { recursive: true });
 
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: VIEWPORT, locale: 'tr-TR' });
+
+    // Checked on every request, not just the one that was typed. goto follows
+    // redirects without asking, so a public domain answering 302 to the metadata
+    // service would otherwise walk straight past the check made before launch.
+    const refused: string[] = [];
+    await page.route('**/*', async (route) => {
+      const url = route.request().url();
+      if (allowsRequestTo(url)) return route.continue();
+
+      refused.push(url);
+      return route.abort('blockedbyclient');
+    });
+
     await page.goto(request.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+    // Checked again, because the route handler above does not see this one.
+    // Playwright follows a server redirect inside the request it already let
+    // through, so a public domain answering 302 to 127.0.0.1 arrives with
+    // nothing refused and a page happily read — which is exactly what happened
+    // when this was tried against a real redirector.
+    const landed = new URL(page.url());
+    if (isPrivateHost(landed.hostname)) {
+      console.error(
+        `Redirected to ${landed.host}, which is not on the public internet. Nothing was read.`,
+      );
+      process.exitCode = 4;
+      return;
+    }
 
     // Rate tables are drawn by script. Settling is what makes the difference
     // between an empty page and the numbers.
