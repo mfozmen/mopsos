@@ -259,6 +259,30 @@ describe("the bank's own cost rate as a checksum", () => {
     ).toBeCloseTo(2.72, 2);
   });
 
+  it('still answers when our figure comes out above what the bank published', () => {
+    // Yapı Kredi: 1.000.000 TL / 120 ay, taksit 29.786,99, fees 31.802 which the
+    // bank itself nets out of the drawdown. We get %42,35 a year; the bank prints
+    // %41,6431 — and the implied fee behind its formula drifts between 19.173 and
+    // 24.684 TL while its own printed fee is 31.802 at every term. Its formula
+    // does not reconcile with its own cashflow.
+    //
+    // The check is one-sided on purpose. Below the published figure means our
+    // example is short of a charge, and understating a cost is the failure this
+    // exists to prevent. Above it means we are the conservative one, and
+    // suppressing the offer would hide a real number in favour of nothing.
+    expect(
+      trueMonthlyRate(
+        offer({
+          amount: 1_000_000,
+          months: 120,
+          instalment: 29_786.99,
+          fees: 31_802,
+          published_annual_cost_rate: 41.6431,
+        }),
+      ),
+    ).toBeCloseTo(2.99, 2);
+  });
+
   it('still answers when the bank published no cost rate to check against', () => {
     // No checksum is not a failed checksum. The example is all there is, and it
     // is still better than the headline.
