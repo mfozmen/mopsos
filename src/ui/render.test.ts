@@ -573,6 +573,27 @@ describe('market research', () => {
     expect(housing).not.toContain('NaN');
   });
 
+  it('shows what the scout could not find, not just what it could', () => {
+    // The brief asks for it in as many words — a blocked site, four listings, a
+    // mix that would not hold still. Validating it and storing it while never
+    // showing it is the same as not asking for it.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [
+          {
+            ...report({ note: 'Sadece 4 ilan; medyan güvenilir değil.' }),
+            note: 'Sahibinden bu ilçede robots.txt ile kapalı, hepsiemlak kullanıldı.',
+          },
+        ],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('Sadece 4 ilan');
+    expect(housing).toContain('robots.txt ile kapalı');
+  });
+
   it('says how many listings a figure rests on', () => {
     // A median over three listings is noise wearing a number's clothes. The
     // count is what tells them apart, so it travels with the figure.

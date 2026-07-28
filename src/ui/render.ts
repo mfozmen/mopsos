@@ -92,6 +92,8 @@ export interface Neighbourhood {
   listing_count: number;
   /** Where the figures came from. A figure with no source does not get shown. */
   source: string;
+  /** What qualifies the figure — thin data, a mix that would not hold still. */
+  note?: string;
 }
 
 export interface ResearchReport {
@@ -99,6 +101,8 @@ export interface ResearchReport {
   /** ISO date the research was done. */
   dated: string;
   neighbourhoods: Neighbourhood[];
+  /** What the run could not do — a site that refused it, a source it fell back to. */
+  note?: string;
 }
 
 export interface InstrumentReturn {
@@ -207,7 +211,11 @@ function neighbourhoodRow(neighbourhood: Neighbourhood): string {
             <td class="num">${figure(neighbourhood.rent_per_m2, tl)}</td>
             <td class="num">${figure(neighbourhood.gross_yield, percent)}</td>
             <td class="num">${tl(neighbourhood.listing_count)}</td>
-            <td class="src">${escape(neighbourhood.source)}</td>
+            <td class="src">${escape(neighbourhood.source)}${
+              neighbourhood.note === undefined
+                ? ''
+                : `<span class="caution">${escape(neighbourhood.note)}</span>`
+            }</td>
           </tr>`;
 }
 
@@ -227,7 +235,15 @@ function reportSection(report: ResearchReport): string {
         </thead>
         <tbody>${report.neighbourhoods.map(neighbourhoodRow).join('')}
         </tbody>
-      </table>`;
+      </table>${
+        // What the run could not do belongs beside what it did. A report that
+        // only shows its findings reads as complete, and this one rarely is:
+        // half the value of a reading is knowing where it stopped.
+        report.note === undefined
+          ? ''
+          : `
+      <p class="caution run">${escape(report.note)}</p>`
+      }`;
 }
 
 /**
@@ -856,6 +872,10 @@ const STYLE = `
   .household input:focus-visible, .household select:focus-visible {
     outline: 2px solid var(--measured); outline-offset: 1px; }
   .cap { color: var(--pending); font-size: .78rem; }
+  /* What a figure does not tell you, kept beside the figure. */
+  .caution { display: block; margin-top: .3rem; color: var(--pending); font-style: italic; }
+  .caution.run { margin: .9rem 0 0; padding-left: .8rem; border-left: 2px solid var(--pending);
+    font-size: .82rem; line-height: 1.6; }
   .advice { flex-basis: 100%; margin: .9rem 0 0; padding: .8rem 1rem; background: var(--surface);
     border-left: 2px solid var(--pending); font-size: .82rem; line-height: 1.6; }
   .advice:empty { display: none; }
