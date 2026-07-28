@@ -634,14 +634,14 @@ const FINANCE_SCRIPT = `
 
   for (const button of document.querySelectorAll('.use-rate')) {
     button.addEventListener('click', () => {
-      $('rate').value = String(button.dataset.rate).replace('.', ',');
+      const rate = $('rate');
+      rate.value = String(button.dataset.rate).replace('.', ',');
       run();
 
       // The table is fifteen banks long, so the calculator it feeds is usually
       // off-screen. Without this the click looks like it did nothing at all.
       // Focus as well as scroll: the field that just changed is the one to look
       // at, and focus is what a keyboard or a screen reader follows.
-      const rate = $('rate');
       rate.scrollIntoView({ behavior: 'smooth', block: 'center' });
       rate.focus({ preventScroll: true });
       rate.select();
