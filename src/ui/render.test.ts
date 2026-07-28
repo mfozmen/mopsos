@@ -594,6 +594,25 @@ describe('market research', () => {
     expect(housing).toContain('robots.txt ile kapalı');
   });
 
+  it('says how much the scout trusts a figure', () => {
+    // The brief spends a table on high/medium/low and the schema requires it.
+    // A figure whose reliability is recorded and then not shown is presented as
+    // though it were certain, which is the opposite of what recording it meant.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [report({ sale_per_m2: 48_000, confidence: 'low' as const })],
+      }),
+      'housing',
+    );
+    const row = housing.slice(
+      housing.indexOf('Egekent 2'),
+      housing.indexOf('</tr>', housing.indexOf('Egekent 2')),
+    );
+
+    expect(row).toContain('düşük');
+  });
+
   it('says how many listings a figure rests on', () => {
     // A median over three listings is noise wearing a number's clothes. The
     // count is what tells them apart, so it travels with the figure.

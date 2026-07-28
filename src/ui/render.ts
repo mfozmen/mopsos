@@ -94,6 +94,8 @@ export interface Neighbourhood {
   source: string;
   /** What qualifies the figure — thin data, a mix that would not hold still. */
   note?: string;
+  /** How far the scout trusts its own figure. */
+  confidence?: 'high' | 'medium' | 'low';
 }
 
 export interface ResearchReport {
@@ -198,6 +200,17 @@ function turkishDate(iso: string): string {
   return `${day}.${month}.${year}`;
 }
 
+/**
+ * Shown beside the count, because a figure whose reliability was recorded and
+ * then not displayed is presented as though it were certain — which is the
+ * opposite of what recording it was for.
+ *
+ * High is not marked. Everything on the page is a best reading; saying so on
+ * the ones that are fine would make the word meaningless on the ones that are
+ * not.
+ */
+const CONFIDENCE: Record<string, string> = { medium: 'orta güven', low: 'düşük güven' };
+
 /** A dash where nothing was found. Zero would be a lie and NaN a bug report. */
 function figure(value: number | undefined, format: (value: number) => string): string {
   return value === undefined ? '—' : format(value);
@@ -210,7 +223,12 @@ function neighbourhoodRow(neighbourhood: Neighbourhood): string {
             <td class="num">${figure(neighbourhood.sale_per_m2, tl)}</td>
             <td class="num">${figure(neighbourhood.rent_per_m2, tl)}</td>
             <td class="num">${figure(neighbourhood.gross_yield, percent)}</td>
-            <td class="num">${tl(neighbourhood.listing_count)}</td>
+            <td class="num">${tl(neighbourhood.listing_count)}${
+              neighbourhood.confidence === undefined ||
+              CONFIDENCE[neighbourhood.confidence] === undefined
+                ? ''
+                : `<span class="caution">${CONFIDENCE[neighbourhood.confidence] ?? ''}</span>`
+            }</td>
             <td class="src">${escape(neighbourhood.source)}${
               neighbourhood.note === undefined
                 ? ''
