@@ -61,6 +61,12 @@ describe('parsePageRequest', () => {
       'http://[0:0:0:0:0:ffff:7f00:1]/',
       'http://[::ffff:10.0.0.1]/',
       'http://[::]/',
+      // IPv4-compatible (deprecated) and NAT64, both of which new URL parses
+      // into the same hex shape as the mapped form.
+      'http://[::169.254.169.254]/',
+      'http://[::127.0.0.1]/',
+      'http://[64:ff9b::169.254.169.254]/',
+      'http://[::ffff:0:127.0.0.1]/',
     ]) {
       expect(() => parsePageRequest([url], () => '/tmp/out'), url).toThrow(/public/i);
     }

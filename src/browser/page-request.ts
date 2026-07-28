@@ -34,17 +34,30 @@ const PRIVATE_IPV4 =
 /** `::1`, `::`, unique-local `fc00::/7` and link-local `fe80::/10`. */
 const PRIVATE_IPV6 = /^(::1?|f[cde][0-9a-f]{2}:.*)$/i;
 
-/** `::ffff:a9fe:a9fe` — an IPv4 address written as IPv6, as `new URL` leaves it. */
-const MAPPED_IPV4 = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+/**
+ * An IPv4 address embedded in an IPv6 one, as `new URL` leaves it.
+ *
+ * There is more than one way to write it and they all normalise to hex, which
+ * is what makes them easy to miss: `::ffff:169.254.169.254` (IPv4-mapped),
+ * `::169.254.169.254` (IPv4-compatible, deprecated but still parsed),
+ * `::ffff:0:169.254.169.254` (IPv4-translated) and `64:ff9b::169.254.169.254`
+ * (NAT64) all arrive here as two hextets behind a known prefix.
+ *
+ * Only those prefixes, rather than the last two hextets of any address: a real
+ * global address ending in a9fe:a9fe is a legitimate host, and refusing it
+ * would be a guess dressed as a rule.
+ */
+const EMBEDDED_IPV4 = /^(?:::|::ffff:|::ffff:0:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
 
 /**
  * Whether a hostname is one only this machine or its network can reach.
  *
  * `new URL` normalises more than it looks: `2130706433` and `0x7f000001` both
  * arrive as `127.0.0.1`, so those need no special case. What it does NOT do is
- * put an IPv4-mapped address back into dotted form — `::ffff:169.254.169.254`
- * comes back as `[::ffff:a9fe:a9fe]`, and a check reading the dotted form never
- * sees it. Same metadata service, same credentials, one notation away.
+ * put an IPv4 address embedded in an IPv6 one back into dotted form —
+ * `::ffff:169.254.169.254` comes back as `[::ffff:a9fe:a9fe]`, and a check
+ * reading the dotted form never sees it. Same metadata service, same
+ * credentials, one notation away, and there are four notations.
  *
  * Matched on the literal host rather than resolved, which is the honest limit of
  * this guard: a public name pointing at a private address still gets through. It
@@ -58,7 +71,7 @@ export function isPrivateHost(hostname: string): boolean {
   const bare = hostname.replace(/^\[|\]$/g, '');
   if (PRIVATE_IPV6.test(bare)) return true;
 
-  const mapped = MAPPED_IPV4.exec(bare);
+  const mapped = EMBEDDED_IPV4.exec(bare);
   if (mapped === null) return false;
 
   const high = Number.parseInt(mapped[1] ?? '', 16);
