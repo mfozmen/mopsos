@@ -57,6 +57,20 @@ export interface RateReport {
  */
 const TOLERANCE = 0.5;
 
+/**
+ * How far ABOVE the bank's own figure ours may sit before it is our mistake
+ * rather than their formula, in percentage points.
+ *
+ * The one-sided rule reads "above" as the bank's arithmetic not reconciling
+ * with its own cashflow, which is what Yapı Kredi's does — by 0,7 points. That
+ * is not a licence for any gap at all. A fee entered twice or a decimal point
+ * moved lands far outside anything a formula disagreement produces, and it
+ * lands on the side that looks conservative, where nothing else would question
+ * it. Ten points is wider than every disagreement seen so far by an order of
+ * magnitude and narrower than any of those mistakes.
+ */
+const OVERSTATEMENT_LIMIT = 10;
+
 /** The finest timestamp a report carries. A date alone sorts as its first minute. */
 function readAt(report: RateReport): string {
   return report.captured_at ?? `${report.captured_on}T00:00:00.000Z`;
@@ -106,8 +120,10 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
   // while its printed fee does not move. Suppressing that would hide a figure we
   // trust in favour of nothing at all.
   const published = example.published_annual_cost_rate;
-  if (published !== undefined && annualCostRate(monthly) * 100 < published - TOLERANCE) {
-    return undefined;
+  if (published !== undefined) {
+    const ours = annualCostRate(monthly) * 100;
+    if (ours < published - TOLERANCE) return undefined;
+    if (ours > published + OVERSTATEMENT_LIMIT) return undefined;
   }
 
   return monthly;

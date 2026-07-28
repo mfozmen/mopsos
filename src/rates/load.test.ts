@@ -283,6 +283,25 @@ describe("the bank's own cost rate as a checksum", () => {
     ).toBeCloseTo(2.99, 2);
   });
 
+  it('refuses a figure wildly above the published one, which is our error not theirs', () => {
+    // The one-sided rule reads "above" as the bank's formula not reconciling —
+    // which it was, by 0,7 points. It is not a licence for any gap at all: a fee
+    // entered twice, or a decimal point moved, lands far outside anything a
+    // formula disagreement produces, and it lands on the safe-looking side where
+    // nothing else would question it.
+    expect(
+      trueMonthlyRate(
+        offer({
+          amount: 1_000_000,
+          months: 120,
+          instalment: 29_786.99,
+          fees: 318_020,
+          published_annual_cost_rate: 41.6431,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
   it('still answers when the bank published no cost rate to check against', () => {
     // No checksum is not a failed checksum. The example is all there is, and it
     // is still better than the headline.
