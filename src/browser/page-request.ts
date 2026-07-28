@@ -19,12 +19,17 @@ export interface PageRequest {
 /**
  * Addresses only this machine, or its network, can reach.
  *
- * A bank is on the public internet. Anything here is not the job, and one of
- * them is actively dangerous: 169.254.169.254 is the cloud metadata service,
- * which hands out credentials over plain unauthenticated http to whatever asks.
+ * A bank is on the public internet. Anything here is not the job, and two of
+ * these ranges are actively dangerous: 169.254.169.254 is the AWS and Azure
+ * metadata service and 100.100.100.200 is Alibaba's, both of which hand out
+ * credentials over plain unauthenticated http to whatever asks.
+ *
+ * RFC 6598 (100.64.0.0/10) earns its place for that second one. It is carrier
+ * NAT space rather than private space, so it is easy to leave out — and it is
+ * where one cloud put the same prize.
  */
 const PRIVATE_IPV4 =
-  /^(127(\.\d+){3}|0\.0\.0\.0|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2})$/;
+  /^(127(\.\d+){3}|0\.0\.0\.0|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2}|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])(\.\d+){2})$/;
 
 /** `::1`, `::`, unique-local `fc00::/7` and link-local `fe80::/10`. */
 const PRIVATE_IPV6 = /^(::1?|f[cde][0-9a-f]{2}:.*)$/i;
@@ -98,11 +103,14 @@ export function allowsRequestTo(url: string): boolean {
  * would read the disk and `javascript:` would run whatever followed it, so the
  * scheme is an allowlist rather than a check for the obviously bad.
  *
+ * `defaultOut` is a function so the fallback directory is only created when it
+ * is actually the one being used.
+ *
  * The wait is bounded for the same reason a scraper reports how many listings it
  * saw: an unbounded one turns a page that will never load into a run that never
  * ends, and a run that never ends looks exactly like a run that is working.
  */
-export function parsePageRequest(argv: string[], defaultOut: string): PageRequest {
+export function parsePageRequest(argv: string[], defaultOut: () => string): PageRequest {
   const [url, out, wait] = argv;
 
   if (url === undefined || url.trim().length === 0) {
@@ -128,7 +136,9 @@ export function parsePageRequest(argv: string[], defaultOut: string): PageReques
     );
   }
 
-  const directory = out ?? defaultOut;
+  // Called only when no directory was given: building one every time leaves an
+  // empty folder behind on every run that passed its own.
+  const directory = out ?? defaultOut();
   const requested = wait === undefined ? DEFAULT_WAIT_SECONDS : Number(wait);
   const seconds = Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_WAIT_SECONDS;
 

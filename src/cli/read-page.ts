@@ -35,8 +35,7 @@ const VIEWPORT = { width: 1440, height: 2000 };
 async function main(): Promise<void> {
   // Never the working directory, which is the public repository. The briefs
   // forbid leaving working files there and this is the tool they use.
-  const request = parsePageRequest(
-    process.argv.slice(2),
+  const request = parsePageRequest(process.argv.slice(2), () =>
     mkdtempSync(join(tmpdir(), 'mopsos-page-')),
   );
   mkdirSync(dirname(request.text), { recursive: true });

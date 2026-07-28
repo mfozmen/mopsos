@@ -7,7 +7,10 @@ import { allowsRequestTo, launchAdvice, parsePageRequest } from './page-request.
 
 describe('parsePageRequest', () => {
   it('takes a url and where to put what it reads', () => {
-    const request = parsePageRequest(['https://www.akbank.com/konut', '/tmp/out'], '/tmp/out');
+    const request = parsePageRequest(
+      ['https://www.akbank.com/konut', '/tmp/out'],
+      () => '/tmp/out',
+    );
 
     expect(request.url).toBe('https://www.akbank.com/konut');
     expect(request.text).toBe(join('/tmp/out', 'page.txt'));
@@ -18,10 +21,10 @@ describe('parsePageRequest', () => {
     // This runs whatever it is given, in a browser, on the user's machine. The
     // url arrives from an agent's own reasoning about a bank's website, and
     // file: would read the disk while javascript: would run whatever followed.
-    expect(() => parsePageRequest(['file:///home/someone/.ssh/id_rsa'], '/tmp/out')).toThrow(
+    expect(() => parsePageRequest(['file:///home/someone/.ssh/id_rsa'], () => '/tmp/out')).toThrow(
       /http/i,
     );
-    expect(() => parsePageRequest(['javascript:fetch("/x")'], '/tmp/out')).toThrow(/http/i);
+    expect(() => parsePageRequest(['javascript:fetch("/x")'], () => '/tmp/out')).toThrow(/http/i);
   });
 
   it('refuses an address that only this machine can reach', () => {
@@ -38,8 +41,13 @@ describe('parsePageRequest', () => {
       'http://192.168.1.1/',
       'http://10.0.0.5/admin',
       'http://172.16.4.4/',
+      // RFC 6598 shared address space. Alibaba Cloud's metadata endpoint is
+      // 100.100.100.200, which is the same class of target as AWS's.
+      'http://100.100.100.200/latest/meta-data/',
+      'http://100.64.0.1/',
+      'http://100.127.255.254/',
     ]) {
-      expect(() => parsePageRequest([url], '/tmp/out'), url).toThrow(/public/i);
+      expect(() => parsePageRequest([url], () => '/tmp/out'), url).toThrow(/public/i);
     }
   });
 
@@ -54,7 +62,7 @@ describe('parsePageRequest', () => {
       'http://[::ffff:10.0.0.1]/',
       'http://[::]/',
     ]) {
-      expect(() => parsePageRequest([url], '/tmp/out'), url).toThrow(/public/i);
+      expect(() => parsePageRequest([url], () => '/tmp/out'), url).toThrow(/public/i);
     }
   });
 
@@ -63,7 +71,7 @@ describe('parsePageRequest', () => {
     // working rather than luck — but worth holding, because it is the kind of
     // thing a rewrite of the parsing would quietly lose.
     for (const url of ['http://2130706433/', 'http://0x7f000001/']) {
-      expect(() => parsePageRequest([url], '/tmp/out'), url).toThrow(/public/i);
+      expect(() => parsePageRequest([url], () => '/tmp/out'), url).toThrow(/public/i);
     }
   });
 
@@ -73,16 +81,16 @@ describe('parsePageRequest', () => {
       'http://172.32.0.1/',
       'https://93.184.216.34/',
     ]) {
-      expect(() => parsePageRequest([url], '/tmp/out'), url).not.toThrow();
+      expect(() => parsePageRequest([url], () => '/tmp/out'), url).not.toThrow();
     }
   });
 
   it('refuses something that is not a url at all', () => {
-    expect(() => parsePageRequest(['akbank.com'], '/tmp/out')).toThrow(/http/i);
+    expect(() => parsePageRequest(['akbank.com'], () => '/tmp/out')).toThrow(/http/i);
   });
 
   it('says what it needs when given nothing', () => {
-    expect(() => parsePageRequest([], '/tmp/out')).toThrow(/url/i);
+    expect(() => parsePageRequest([], () => '/tmp/out')).toThrow(/url/i);
   });
 
   it('never writes into the working directory by default', () => {
@@ -91,18 +99,34 @@ describe('parsePageRequest', () => {
     // dumps in the root — and an optional argument defaulting to cwd builds the
     // same mistake into the tool. A screenshot of a bank page is exactly the
     // kind of thing that must not land in a commit by accident.
-    const request = parsePageRequest(['https://example.test/x'], tmpdir());
+    const request = parsePageRequest(['https://example.test/x'], () => tmpdir());
 
     expect(request.text.startsWith(process.cwd())).toBe(false);
     expect(request.text.startsWith(tmpdir())).toBe(true);
   });
 
+  it('does not make a directory it was not going to use', () => {
+    // The default is only wanted when no directory was given. Building it every
+    // time leaves an empty folder behind on every run that passed one.
+    let made = 0;
+    parsePageRequest(['https://example.test/x', '/tmp/given'], () => {
+      made += 1;
+      return tmpdir();
+    });
+
+    expect(made).toBe(0);
+  });
+
   it('waits longer when asked, within a bound', () => {
     // A rate table drawn by script can take a while. An unbounded wait turns a
     // blocked page into a hung run, which reads as "still working" forever.
-    expect(parsePageRequest(['https://x.test', '/tmp/o', '20'], '/tmp/o').waitSeconds).toBe(20);
-    expect(parsePageRequest(['https://x.test', '/tmp/o', '600'], '/tmp/o').waitSeconds).toBe(60);
-    expect(parsePageRequest(['https://x.test'], '/tmp/o').waitSeconds).toBe(5);
+    expect(parsePageRequest(['https://x.test', '/tmp/o', '20'], () => '/tmp/o').waitSeconds).toBe(
+      20,
+    );
+    expect(parsePageRequest(['https://x.test', '/tmp/o', '600'], () => '/tmp/o').waitSeconds).toBe(
+      60,
+    );
+    expect(parsePageRequest(['https://x.test'], () => '/tmp/o').waitSeconds).toBe(5);
   });
 });
 
