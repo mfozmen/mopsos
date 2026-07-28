@@ -1,6 +1,11 @@
 {
   "extraKnownMarketplaces": {
-    "mopsos": { "source": "./" }
+    "mopsos": {
+      "source": {
+        "source": "directory",
+        "path": "./"
+      }
+    }
   },
   "enabledPlugins": {
     "mopsos@mopsos": true

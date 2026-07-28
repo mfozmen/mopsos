@@ -20,7 +20,7 @@ if (action === 'claim') {
     process.exit(2);
   }
   claimRequest(dataDir, requestedAt, `pid-${String(process.pid)}`);
-  console.log(`Alındı: ${requestedAt}`);
+  console.log(`Claimed: ${requestedAt}`);
 } else {
   const rejected = rejectedRequests(dataDir);
   if (rejected.length > 0) {
@@ -33,7 +33,7 @@ if (action === 'claim') {
 
   const pending = pendingRequests(dataDir);
   if (pending.length === 0) {
-    console.log('Bekleyen istek yok.');
+    console.log('Nothing pending.');
   } else {
     console.log(`${String(pending.length)} bekleyen istek:`);
     for (const request of pending) {
