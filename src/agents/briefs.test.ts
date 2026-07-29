@@ -36,4 +36,19 @@ describe('the scout briefs', () => {
     expect(first).toContain('npm run read:page');
     for (const other of rest) expect(other).toBe(first);
   });
+
+  it('all ask for a reading, on the same terms', () => {
+    // The rules about what a reading may rest on are the whole point of it —
+    // an interpretation resting on a number the reader cannot see is an
+    // assertion. Those rules are identical for every scout; only the closing
+    // paragraph about what the reader is deciding differs.
+    const shared = scouts.map((scout) => {
+      const whole = section(scout.brief, 'Say what you found means');
+      return whole.slice(0, whole.indexOf('For a '));
+    });
+
+    expect(shared[0]).toContain('ONLY on figures recorded in this same report');
+    expect(shared[0]?.length).toBeGreaterThan(500);
+    for (const other of shared.slice(1)) expect(other).toBe(shared[0]);
+  });
 });

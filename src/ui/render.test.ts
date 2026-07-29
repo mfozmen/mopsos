@@ -594,6 +594,28 @@ describe('market research', () => {
     expect(housing).toContain('robots.txt ile kapalı');
   });
 
+  it("shows the scout's reading, marked as opinion rather than measurement", () => {
+    // A table of numbers with no reading makes the reader do the interpreting
+    // twice — once to find the pattern, once to doubt it. But it is opinion,
+    // and it has to look like opinion beside figures that are not.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [
+          {
+            ...report({ sale_per_m2: 42_590, rent_per_m2: 309 }),
+            reading:
+              'Gazi Mustafa Kemal hem en yüksek getiriyi hem en düşük taksit/kira oranını veriyor.',
+          },
+        ],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('Gazi Mustafa Kemal hem en yüksek');
+    expect(housing).toMatch(/class="reading"/);
+  });
+
   it('says how much the scout trusts a figure', () => {
     // The brief spends a table on high/medium/low and the schema requires it.
     // A figure whose reliability is recorded and then not shown is presented as

@@ -192,6 +192,44 @@ as the standing rate makes a bank look permanently cheaper than it is.
 **Respect robots.txt** and read at a human pace. You are reading a handful of public pages,
 not harvesting a site.
 
+## Say what you found means
+
+A table of numbers with no reading makes whoever opens it do the interpreting twice — once to
+find the pattern, once to doubt they found the right one. You did the reading; write it down.
+
+`reading` is a paragraph or three, in Turkish, in the report alongside the figures. It is shown
+on its own, marked as opinion, so it is allowed to be a judgement — but only one kind:
+
+- **It may rest ONLY on figures recorded in this same report.** An interpretation that needs a
+  number the reader cannot see is an assertion, not a reading. If you want to say something and
+  the number is not in the report, either put the number in the report or do not say it.
+- **Name what stands out and why, in one sentence, before anything else.** "X öne çıkıyor,
+  çünkü …". Whoever reads this wants the answer first and the working afterwards.
+- **Say what NOT to read into it.** The trap is usually a cheap number that looks like a good
+  one. Name it: which entry a reader would pick by looking at the obvious column, and why that
+  would be the wrong pick.
+- **Rank on the reader's question, not on the easy column.** Cheapest is not best; highest
+  headline is not lowest cost.
+- **Weigh how much you trust each figure.** An entry resting on five listings and one resting
+  on thirty-five are not comparable evidence, whatever their numbers say. Say so when the best
+  number and the most reliable number are different entries — that happens often and it is the
+  most useful thing you can tell someone.
+- **No advice you cannot support.** "Şurayı al" is not a reading. "Şu iki mahalle arasındaki
+  fark şu, ve şu ölçüde X öne çıkıyor" is.
+
+Written in Turkish, like everything the reader sees. Nowhere else in the report is Turkish
+allowed in a key or a field name — only in `reading`, `note`, `conditions` and `source`.
+
+For a rate report, the reader is choosing where to borrow. The headline rate is the number they
+will be shown everywhere else, and it is usually not the answer — say which product actually
+costs least once the example's fees and any upfront interest are in, and by how much. Akbank's
+%1,99 is really %3,32 and Halkbank's %2,60 is really %2,72: the cheapest headline in the record
+was the dearest offer in it.
+
+Where a real cost cannot be computed because the bank published no example, say that too. An
+offer with no example is not cheap, it is unknown — and unknown is never lower than the
+headline, only higher.
+
 ## Report back
 
 The bank, the rates you found, the URL you read them from, and how you read them (HTML, PDF,

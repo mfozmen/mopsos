@@ -24,6 +24,8 @@ export interface MarketReport {
   captured_at?: string;
   supersedes?: string;
   note?: string;
+  /** What the scout makes of its own figures. Opinion, kept apart from the data. */
+  reading?: string;
   neighbourhoods: MarketNeighbourhood[];
 }
 
@@ -38,6 +40,7 @@ export interface ShownMarketReport {
   dated: string;
   neighbourhoods: ShownNeighbourhood[];
   note?: string;
+  reading?: string;
 }
 
 /**
@@ -111,6 +114,7 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
       place,
       dated: report.captured_on,
       ...(report.note === undefined ? {} : { note: report.note }),
+      ...(report.reading === undefined ? {} : { reading: report.reading }),
       neighbourhoods: report.neighbourhoods.map((neighbourhood) => {
         const yield_ = grossYield(neighbourhood);
         return { ...neighbourhood, ...(yield_ === undefined ? {} : { gross_yield: yield_ }) };

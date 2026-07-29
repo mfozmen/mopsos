@@ -152,6 +152,45 @@ Path: `<data-dir>/market/<YYYY-MM-DD>-<province-slug>-<district-slug>.json`
   room count, which size band, which date, and how you summarised. "sahibinden" is not a
   source; "sahibinden, 2+1 satılık, 80–110 m², 28.07.2026 aktif ilanlar, medyan" is.
 
+## Say what you found means
+
+A table of numbers with no reading makes whoever opens it do the interpreting twice — once to
+find the pattern, once to doubt they found the right one. You did the reading; write it down.
+
+`reading` is a paragraph or three, in Turkish, in the report alongside the figures. It is shown
+on its own, marked as opinion, so it is allowed to be a judgement — but only one kind:
+
+- **It may rest ONLY on figures recorded in this same report.** An interpretation that needs a
+  number the reader cannot see is an assertion, not a reading. If you want to say something and
+  the number is not in the report, either put the number in the report or do not say it.
+- **Name what stands out and why, in one sentence, before anything else.** "X öne çıkıyor,
+  çünkü …". Whoever reads this wants the answer first and the working afterwards.
+- **Say what NOT to read into it.** The trap is usually a cheap number that looks like a good
+  one. Name it: which entry a reader would pick by looking at the obvious column, and why that
+  would be the wrong pick.
+- **Rank on the reader's question, not on the easy column.** Cheapest is not best; highest
+  headline is not lowest cost.
+- **Weigh how much you trust each figure.** An entry resting on five listings and one resting
+  on thirty-five are not comparable evidence, whatever their numbers say. Say so when the best
+  number and the most reliable number are different entries — that happens often and it is the
+  most useful thing you can tell someone.
+- **No advice you cannot support.** "Şurayı al" is not a reading. "Şu iki mahalle arasındaki
+  fark şu, ve şu ölçüde X öne çıkıyor" is.
+
+Written in Turkish, like everything the reader sees. Nowhere else in the report is Turkish
+allowed in a key or a field name — only in `reading`, `note`, `conditions` and `source`.
+
+For a market report, the reader is buying their first home to live in. Two figures decide it and
+both are worked out from what you recorded, so you do not compute them — say what they show:
+
+- **Gross yield** (rent × 12 ÷ price) is the landlord's question.
+- **Instalment ÷ rent** is theirs: how much more owning costs than renting the same flat. The
+  interface computes it against the cheapest real rate in the record.
+
+The cheapest neighbourhood to buy in is regularly the worst one to buy instead of rent, because
+it is cheap for the same reason its rent is cheaper still. Menemen's first reading had exactly
+that shape. If your district does too, that is the sentence to lead with.
+
 ## Corrections
 
 A recorded report is never edited. If a reading was wrong, write a **new file** with

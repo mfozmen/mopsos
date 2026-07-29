@@ -105,6 +105,8 @@ export interface ResearchReport {
   neighbourhoods: Neighbourhood[];
   /** What the run could not do — a site that refused it, a source it fell back to. */
   note?: string;
+  /** What the scout makes of its own figures. Opinion, and shown as opinion. */
+  reading?: string;
 }
 
 export interface InstrumentReturn {
@@ -256,6 +258,15 @@ function reportSection(report: ResearchReport): string {
         </tbody>
       </table>
       </div>${
+        // Opinion, and it has to look like opinion beside figures that are not.
+        // A table with no reading makes the reader interpret it twice — once to
+        // find the pattern, once to doubt it — but a reading typeset like a
+        // measurement would be taken for one.
+        report.reading === undefined
+          ? ''
+          : `\n      <aside class="reading"><h4>Okuma</h4><p>${escape(report.reading)}</p>
+      <p class="disclaimer">Agent’ın yorumu — ölçüm değil. Yalnızca yukarıdaki rakamlara dayanır.</p></aside>`
+      }${
         // What the run could not do belongs beside what it did. A report that
         // only shows its findings reads as complete, and this one rarely is:
         // half the value of a reading is knowing where it stopped.
@@ -950,6 +961,14 @@ const STYLE = `
   .cap { color: var(--pending); font-size: .78rem; }
   /* What a figure does not tell you, kept beside the figure. */
   .caution { display: block; margin-top: .3rem; color: var(--pending); font-style: italic; }
+  /* Marked out, because it is the one thing on the page that is not measured. */
+  .reading { margin: 1.4rem 0 0; padding: 1.1rem 1.3rem; background: var(--surface);
+    border-left: 2px solid var(--measured); }
+  .reading h4 { margin: 0 0 .5rem; font-size: .7rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); }
+  .reading p { margin: 0; line-height: 1.7; }
+  .reading .disclaimer { margin-top: .7rem; font-size: .78rem; color: var(--muted);
+    font-style: italic; }
   .caution.run { margin: .9rem 0 0; padding-left: .8rem; border-left: 2px solid var(--pending);
     font-size: .82rem; line-height: 1.6; }
   .advice { flex-basis: 100%; margin: .9rem 0 0; padding: .8rem 1rem; background: var(--surface);
