@@ -1,4 +1,6 @@
 import { annualCostRate } from '../finance/effective.js';
+import { type MortgageRules } from '../finance/mortgage.js';
+import { owningVsRenting } from '../market/affordability.js';
 import { type RateExample, trueMonthlyRate } from '../rates/load.js';
 
 export interface Tab {
@@ -146,7 +148,7 @@ export interface FinanceBundle {
   /** The compiled mortgage module, so the page and the tests share one implementation. */
   bundle: string;
   /** The pinned BDDK rules, applied identically in the browser. */
-  rules: unknown;
+  rules: MortgageRules;
 }
 
 export interface PageData {
@@ -218,13 +220,62 @@ function figure(value: number | undefined, format: (value: number) => string): s
   return value === undefined ? '—' : format(value);
 }
 
-function neighbourhoodRow(neighbourhood: Neighbourhood): string {
+/**
+ * What the instalment column rests on, stated because it is an assumption.
+ *
+ * A hundred square metres is a stand-in for "a flat", chosen so the column
+ * compares neighbourhoods rather than sizes — every figure in the table is a
+ * price per square metre, so the size cancels out of the ratio and only the
+ * absolute lira depend on it.
+ */
+const ASSUMED = { squareMetres: 100, months: 120 };
+
+/** What owning costs against renting, keyed by neighbourhood, plus its assumptions. */
+interface Affordability {
+  byName: Map<string, number>;
+  monthlyRate: number;
+}
+
+/**
+ * The cheapest real monthly cost in the record, or nothing.
+ *
+ * Real, not headline: the whole point of the rates table is that the lowest
+ * advertised rate was the dearest offer in it. And nothing rather than a
+ * fallback — an instalment column resting on a guessed rate would be worse
+ * than an absent one.
+ */
+function cheapestRealRate(reports: RateReport[]): number | undefined {
+  const rates = reports.flatMap((report) =>
+    report.offers.flatMap((offer) => {
+      const real = trueMonthlyRate(offer);
+      return real === undefined ? [] : [real];
+    }),
+  );
+
+  return rates.length === 0 ? undefined : Math.min(...rates);
+}
+
+function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | null): string {
+  // Three states, and the middle one matters: no column at all when no bank
+  // rate can be computed, a dash when the column exists but this row has no
+  // rent to compare against, and a figure otherwise. Emitting nothing in the
+  // middle case would shift every cell after it one column left.
+  const owning =
+    timesRent === undefined
+      ? ''
+      : `<td class="num times-rent">${
+          timesRent === null
+            ? '—'
+            : `${timesRent.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`
+        }</td>`;
+
   return `
           <tr>
             <td>${escape(neighbourhood.name)}</td>
             <td class="num">${figure(neighbourhood.sale_per_m2, tl)}</td>
             <td class="num">${figure(neighbourhood.rent_per_m2, tl)}</td>
             <td class="num">${figure(neighbourhood.gross_yield, percent)}</td>
+            ${owning}
             <td class="num">${tl(neighbourhood.listing_count)}${
               neighbourhood.confidence === undefined ||
               CONFIDENCE[neighbourhood.confidence] === undefined
@@ -239,7 +290,10 @@ function neighbourhoodRow(neighbourhood: Neighbourhood): string {
           </tr>`;
 }
 
-function reportSection(report: ResearchReport): string {
+function reportSection(report: ResearchReport, cost?: Affordability): string {
+  const owning = cost?.byName ?? new Map<string, number>();
+  const heading = cost === undefined ? '' : '<th class="num">Taksit/Kira</th>';
+
   return `
       <h3>${escape(report.place)}<span class="dated">${turkishDate(report.dated)}</span></h3>
       <div class="scroller">
@@ -250,11 +304,16 @@ function reportSection(report: ResearchReport): string {
             <th class="num">m² satış</th>
             <th class="num">m² kira</th>
             <th class="num">Getiri</th>
+            ${heading}
             <th class="num">İlan</th>
             <th class="src">Kaynak</th>
           </tr>
         </thead>
-        <tbody>${report.neighbourhoods.map(neighbourhoodRow).join('')}
+        <tbody>${report.neighbourhoods
+          .map((n) =>
+            neighbourhoodRow(n, cost === undefined ? undefined : (owning.get(n.name) ?? null)),
+          )
+          .join('')}
         </tbody>
       </table>
       </div>${
@@ -263,7 +322,7 @@ function reportSection(report: ResearchReport): string {
         // find the pattern, once to doubt it — but a reading typeset like a
         // measurement would be taken for one.
         report.reading === undefined
-          ? ''
+          ? `\n      <p class="caution run">Bu raporda okuma yok — agent rakamları getirmiş ama ne anlama geldiğini yazmamış.</p>`
           : `\n      <aside class="reading"><h4>Okuma</h4><p>${escape(report.reading)}</p>
       <p class="disclaimer">Agent’ın yorumu — ölçüm değil. Yalnızca yukarıdaki rakamlara dayanır.</p></aside>`
       }${
@@ -544,7 +603,29 @@ function panelBody(tab: Tab, data: PageData): string {
   const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
 
   if (tab.id === 'housing') {
-    const research = data.research.length === 0 ? empty : data.research.map(reportSection).join('');
+    // Computed here because it needs both halves: the report has the prices and
+    // the rate record has what borrowing costs. Neither knows the other, which
+    // is exactly why the brief tells a scout not to work it out.
+    const monthlyRate = cheapestRealRate(data.rates);
+    const cost: Affordability | undefined =
+      monthlyRate === undefined ? undefined : { monthlyRate, byName: new Map<string, number>() };
+
+    const research =
+      data.research.length === 0
+        ? empty
+        : data.research
+            .map((report) => {
+              if (cost !== undefined) {
+                cost.byName = new Map(
+                  owningVsRenting(data.finance.rules, report.neighbourhoods, {
+                    ...ASSUMED,
+                    monthlyRate: cost.monthlyRate,
+                  }).map((ranked) => [ranked.name, ranked.timesRent]),
+                );
+              }
+              return reportSection(report, cost);
+            })
+            .join('');
 
     // Research first, then how to pay for what it found. That is the order the
     // decision is made in, so it is the order the panel is read in.

@@ -7,13 +7,14 @@
  *
  * Usage: npm run ui
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { build } from 'esbuild';
 
 import { resolveDataDir } from '../config/data-dir.js';
 import { loadModules } from '../modules/registry.js';
+import { loadMortgageRules } from '../finance/rules.js';
 import { loadMarketReports } from '../market/load.js';
 import { loadRateReports } from '../rates/load.js';
 import { renderPage, type PageData } from '../ui/render.js';
@@ -59,7 +60,9 @@ const data: PageData = {
   rates: dataDir === undefined ? [] : loadRateReports(dataDir),
   finance: {
     bundle: compiled.outputFiles[0]?.text ?? '',
-    rules: JSON.parse(readFileSync('data/mortgage-rules.json', 'utf8')) as unknown,
+    // Validated rather than cast: the page applies these to real money, and a
+    // half-edited bracket table returns a plausible wrong ratio in silence.
+    rules: loadMortgageRules(),
   },
 };
 
