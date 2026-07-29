@@ -234,6 +234,8 @@ const ASSUMED = { squareMetres: 100, months: 120 };
 interface Affordability {
   byName: Map<string, number>;
   monthlyRate: number;
+  /** Whose rate it is, so the reader can go and check the one being assumed. */
+  bank: string;
 }
 
 /**
@@ -244,15 +246,15 @@ interface Affordability {
  * fallback — an instalment column resting on a guessed rate would be worse
  * than an absent one.
  */
-function cheapestRealRate(reports: RateReport[]): number | undefined {
+function cheapestRealRate(reports: RateReport[]): { rate: number; bank: string } | undefined {
   const rates = reports.flatMap((report) =>
     report.offers.flatMap((offer) => {
       const real = trueMonthlyRate(offer);
-      return real === undefined ? [] : [real];
+      return real === undefined ? [] : [{ rate: real, bank: report.bank }];
     }),
   );
 
-  return rates.length === 0 ? undefined : Math.min(...rates);
+  return rates.sort((a, b) => a.rate - b.rate)[0];
 }
 
 function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | null): string {
@@ -321,6 +323,15 @@ function reportSection(report: ResearchReport, cost?: Affordability): string {
         // A table with no reading makes the reader interpret it twice — once to
         // find the pattern, once to doubt it — but a reading typeset like a
         // measurement would be taken for one.
+        // Three assumptions sit behind one number, and a ratio whose
+        // assumptions are not stated is a figure the reader cannot argue with.
+        cost === undefined
+          ? ''
+          : `\n      <p class="note">Taksit/Kira sütunu: ${String(ASSUMED.squareMetres)} m² daire, ` +
+            `${String(ASSUMED.months)} ay vade, kayıttaki en ucuz <strong>gerçek</strong> oranla ` +
+            `(${escape(cost.bank)}, aylık %${cost.monthlyRate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) ` +
+            `ve asgari peşinatla. Daire büyüklüğü orandan düşer; sonucu değiştiren vade ve orandır.</p>`
+      }${
         report.reading === undefined
           ? `\n      <p class="caution run">Bu raporda okuma yok — agent rakamları getirmiş ama ne anlama geldiğini yazmamış.</p>`
           : `\n      <aside class="reading"><h4>Okuma</h4><p>${escape(report.reading)}</p>
@@ -606,9 +617,11 @@ function panelBody(tab: Tab, data: PageData): string {
     // Computed here because it needs both halves: the report has the prices and
     // the rate record has what borrowing costs. Neither knows the other, which
     // is exactly why the brief tells a scout not to work it out.
-    const monthlyRate = cheapestRealRate(data.rates);
+    const cheapest = cheapestRealRate(data.rates);
     const cost: Affordability | undefined =
-      monthlyRate === undefined ? undefined : { monthlyRate, byName: new Map<string, number>() };
+      cheapest === undefined
+        ? undefined
+        : { monthlyRate: cheapest.rate, bank: cheapest.bank, byName: new Map<string, number>() };
 
     const research =
       data.research.length === 0

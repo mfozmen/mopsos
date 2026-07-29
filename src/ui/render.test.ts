@@ -648,6 +648,35 @@ describe('market research', () => {
     expect(housing).toMatch(/\d,\d{2}×/);
   });
 
+  it('says which rate and which flat the instalment column assumes', () => {
+    // Three assumptions sit behind that one number — a 100 m² flat, 120 months,
+    // and one particular bank's real rate. A ratio whose assumptions are not
+    // stated is a number the reader cannot argue with.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        rates: [
+          {
+            ...ZIRAAT,
+            offers: [
+              {
+                product: 'Konut Kredisi',
+                monthly_rate: 2.6,
+                example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+              },
+            ],
+          },
+        ],
+        research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('100 m²');
+    expect(housing).toContain('120 ay');
+    expect(housing).toContain('Ziraat Bankası');
+  });
+
   it('says nothing about instalments when no bank rate can be computed', () => {
     // Every rate in the record can be unknown — most were, until recently. An
     // instalment column resting on a guessed rate would be worse than absent.
