@@ -96,8 +96,17 @@ const RULES: Rule[] = [
      * rule that flagged those would be switched off within a week.
      */
     kind: 'home_path',
-    pattern:
-      /(?:[A-Za-z]:\\Users\\|\/Users\/|\/home\/)(?!Public\\|Public\/|Default\\|Default\/|All Users)[A-Za-z0-9._-]+/g,
+    pattern: new RegExp(
+      [
+        '(?:[A-Za-z]:\\\\Users\\\\|/Users/|/home/)',
+        // Service accounts, not people: GitHub Actions, devcontainers, images,
+        // and Windows' shared profiles. A CI log carrying one names nobody, and
+        // flagging them is how a check earns a reputation for noise.
+        '(?!(?:runner|ubuntu|vscode|node|admin|administrator|root|Public|Default|Default User|All Users)(?:[/\\\\]|$))',
+        '[A-Za-z0-9._-]+',
+      ].join(''),
+      'g',
+    ),
   },
   {
     // The `No:` label is optional: Turkish addresses are as often written

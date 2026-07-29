@@ -165,6 +165,21 @@ describe('a home directory names the person who owns it', () => {
     expect(findPersonalData('open /Users/someone/Documents')).toHaveLength(1);
   });
 
+  it('leaves a service account alone, because nobody is named', () => {
+    // /home/runner is GitHub Actions, /home/ubuntu is a devcontainer, /root is
+    // nobody. A CI log or a container note carrying one of these names no
+    // person, and flagging them is how a check earns a reputation for noise.
+    for (const path of [
+      '/home/runner/work/mopsos/mopsos',
+      '/home/ubuntu/app',
+      '/home/vscode/.cache',
+      '/home/node/app',
+      '/Users/runner/work',
+    ]) {
+      expect(findPersonalData(path), path).toEqual([]);
+    }
+  });
+
   it('leaves a path with no person in it alone', () => {
     // The signal is the user name, not the path. These are the paths this
     // repository is full of, and flagging them would get the check disabled.
