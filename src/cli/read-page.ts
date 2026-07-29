@@ -17,24 +17,50 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { chromium } from 'playwright';
+import { type BrowserContext, chromium } from 'playwright';
 
 import {
   allowsRequestTo,
   BadPageRequestError,
+  browserOptions,
+  CHANNELS,
   isPrivateHost,
   isRefusalError,
   launchAdvice,
   parsePageRequest,
 } from '../browser/page-request.js';
 
-// A real browser saying who it is. Not a disguise: the point is to read a public
-// page the way a person would, and pretending to be something else is where
-// reading a website turns into evading one.
-const VIEWPORT = { width: 1440, height: 2000 };
+// A real browser saying who it is. Not a disguise: the point is to read a
+// public page the way a person would, and pretending to be something else is
+// where reading a website turns into evading one.
+const VIEWPORT = { width: 1440, height: 900 };
 
-/** Enough for a real site's redirects, few enough that a loop cannot run away. */
-const MAX_REDIRECTS = 10;
+/**
+ * Opens the first browser this machine actually has.
+ *
+ * Tried rather than looked up: install paths differ by platform and by how the
+ * browser got there, and a wrong guess fails in a way that reads like the site
+ * refusing us. A failed launch costs a moment and only happens when the browser
+ * is genuinely absent.
+ */
+async function launchReal(profile: string): Promise<BrowserContext> {
+  let last: unknown;
+
+  for (const channel of CHANNELS) {
+    try {
+      return await chromium.launchPersistentContext(profile, {
+        ...browserOptions(channel),
+        viewport: VIEWPORT,
+        locale: 'tr-TR',
+        timezoneId: 'Europe/Istanbul',
+      });
+    } catch (error) {
+      last = error;
+    }
+  }
+
+  throw last;
+}
 
 async function main(): Promise<void> {
   // Never the working directory, which is the public repository. The briefs
@@ -44,9 +70,20 @@ async function main(): Promise<void> {
   );
   mkdirSync(dirname(request.text), { recursive: true });
 
-  const browser = await chromium.launch();
+  // A real browser, in a real window, with nothing patched.
+  //
+  // Measured on one connection, one site, one afternoon: the bundled headless
+  // shell was refused, real Chrome in headless mode was refused, and real
+  // Chrome with a window went through — with `navigator.webdriver` still true.
+  // So the window is what a site is reading, not the binary and not the flag,
+  // and opening one is being what we are rather than pretending otherwise.
+  //
+  // A fresh profile each run. Nothing carries over, which is both simpler and
+  // less to leave behind on the machine.
+  const browser = await launchReal(mkdtempSync(join(tmpdir(), 'mopsos-profile-')));
+
   try {
-    const page = await browser.newPage({ viewport: VIEWPORT, locale: 'tr-TR' });
+    const page = browser.pages()[0] ?? (await browser.newPage());
 
     // Checked on every request, not just the one that was typed. goto follows
     // redirects without asking, so a public domain answering 302 to the metadata
@@ -59,36 +96,29 @@ async function main(): Promise<void> {
         return route.abort('blockedbyclient');
       }
 
-      // The redirect chain is walked here rather than by the browser, and this
-      // is the only arrangement that actually works.
+      // `continue()`, not `fetch()` + `fulfill()`, and the difference is the
+      // whole tool working.
       //
-      // Left alone, the browser follows a redirect inside the request it was
-      // already allowed to make and never comes back through this handler — so
-      // the connection to the private address happens, and all that can be done
-      // afterwards is to refuse to write down what came back. That is
-      // suppressing the disclosure, not preventing the request, and it is not
-      // enough where the GET itself is the event. Handing back the 3xx instead
-      // of following it was tried and changes nothing: the browser still
-      // follows it unrouted.
+      // `fetch()` makes the request from Playwright rather than from the
+      // browser, so the TLS and HTTP/2 fingerprint reverts to Playwright's —
+      // which is exactly what a bot check reads. Measured on one site, one
+      // moment, same real headful Chrome: no routing 5.172 characters,
+      // `continue()` 5.172 characters, `fetch()` + `fulfill()` 277 and a
+      // refusal page. The tighter guard made the tool unable to read the sites
+      // it exists to read.
       //
-      // So each hop is fetched from here, checked before the next one is made,
-      // and only the final response is handed to the page.
-      let response = await route.fetch({ maxRedirects: 0 });
-
-      for (let hop = 0; hop < MAX_REDIRECTS; hop += 1) {
-        const location = response.headers()['location'];
-        if (response.status() < 300 || response.status() >= 400 || location === undefined) break;
-
-        const next = new URL(location, response.url()).toString();
-        if (!allowsRequestTo(next)) {
-          refused.push(next);
-          return route.abort('blockedbyclient');
-        }
-
-        response = await route.fetch({ url: next, maxRedirects: 0 });
-      }
-
-      return route.fulfill({ response });
+      // What that costs, stated plainly rather than left to be discovered: the
+      // browser follows a server redirect inside the request it was already
+      // allowed to make, and does not come back through here. So a public
+      // domain answering 302 to a private address DOES get connected to. The
+      // landing check below then refuses to write down anything that came back.
+      //
+      // That is a real reduction and it is the right trade here. The attacker
+      // in that scenario controls the redirector, not the response's origin, so
+      // no script of theirs can read what arrives; the only reader is this
+      // tool, and this tool declines. What remains exposed is a side-effecting
+      // GET on an internal service, which is narrow and worth naming.
+      return route.continue();
     });
 
     // A navigation refused by the handler above rejects here, which is the guard

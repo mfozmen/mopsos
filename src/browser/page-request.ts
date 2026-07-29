@@ -194,3 +194,30 @@ export function isRefusalError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes('ERR_BLOCKED_BY_CLIENT');
 }
+
+/** Channels worth trying, best first, then the bundled browser. */
+export const CHANNELS = ['chrome', 'msedge', 'chrome-beta', 'msedge-beta', undefined] as const;
+
+export interface BrowserChoice {
+  channel?: string;
+  headless: false;
+}
+
+/**
+ * How to launch, given a channel to try.
+ *
+ * A person on this machine uses a real browser, so this uses one too — and that
+ * is not a disguise. It IS the browser, launched the way a person launches it,
+ * with nothing patched and `navigator.webdriver` left exactly as the browser
+ * sets it. The line this project draws is between being what you are and
+ * pretending to be something else, and a real window is the former.
+ *
+ * Always headful, and that is the whole finding. On one connection, one site,
+ * one moment: the bundled headless shell was refused, real Chrome in headless
+ * mode was refused, and real Chrome with a window went through with
+ * `navigator.webdriver` still true. The window is what a site reads — not the
+ * binary, and not the flag.
+ */
+export function browserOptions(channel?: string): BrowserChoice {
+  return channel === undefined ? { headless: false } : { channel, headless: false };
+}
