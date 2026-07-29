@@ -618,24 +618,30 @@ function panelBody(tab: Tab, data: PageData): string {
     // the rate record has what borrowing costs. Neither knows the other, which
     // is exactly why the brief tells a scout not to work it out.
     const cheapest = cheapestRealRate(data.rates);
-    const cost: Affordability | undefined =
-      cheapest === undefined
-        ? undefined
-        : { monthlyRate: cheapest.rate, bank: cheapest.bank, byName: new Map<string, number>() };
 
     const research =
       data.research.length === 0
         ? empty
         : data.research
             .map((report) => {
-              if (cost !== undefined) {
-                cost.byName = new Map(
-                  owningVsRenting(data.finance.rules, report.neighbourhoods, {
-                    ...ASSUMED,
-                    monthlyRate: cost.monthlyRate,
-                  }).map((ranked) => [ranked.name, ranked.timesRent]),
-                );
-              }
+              // Built fresh per report rather than mutated in place: sharing one
+              // object across the loop is correct only for as long as nothing
+              // here becomes asynchronous, which is not a property worth
+              // depending on for a table of numbers.
+              const cost =
+                cheapest === undefined
+                  ? undefined
+                  : {
+                      monthlyRate: cheapest.rate,
+                      bank: cheapest.bank,
+                      byName: new Map(
+                        owningVsRenting(data.finance.rules, report.neighbourhoods, {
+                          ...ASSUMED,
+                          monthlyRate: cheapest.rate,
+                        }).map((ranked) => [ranked.name, ranked.timesRent]),
+                      ),
+                    };
+
               return reportSection(report, cost);
             })
             .join('');

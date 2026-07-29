@@ -177,8 +177,9 @@ on its own, marked as opinion, so it is allowed to be a judgement — but only o
 - **No advice you cannot support.** "Şurayı al" is not a reading. "Şu iki mahalle arasındaki
   fark şu, ve şu ölçüde X öne çıkıyor" is.
 
-Written in Turkish, like everything the reader sees. Nowhere else in the report is Turkish
-allowed in a key or a field name — only in `reading`, `note`, `conditions` and `source`.
+Written in Turkish, like everything the reader sees. Keys and field names are English
+everywhere and always; Turkish belongs only in the free-text fields this report has —
+`reading` and `note` among them.
 
 For a market report, the reader is buying their first home to live in. Two figures decide it and
 both are worked out from what you recorded, so you do not compute them — say what they show:

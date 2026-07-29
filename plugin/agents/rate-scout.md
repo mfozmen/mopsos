@@ -217,8 +217,9 @@ on its own, marked as opinion, so it is allowed to be a judgement — but only o
 - **No advice you cannot support.** "Şurayı al" is not a reading. "Şu iki mahalle arasındaki
   fark şu, ve şu ölçüde X öne çıkıyor" is.
 
-Written in Turkish, like everything the reader sees. Nowhere else in the report is Turkish
-allowed in a key or a field name — only in `reading`, `note`, `conditions` and `source`.
+Written in Turkish, like everything the reader sees. Keys and field names are English
+everywhere and always; Turkish belongs only in the free-text fields this report has —
+`reading` and `note` among them.
 
 For a rate report, the reader is choosing where to borrow. The headline rate is the number they
 will be shown everywhere else, and it is usually not the answer — say which product actually
