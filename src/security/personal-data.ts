@@ -98,6 +98,8 @@ const RULES: Rule[] = [
     kind: 'home_path',
     pattern: new RegExp(
       [
+        // Case-insensitive: a path gets pasted from a shell, a log or a Windows
+        // dialog, and the case is whatever it happened to be.
         '(?:[A-Za-z]:\\\\Users\\\\|/Users/|/home/)',
         // Service accounts, not people: GitHub Actions, devcontainers, images,
         // and Windows' shared profiles. A CI log carrying one names nobody, and
@@ -105,7 +107,7 @@ const RULES: Rule[] = [
         '(?!(?:runner|ubuntu|vscode|node|admin|administrator|root|Public|Default|Default User|All Users)(?:[/\\\\]|$))',
         '[A-Za-z0-9._-]+',
       ].join(''),
-      'g',
+      'gi',
     ),
   },
   {

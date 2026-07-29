@@ -160,6 +160,20 @@ describe('a home directory names the person who owns it', () => {
     expect(findPersonalData(String.raw`from C:\Users\someone\source\mopsos`)).toHaveLength(1);
   });
 
+  it('catches it whatever case it was typed in', () => {
+    // A path gets pasted from a shell, a log, or a Windows dialog, and the case
+    // is whatever it happened to be. Matching only the capitalised form leaves
+    // the commonest paste form through.
+    for (const path of [
+      String.raw`C:\users\alice\src`,
+      String.raw`c:\USERS\alice\src`,
+      '/USERS/alice/x',
+      '/Home/alice/x',
+    ]) {
+      expect(findPersonalData(path), path).toHaveLength(1);
+    }
+  });
+
   it('catches a Unix home directory', () => {
     expect(findPersonalData('cd /home/someone/src && npm test')).toHaveLength(1);
     expect(findPersonalData('open /Users/someone/Documents')).toHaveLength(1);
