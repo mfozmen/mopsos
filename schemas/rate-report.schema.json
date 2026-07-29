@@ -123,6 +123,11 @@
     "supersedes": {
       "description": "The file this reading replaces, when it is a correction. The earlier one stays on disk — append-only means the record is never silently improved, not that a mistake has to stand.",
       "type": "string"
+    },
+    "reading": {
+      "type": "string",
+      "minLength": 80,
+      "description": "What the figures in this report mean, in the scout's own words. Which entries stand out and why, what the trade-off is, and what NOT to read into it. It may only rest on figures recorded in this same report — an interpretation that needs a number the reader cannot see is an assertion, not a reading. It is opinion, and it is shown as opinion, separately from the measurements. Optional in this schema and required by the brief, which is not an oversight: a report written before this field existed was correct when it was written, and a schema change that retroactively invalidates it would take a real reading out of the record. The interface says when one is missing instead."
     }
   }
 }

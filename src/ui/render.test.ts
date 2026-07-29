@@ -2,6 +2,7 @@ import { Script } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { loadMortgageRules } from '../finance/rules.js';
 import { buildTabs, PAGE_SCRIPTS, renderPage, type PageData } from './render.js';
 
 const MODULES = [
@@ -18,7 +19,9 @@ const EMPTY: PageData = {
   instruments: [],
   records: [],
   rates: [],
-  finance: { bundle: 'var Mortgage = {};', rules: { term: { max_months: 120 } } },
+  // The real pinned rules: the instalment column applies them to real money, and
+  // a stub bracket table would let this pass while the page shows nonsense.
+  finance: { bundle: 'var Mortgage = {};', rules: loadMortgageRules() },
 };
 
 const ZIRAAT = {
@@ -156,7 +159,7 @@ describe('the finance calculator', () => {
   });
 
   it('carries the pinned rules, so the browser applies the same limits', () => {
-    expect(renderPage(EMPTY)).toContain('"max_months":120');
+    expect(renderPage(EMPTY)).toContain('"conventional_max_months":120');
   });
 
   it('warns that the ratio applies to the appraised value, not the asking price', () => {
@@ -592,6 +595,110 @@ describe('market research', () => {
 
     expect(housing).toContain('Sadece 4 ilan');
     expect(housing).toContain('robots.txt ile kapalı');
+  });
+
+  it("shows the scout's reading, marked as opinion rather than measurement", () => {
+    // A table of numbers with no reading makes the reader do the interpreting
+    // twice — once to find the pattern, once to doubt it. But it is opinion,
+    // and it has to look like opinion beside figures that are not.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        research: [
+          {
+            ...report({ sale_per_m2: 42_590, rent_per_m2: 309 }),
+            reading:
+              'Gazi Mustafa Kemal hem en yüksek getiriyi hem en düşük taksit/kira oranını veriyor.',
+          },
+        ],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('Gazi Mustafa Kemal hem en yüksek');
+    expect(housing).toMatch(/class="reading"/);
+  });
+
+  it('shows what owning costs against renting, per neighbourhood', () => {
+    // The buyer's question, and the reason the brief tells a scout not to
+    // compute it: it needs the rate record, which the report does not have.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        // With an example, so a real cost can be computed. Without one the
+        // column is absent on purpose — the next test holds that.
+        rates: [
+          {
+            ...ZIRAAT,
+            offers: [
+              {
+                product: 'Konut Kredisi',
+                monthly_rate: 2.6,
+                example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+              },
+            ],
+          },
+        ],
+        research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('Taksit/Kira');
+    expect(housing).toMatch(/\d,\d{2}×/);
+  });
+
+  it('says which rate and which flat the instalment column assumes', () => {
+    // Three assumptions sit behind that one number — a 100 m² flat, 120 months,
+    // and one particular bank's real rate. A ratio whose assumptions are not
+    // stated is a number the reader cannot argue with.
+    const housing = panel(
+      renderPage({
+        ...EMPTY,
+        rates: [
+          {
+            ...ZIRAAT,
+            offers: [
+              {
+                product: 'Konut Kredisi',
+                monthly_rate: 2.6,
+                example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+              },
+            ],
+          },
+        ],
+        research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
+      }),
+      'housing',
+    );
+
+    expect(housing).toContain('100 m²');
+    expect(housing).toContain('120 ay');
+    expect(housing).toContain('Ziraat Bankası');
+  });
+
+  it('says nothing about instalments when no bank rate can be computed', () => {
+    // Every rate in the record can be unknown — most were, until recently. An
+    // instalment column resting on a guessed rate would be worse than absent.
+    const housing = panel(
+      renderPage({ ...EMPTY, research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })] }),
+      'housing',
+    );
+
+    expect(housing).not.toContain('Taksit/Kira');
+  });
+
+  it('says when a report carries no reading, rather than leaving a silence', () => {
+    // The field is optional so that reports written before it existed stay
+    // loadable. That makes its absence invisible unless the page says so, and
+    // an unread table looks exactly like a table nobody had anything to say
+    // about.
+    const housing = panel(
+      renderPage({ ...EMPTY, research: [report({ sale_per_m2: 42_590 })] }),
+      'housing',
+    );
+
+    expect(housing).toContain('Bu raporda okuma yok');
   });
 
   it('says how much the scout trusts a figure', () => {

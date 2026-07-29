@@ -7,10 +7,21 @@
   "required": ["schema_version", "province", "district", "captured_on", "neighbourhoods"],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": 1 },
-    "province": { "type": "string", "minLength": 2 },
-    "district": { "type": "string", "minLength": 2 },
-    "captured_on": { "type": "string", "format": "date" },
+    "schema_version": {
+      "const": 1
+    },
+    "province": {
+      "type": "string",
+      "minLength": 2
+    },
+    "district": {
+      "type": "string",
+      "minLength": 2
+    },
+    "captured_on": {
+      "type": "string",
+      "format": "date"
+    },
     "captured_at": {
       "type": "string",
       "format": "date-time",
@@ -20,7 +31,9 @@
       "type": "string",
       "description": "The file this reading replaces, when it is a correction. The older file stays on disk."
     },
-    "note": { "type": "string" },
+    "note": {
+      "type": "string"
+    },
     "neighbourhoods": {
       "type": "array",
       "minItems": 1,
@@ -29,13 +42,19 @@
         "required": ["name", "listing_count", "basis", "confidence", "source"],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "minLength": 2 },
+          "name": {
+            "type": "string",
+            "minLength": 2
+          },
           "sale_per_m2": {
             "type": "number",
             "exclusiveMinimum": 0,
             "description": "TRY per square metre asked, not paid. Absent when nothing usable was found — which is a finding, not a failure."
           },
-          "rent_per_m2": { "type": "number", "exclusiveMinimum": 0 },
+          "rent_per_m2": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
           "listing_count": {
             "type": "integer",
             "minimum": 0,
@@ -45,16 +64,28 @@
             "enum": ["listing_median", "official", "mixed"],
             "description": "Where the figure comes from. Official sales counts and listing medians are different kinds of evidence and must not be read as one."
           },
-          "confidence": { "enum": ["high", "medium", "low"] },
+          "confidence": {
+            "enum": ["high", "medium", "low"]
+          },
           "source": {
             "type": "string",
             "minLength": 8,
             "description": "Where this came from, in words. A figure nobody can go and check is not evidence, and it is worse than a gap because it looks like evidence."
           },
-          "source_url": { "type": "string", "format": "uri" },
-          "note": { "type": "string" }
+          "source_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "note": {
+            "type": "string"
+          }
         }
       }
+    },
+    "reading": {
+      "type": "string",
+      "minLength": 80,
+      "description": "What the figures in this report mean, in the scout's own words. Which entries stand out and why, what the trade-off is, and what NOT to read into it. It may only rest on figures recorded in this same report — an interpretation that needs a number the reader cannot see is an assertion, not a reading. It is opinion, and it is shown as opinion, separately from the measurements. Optional in this schema and required by the brief, which is not an oversight: a report written before this field existed was correct when it was written, and a schema change that retroactively invalidates it would take a real reading out of the record. The interface says when one is missing instead."
     }
   }
 }
