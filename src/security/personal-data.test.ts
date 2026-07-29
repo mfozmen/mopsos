@@ -151,3 +151,26 @@ describe('marked examples', () => {
     expect(kinds(text)).toEqual(['iban']);
   });
 });
+
+describe('a home directory names the person who owns it', () => {
+  it('catches a Windows user path', () => {
+    // This repository is public and the rule covers anything identifying, not
+    // only money. A brief that ships with someone's home directory in it names
+    // them to everyone who installs the plugin — and one had, on main.
+    expect(findPersonalData(String.raw`from C:\Users\someone\source\mopsos`)).toHaveLength(1);
+  });
+
+  it('catches a Unix home directory', () => {
+    expect(findPersonalData('cd /home/someone/src && npm test')).toHaveLength(1);
+    expect(findPersonalData('open /Users/someone/Documents')).toHaveLength(1);
+  });
+
+  it('leaves a path with no person in it alone', () => {
+    // The signal is the user name, not the path. These are the paths this
+    // repository is full of, and flagging them would get the check disabled.
+    expect(findPersonalData('src/finance/mortgage.ts')).toEqual([]);
+    expect(findPersonalData(String.raw`C:\Program Files\Google\Chrome`)).toEqual([]);
+    expect(findPersonalData('/tmp/mopsos-page-abc/page.txt')).toEqual([]);
+    expect(findPersonalData('~/.claude/settings.json')).toEqual([]);
+  });
+});

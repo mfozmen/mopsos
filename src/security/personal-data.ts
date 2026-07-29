@@ -1,4 +1,5 @@
-export type PersonalDataKind = 'national_id' | 'iban' | 'phone' | 'personal_amount' | 'address';
+export type PersonalDataKind =
+  'national_id' | 'iban' | 'phone' | 'personal_amount' | 'address' | 'home_path';
 
 export interface PersonalDataFinding {
   kind: PersonalDataKind;
@@ -80,6 +81,23 @@ const RULES: Rule[] = [
     kind: 'personal_amount',
     pattern:
       /\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)\b[^.\n]{0,40}?\b(?:savings|birikim|tasarruf|portfolio|portföy|param|paran|net worth)\w*/gi,
+  },
+  {
+    /**
+     * A home directory names the person who owns it.
+     *
+     * The rule this repository lives under covers anything identifying, not
+     * only money — and a brief that ships with someone's home directory in it
+     * names them to everyone who installs the plugin. One did, on main, for
+     * weeks: `npm run pdf:text -- <url>` from `C:\\Users\\<name>\\source\\mopsos`.
+     *
+     * The user name is the signal, not the path. `C:\\Program Files`, `/tmp/...`
+     * and `src/finance/mortgage.ts` are what this repository is full of, and a
+     * rule that flagged those would be switched off within a week.
+     */
+    kind: 'home_path',
+    pattern:
+      /(?:[A-Za-z]:\\Users\\|\/Users\/|\/home\/)(?!Public\\|Public\/|Default\\|Default\/|All Users)[A-Za-z0-9._-]+/g,
   },
   {
     // The `No:` label is optional: Turkish addresses are as often written

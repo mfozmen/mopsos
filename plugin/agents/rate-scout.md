@@ -13,7 +13,7 @@ you found. One bank per run.
    bank's own page — not a comparison site. Comparison sites are stale, incomplete, and paid
    for placement.
 2. **Its published rate sheet.** Many banks publish a PDF of current rates. If you find one:
-   `npm run pdf:text -- <url>` from `C:\Users\fahri\source\mopsos`. If it reports a
+   `npm run pdf:text -- <url>`, run from the repository root. If it reports a
    certificate problem it will tell you to download it with curl first — do that into
    `.research/` inside the repo, then pass the local path.
 3. **The page as rendered.** Some rate tables are drawn by script and are not in the HTML.
