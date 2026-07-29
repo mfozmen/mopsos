@@ -533,19 +533,38 @@ function panelBody(tab: Tab, data: PageData): string {
 
     // Research first, then how to pay for what it found. That is the order the
     // decision is made in, so it is the order the panel is read in.
+    // Three bands rather than one column.
+    //
+    // Research goes full width because a district is twenty-one neighbourhoods
+    // across six columns and does not read in half a page. Below it the screen
+    // splits: what you decide with on the left — who you are, then the
+    // calculator and its answer — and what you decide from on the right, the
+    // banks. Reading a rate and then using it used to mean scrolling past
+    // fifteen of them.
+    //
+    // Narrow screens get none of this and keep today's single column, in
+    // today's order.
     return `
-      <h3 class="section">Pazar araştırması</h3>
-      ${DISPATCH}
-      ${research}
+      <section class="research">
+        <h3 class="section">Pazar araştırması</h3>
+        ${DISPATCH}
+        ${research}
+      </section>
 
-      <h3 class="section">Durumun</h3>
-      ${HOUSEHOLD}
+      <div class="split">
+        <section class="decide">
+          <h3 class="section">Durumun</h3>
+          ${HOUSEHOLD}
 
-      <h3 class="section">Banka oranları</h3>
-      ${ratesTable(data.rates)}
+          <h3 class="section">Finansman</h3>
+          ${FINANCE_FORM}
+        </section>
 
-      <h3 class="section">Finansman</h3>
-      ${FINANCE_FORM}`;
+        <section class="evidence">
+          <h3 class="section">Banka oranları</h3>
+          ${ratesTable(data.rates)}
+        </section>
+      </div>`;
   }
 
   if (tab.id === 'sicil') {
@@ -785,6 +804,20 @@ const STYLE = `
   body { margin: 0; background: var(--ground); color: var(--ink);
     font-family: var(--sans); font-size: 15px; line-height: 1.55; }
   .wrap { max-width: 52rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+
+  /* Wide screens only. Below this the page is exactly what it was: one column,
+     one order, nothing to reflow on a phone. */
+  @media (min-width: 78rem) {
+    .wrap { max-width: 76rem; }
+    .split { display: grid; grid-template-columns: minmax(22rem, 27rem) 1fr; gap: 0 3rem;
+      align-items: start; }
+    /* The answer stays put while the fields above it are being changed. */
+    .decide .answers { position: sticky; top: 1.5rem; background: var(--ground);
+      padding-bottom: .6rem; z-index: 2; }
+    .decide .fields { grid-template-columns: 1fr 1fr; }
+    .decide .household { grid-template-columns: 1fr; }
+    .evidence .rates td.terms { max-width: 26rem; }
+  }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
   .brand small { display: block; font-family: var(--sans); font-size: .7rem; letter-spacing: .16em;

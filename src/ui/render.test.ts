@@ -628,6 +628,38 @@ describe('market research', () => {
   });
 });
 
+describe('the housing layout', () => {
+  it('puts the calculator and the answer in one column, the tables in the other', () => {
+    // Reading a rate and then using it meant scrolling past fifteen banks. The
+    // two halves of that decision belong side by side on a screen wide enough.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+    const decide = housing.slice(
+      housing.indexOf('class="decide"'),
+      housing.indexOf('class="evidence"'),
+    );
+
+    expect(decide).toContain('id="household"');
+    expect(decide).toContain('id="finance"');
+    expect(housing.slice(housing.indexOf('class="evidence"'))).toContain('class="rates"');
+  });
+
+  it('still stacks into one column on a narrow screen', () => {
+    // The two-column split is an enhancement for the space, not a minimum
+    // width: a phone gets today's page, in today's order.
+    const page = renderPage(EMPTY);
+
+    expect(page).toMatch(/@media \(min-width:[^)]*\)/);
+  });
+
+  it('gives the research table the full width, not the calculator column', () => {
+    // Twenty-one neighbourhoods across six columns does not read in half a page.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing.indexOf('class="research"')).toBeGreaterThan(-1);
+    expect(housing.indexOf('class="research"')).toBeLessThan(housing.indexOf('class="decide"'));
+  });
+});
+
 describe('the page script', () => {
   /**
    * The other tests here read the rendered HTML as text, so a page whose script
