@@ -48,3 +48,6 @@ Thumbs.db
 
 # Scratch space for agents downloading source documents to read.
 .research/
+
+# Other agents' checkouts of this repository, made by the Agent tool.
+.claude/worktrees/
