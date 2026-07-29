@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mfozmen/mopsos/schemas/savings-finance-report.schema.json",
+  "title": "Savings finance report",
+  "description": "What one tasarruf finansmanı firm was offering on one day. This is not a loan and has no rate: the money arrives when the queue reaches you rather than at signing, and the only charge the firm may make is the organisation fee. What decides whether it is a good deal is that fee and the length of the wait, which is why this cannot share a table with bank rates. A report is a dated observation rather than a fact: it is never edited, and a later reading is a new report.",
+  "type": "object",
+  "required": ["schema_version", "provider", "captured_on", "source_url", "plans"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "provider": {
+      "description": "The firm's own name, as it writes it.",
+      "type": "string",
+      "minLength": 2
+    },
+    "captured_on": {
+      "type": "string",
+      "format": "date"
+    },
+    "source_url": {
+      "description": "The page the figures were read from, so the reading can be checked or repeated. The interesting figures are usually in the sözleşme or the ön bilgilendirme form rather than on the campaign page — record the document actually read.",
+      "type": "string",
+      "format": "uri"
+    },
+    "plans": {
+      "description": "Empty is a real answer: a firm that publishes no plan today is not the same as a firm nobody looked at.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "product",
+          "amount_financed",
+          "total_payable",
+          "term_months",
+          "delivery_after_months",
+          "delivery_basis"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          { "properties": { "organisation_fee": true }, "required": ["organisation_fee"] },
+          { "properties": { "organisation_fee_rate": true }, "required": ["organisation_fee_rate"] }
+        ],
+        "properties": {
+          "product": {
+            "description": "The campaign or plan under the name the firm gives it.",
+            "type": "string",
+            "minLength": 2
+          },
+          "amount_financed": {
+            "description": "Finansman tutarı: what the firm hands over when your turn comes. The face value of the plan, and the amount every other figure here is read against.",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "total_payable": {
+            "description": "Toplam ödenecek tutar: the peşinat, every tasarruf and finansman instalment and the organisation fee, added up. The firm's own total — copied, never summed by the scout, so that a total which disagrees with the parts is visible instead of silently corrected.",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "organisation_fee": {
+            "description": "Organizasyon ücreti in lira. These firms may charge nothing else — no interest, no profit share, no commission, no tahsis fee — so this is the entire price of the product. Either this or organisation_fee_rate must be recorded; both when the firm publishes both.",
+            "type": "number",
+            "minimum": 0
+          },
+          "organisation_fee_rate": {
+            "description": "The same fee as the percentage the firm quotes it at, unconverted. Percent, so 9 means %9. Which amount the percentage is taken of varies between firms — say in conditions which one this is, because a fee on the sözleşme tutarı and a fee on the finansman tutarı are not the same price.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          },
+          "down_payment": {
+            "description": "Peşinat in lira, where the firm publishes a figure rather than a ratio.",
+            "type": "number",
+            "minimum": 0
+          },
+          "down_payment_ratio": {
+            "description": "Peşinat as a percentage of the amount financed, so 20 means %20. Absent means the firm published no figure — not that none is asked for. A peşinat is not compulsory in this system and a plan that genuinely asks for none records 0, which is a different statement from saying nothing.",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "term_months": {
+            "description": "The whole contract, tasarruf dönemi and finansman dönemi together.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "delivery_after_months": {
+            "description": "Teslimat süresi: months from signing until the money is handed over. Half the reason this product cannot be compared on price alone — the buyer pays rent for every one of them. Where the firm publishes a range, record the far end and say so in conditions.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "delivery_basis": {
+            "description": "Whether the wait is owed or merely expected. 'contractual' means the sözleşme names the teslimat date and the firm is bound to it — a tarih belirlemeli, çekilişsiz plan. 'indicative' means it depends on the group filling, on the queue, or on a draw, and the firm's own wording calls it a projection. Required, with no default: this distinction is the whole risk of the product, and a plan recorded without it reads as though the date were a fact.",
+            "type": "string",
+            "enum": ["contractual", "indicative"]
+          },
+          "conditions": {
+            "description": "What the plan depends on — which amount the fee percentage is taken of, a minimum tasarruf oranı, a group that has to fill, a campaign end date, what happens on fesih and how long the refund takes. A plan without its conditions is not comparable with another.",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "note": {
+      "type": "string"
+    },
+    "captured_at": {
+      "description": "When the reading was taken, to the minute. Optional, and the reason it exists is corrections: two readings of one firm on one day are indistinguishable by date alone, so without this a mistake found the same afternoon could not supersede the morning's file.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "supersedes": {
+      "description": "The file this reading replaces, when it is a correction. The earlier one stays on disk — append-only means the record is never silently improved, not that a mistake has to stand.",
+      "type": "string"
+    },
+    "reading": {
+      "type": "string",
+      "minLength": 80,
+      "description": "What the figures in this report mean, in the scout's own words. Which entries stand out and why, what the trade-off is, and what NOT to read into it. It may only rest on figures recorded in this same report — an interpretation that needs a number the reader cannot see is an assertion, not a reading. It is opinion, and it is shown as opinion, separately from the measurements. Optional in this schema and required by the brief, which is not an oversight: a report written before this field existed was correct when it was written, and a schema change that retroactively invalidates it would take a real reading out of the record. The interface says when one is missing instead."
+    }
+  }
+}

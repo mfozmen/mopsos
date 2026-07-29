@@ -20,6 +20,7 @@ export const DOCUMENT_KINDS = [
   'module',
   'rate-report',
   'market-report',
+  'savings-finance-report',
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
