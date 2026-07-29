@@ -628,6 +628,58 @@ describe('market research', () => {
   });
 });
 
+describe('the housing layout', () => {
+  const housing = () => panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+  it('keeps the reading order a narrow screen gets', () => {
+    // research -> who you are -> the banks -> the calculator. The banks come
+    // BEFORE the calculator on purpose: a rate is a button, and a reader who
+    // meets the calculator first fills in the default and never finds out.
+    //
+    // Below the breakpoint there is no grid, so this order IS the phone's
+    // order. It must survive any rearrangement made for wide screens.
+    const page = housing();
+    const at = (marker: string) => page.indexOf(marker);
+
+    expect(at('class="research"')).toBeLessThan(at('id="household"'));
+    expect(at('id="household"')).toBeLessThan(at('class="rates"'));
+    expect(at('class="rates"')).toBeLessThan(at('id="finance"'));
+  });
+
+  it('puts the calculator beside the banks on a wide screen', () => {
+    // Reading a rate used to mean scrolling past fifteen banks to use it.
+    // Placement is by grid coordinates, so the DOM order above stays intact.
+    const page = renderPage(EMPTY);
+
+    expect(page).toMatch(/@media \(min-width:[^)]*\)/);
+    expect(page).toMatch(/\.evidence\s*\{[^}]*grid-(row|area)/);
+  });
+
+  it('lets a wide table scroll inside itself rather than the page sideways', () => {
+    // Five columns do not fit 405 pixels. Without this the whole page scrolls
+    // horizontally on a phone, which moves the headings off-screen too.
+    expect(housing()).toContain('<div class="scroller"');
+    expect(renderPage(EMPTY)).toMatch(/\.scroller\s*\{[^}]*overflow-x:\s*auto/);
+  });
+
+  it('does not let a closed tooltip take up space', () => {
+    // visibility:hidden still occupies layout, and a 328px tooltip anchored near
+    // the right edge pushed the document wider than the screen while invisible.
+    const page = renderPage(EMPTY);
+    const body = page.slice(page.indexOf('.hint-body {'), page.indexOf('.hint-body {') + 400);
+
+    expect(body).toContain('display: none');
+    expect(body).not.toContain('visibility: hidden');
+  });
+
+  it('gives the research table the full width, not a column', () => {
+    // Twenty-one neighbourhoods across six columns does not read in half a page.
+    const page = housing();
+
+    expect(page.indexOf('class="research"')).toBeLessThan(page.indexOf('class="split"'));
+  });
+});
+
 describe('the page script', () => {
   /**
    * The other tests here read the rendered HTML as text, so a page whose script
