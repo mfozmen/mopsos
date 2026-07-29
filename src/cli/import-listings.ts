@@ -18,6 +18,7 @@ import { join } from 'node:path';
 
 import { resolveDataDir } from '../config/data-dir.js';
 import { InvalidListingsError, listingsToReport } from '../market/import.js';
+import { assertValid } from '../schema/validate.js';
 
 const [file, province, district, source] = process.argv.slice(2);
 
@@ -76,19 +77,39 @@ mkdirSync(directory, { recursive: true });
 
 const path = join(directory, `${capturedOn}-${slug(province)}-${slug(district)}.json`);
 
-// Never overwritten. A reading is a dated observation, and a second one on the
-// same day is a correction, which the schema handles with `supersedes` — not
-// something to silently replace the morning's file with.
-if (existsSync(path)) {
+// Validated before it is written, not after it is read.
+//
+// The loader refuses a malformed report by name — which is right, and which
+// happens hours later, to whoever next opens the interface. Checking here means
+// the person who made the file is the person who hears about it.
+try {
+  assertValid('market-report', report);
+} catch (error) {
   console.error(
-    `${path} already exists.\n` +
-      'A report is never overwritten. If this corrects it, rename the new file and add\n' +
+    `Not a valid market report: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exit(5);
+}
+
+// Never overwritten, and the exclusive flag rather than a check-then-write. A
+// report is a dated observation; a second one on the same day is a correction,
+// which the schema handles with `supersedes`. Checking first and writing after
+// leaves a gap in which the file can appear, which is a small window and the
+// wrong shape for something that must not be lost.
+try {
+  writeFileSync(path, JSON.stringify(report, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+
+  console.error(
+    [
+      `${path} already exists.`,
+      'A report is never overwritten. If this corrects it, rename the new file and add',
       '"captured_at" and "supersedes" by hand — the older reading stays on disk.',
+    ].join('\n'),
   );
   process.exit(4);
 }
-
-writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
 console.log(`${path}`);
 for (const n of report.neighbourhoods) {
