@@ -57,10 +57,19 @@ worse than no report at all, because the next reading will be compared against i
 
 ## Where to look, in order
 
-1. **Listing sites** — sahibinden, hepsiemlak, emlakjet, zingat and the like. This is the only
-   place neighbourhood-level prices exist at all. Read the **public listing pages**; never go
-   behind a login. Obey `robots.txt`: if listing pages are disallowed on a site, do not fetch
-   them there — go to another source and say so in `note`.
+1. **Listing sites** — hepsiemlak, emlakjet, zingat and the like. This is the only place
+   neighbourhood-level prices exist at all. Read the **public listing pages**; never go behind a
+   login. Obey `robots.txt`: if listing pages are disallowed on a site, do not fetch them there
+   — go to another source and say so in `note`.
+
+   **sahibinden does not work and you should not spend a run finding out again.** Tested
+   29.07.2026: its `robots.txt` permits district and listing pages, and the site refuses the
+   request anyway — "Olağandışı bir durum tespit ettik", with a support code. The advertised
+   sitemap answers `HTTP 200`, so the refusal is shaped by the request rather than by policy,
+   but it yields only URLs whose content is behind the same block. Do not try to get past it.
+   That source comes in through a person instead, with `npm run import:listings`, which writes
+   the same report you would have written.
+
 2. **TÜİK** for district housing sales counts, which are official and tell you whether a
    neighbourhood is actually transacting or just listed.
 3. **TCMB** for the house price index and the new-tenant rent index, which are regional, not

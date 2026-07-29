@@ -131,9 +131,15 @@ const RULES: Rule[] = [
     // "Gül Sokak 14/3" without one.  scan-ignore: example
     // The street keyword carries the signal; a district name on its own — the
     // intended content of this repository — has none.
+    //
+    // A digit glued to a letter is a unit, not a door number: `m2` in a CSV
+    // header would otherwise read as a street plus a number, and a check that cries wolf
+    // over column names is one that gets waved through. Nothing else is
+    // loosened — this repository is public and the thing it must never carry is
+    // where the person lives.
     kind: 'address',
     pattern:
-      /\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b[^.\n]{0,40}?(?:\bno[:.\s]*)?\d+(?:\/\d+)?/gi,
+      /\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b[^.\n]{0,40}?(?:\bno[:.\s]*)?(?<![A-Za-z])\d+(?:\/\d+)?/gi,
   },
 ];
 

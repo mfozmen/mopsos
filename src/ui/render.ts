@@ -325,7 +325,16 @@ function reportSection(report: ResearchReport, cost?: Affordability): string {
             ${th(`m² kira`, 'num')}
             ${th(`Getiri`, 'num')}
             ${heading}
-            ${th(`İlan`, 'num')}
+            ${th(
+              `İlan${hint(
+                'Rakamın kaç ilana dayandığı, ve agent’ın ona ne kadar güvendiği. ' +
+                  'Düşük güven: veri ince, dağınık, ya da ilan karışımı sabit tutulamamış — beş ilanlık bir medyan sayı kılığında gürültüdür. ' +
+                  'Orta güven: anlamlı sayıda ilan var ama tek kaynaktan. ' +
+                  'Yüksek güven: bunlara ek olarak ikinci bir kaynak ile çapraz doğrulanmış. ' +
+                  'Yüksek, örneklem büyüklüğüyle değil ikinci kaynakla kazanılır; elle toplanan veri tanımı gereği orta güvende kalır.',
+              )}`,
+              'num',
+            )}
             ${th(`Kaynak`, 'src')}
           </tr>
         </thead>
