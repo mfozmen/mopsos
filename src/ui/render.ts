@@ -240,6 +240,7 @@ function neighbourhoodRow(neighbourhood: Neighbourhood): string {
 function reportSection(report: ResearchReport): string {
   return `
       <h3>${escape(report.place)}<span class="dated">${turkishDate(report.dated)}</span></h3>
+      <div class="scroller">
       <table>
         <thead>
           <tr>
@@ -253,7 +254,8 @@ function reportSection(report: ResearchReport): string {
         </thead>
         <tbody>${report.neighbourhoods.map(neighbourhoodRow).join('')}
         </tbody>
-      </table>${
+      </table>
+      </div>${
         // What the run could not do belongs beside what it did. A report that
         // only shows its findings reads as complete, and this one rarely is:
         // half the value of a reading is knowing where it stopped.
@@ -381,6 +383,7 @@ function ratesTable(reports: RateReport[]): string {
   if (reports.length === 0) return `<p class="empty">${RATES_EMPTY}</p>`;
 
   return `
+      <div class="scroller">
       <table class="rates">
         <thead>
           <tr>
@@ -390,6 +393,7 @@ function ratesTable(reports: RateReport[]): string {
         <tbody>${reports.map(rateRow).join('')}
         </tbody>
       </table>
+      </div>
       <p class="note">Orana tıklayınca hesaba geçer. Oranlar sık değişir — okunma tarihine bak.</p>
       <p class="caveat">
         Sıralama <strong>yayınlanan aylık orana göre</strong>; “en ucuz” demek değil.
@@ -533,17 +537,18 @@ function panelBody(tab: Tab, data: PageData): string {
 
     // Research first, then how to pay for what it found. That is the order the
     // decision is made in, so it is the order the panel is read in.
-    // Three bands rather than one column.
+    // Three bands rather than one column, and the DOM order is the phone's
+    // order: research, who you are, the banks, the calculator.
     //
-    // Research goes full width because a district is twenty-one neighbourhoods
-    // across six columns and does not read in half a page. Below it the screen
-    // splits: what you decide with on the left — who you are, then the
-    // calculator and its answer — and what you decide from on the right, the
-    // banks. Reading a rate and then using it used to mean scrolling past
-    // fifteen of them.
+    // The banks come BEFORE the calculator on purpose. A rate is a button, and
+    // a reader who meets the calculator first fills in the default and never
+    // finds out. Below the breakpoint there is no grid at all, so this order is
+    // what a phone gets — unchanged from before the split existed.
     //
-    // Narrow screens get none of this and keep today's single column, in
-    // today's order.
+    // Wide screens rearrange by grid coordinate rather than by moving anything:
+    // who and calculator stack down the left, the banks take the right across
+    // both rows. Research stays full width because twenty-one neighbourhoods
+    // across six columns does not read in half a page.
     return `
       <section class="research">
         <h3 class="section">Pazar araştırması</h3>
@@ -552,17 +557,19 @@ function panelBody(tab: Tab, data: PageData): string {
       </section>
 
       <div class="split">
-        <section class="decide">
+        <section class="who">
           <h3 class="section">Durumun</h3>
           ${HOUSEHOLD}
-
-          <h3 class="section">Finansman</h3>
-          ${FINANCE_FORM}
         </section>
 
         <section class="evidence">
           <h3 class="section">Banka oranları</h3>
           ${ratesTable(data.rates)}
+        </section>
+
+        <section class="money">
+          <h3 class="section">Finansman</h3>
+          ${FINANCE_FORM}
         </section>
       </div>`;
   }
@@ -805,17 +812,26 @@ const STYLE = `
     font-family: var(--sans); font-size: 15px; line-height: 1.55; }
   .wrap { max-width: 52rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
 
+  /* A table too wide for the screen scrolls inside itself. The alternative is
+     the page scrolling sideways, which takes the headings with it. */
+  .scroller { overflow-x: auto; }
+
   /* Wide screens only. Below this the page is exactly what it was: one column,
      one order, nothing to reflow on a phone. */
   @media (min-width: 78rem) {
     .wrap { max-width: 76rem; }
     .split { display: grid; grid-template-columns: minmax(22rem, 27rem) 1fr; gap: 0 3rem;
       align-items: start; }
+    /* Placed by coordinate, so the source order — and therefore the phone's
+       order — is untouched by this rearrangement. */
+    .who { grid-column: 1; grid-row: 1; }
+    .money { grid-column: 1; grid-row: 2; }
+    .evidence { grid-column: 2; grid-row: 1 / span 2; }
     /* The answer stays put while the fields above it are being changed. */
-    .decide .answers { position: sticky; top: 1.5rem; background: var(--ground);
+    .money .answers { position: sticky; top: 1.5rem; background: var(--ground);
       padding-bottom: .6rem; z-index: 2; }
-    .decide .fields { grid-template-columns: 1fr 1fr; }
-    .decide .household { grid-template-columns: 1fr; }
+    .money .fields { grid-template-columns: 1fr 1fr; }
+    .who .household { grid-template-columns: 1fr; }
     .evidence .rates td.terms { max-width: 26rem; }
   }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
@@ -951,13 +967,15 @@ const STYLE = `
   .hint:focus-visible { outline: 2px solid var(--measured); outline-offset: 2px; }
   /* Downwards. Upwards clips against the top of the viewport whenever the
      control is near it, and a tooltip you have to scroll to is not a tooltip. */
-  .hint-body { position: absolute; left: 0; top: calc(100% + .5rem); z-index: 5;
+  /* display:none rather than visibility:hidden. A hidden-but-laid-out tooltip
+     still occupies space, and a 328px one anchored near the right edge pushed
+     the whole document wider than a phone screen while invisible. */
+  .hint-body { display: none; position: absolute; left: 0; top: calc(100% + .5rem); z-index: 5;
     width: max-content; max-width: min(26rem, 78vw); padding: .7rem .85rem;
     font-size: .78rem; line-height: 1.55; text-align: left; letter-spacing: 0;
     color: var(--ink); background: var(--surface); border: 1px solid var(--line);
-    box-shadow: 0 6px 22px rgb(0 0 0 / 14%); opacity: 0; visibility: hidden;
-    transition: opacity .12s; }
-  .hint:hover .hint-body, .hint:focus-visible .hint-body { opacity: 1; visibility: visible; }
+    box-shadow: 0 6px 22px rgb(0 0 0 / 14%); }
+  .hint:hover .hint-body, .hint:focus-visible .hint-body { display: block; }
   /* Near the right edge the tooltip would run off the page. */
   .rates .hint-body, .household label:last-child .hint-body { left: auto; right: 0; }
 
