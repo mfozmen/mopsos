@@ -787,6 +787,33 @@ describe('the housing layout', () => {
   });
 });
 
+describe('sortable tables', () => {
+  const housing = () => panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+  it('makes every heading a control, not just decoration', () => {
+    // Fifteen banks and twenty-six neighbourhoods. A sort order the reader
+    // cannot change is an opinion baked into the page.
+    // `<th` and not `<th`, or this matches `<thead>` and fails on markup that
+    // is perfectly correct.
+    const headings = [...housing().matchAll(/<th(?![a-z])[^>]*>/g)].map((m) => m[0]);
+
+    expect(headings.length).toBeGreaterThan(3);
+    for (const th of headings) expect(th).toContain('aria-sort');
+  });
+
+  it('says which way a column sorts, for a screen reader too', () => {
+    // aria-sort is what makes the state audible. A caret drawn in CSS says it
+    // to one kind of reader only.
+    expect(housing()).toMatch(/aria-sort="(none|ascending|descending)"/);
+  });
+
+  it('starts in the order the data arrived, with nothing marked sorted', () => {
+    // The default ranking is explained in the caveat under the rates table.
+    // Marking a column as sorted on load would claim the reader chose it.
+    expect(housing()).not.toMatch(/aria-sort="(ascending|descending)"/);
+  });
+});
+
 describe('the page script', () => {
   /**
    * The other tests here read the rendered HTML as text, so a page whose script
