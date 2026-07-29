@@ -62,13 +62,16 @@ worse than no report at all, because the next reading will be compared against i
    login. Obey `robots.txt`: if listing pages are disallowed on a site, do not fetch them there
    — go to another source and say so in `note`.
 
-   **sahibinden does not work and you should not spend a run finding out again.** Tested
-   29.07.2026: its `robots.txt` permits district and listing pages, and the site refuses the
-   request anyway — "Olağandışı bir durum tespit ettik", with a support code. The advertised
-   sitemap answers `HTTP 200`, so the refusal is shaped by the request rather than by policy,
-   but it yields only URLs whose content is behind the same block. Do not try to get past it.
-   That source comes in through a person instead, with `npm run import:listings`, which writes
-   the same report you would have written.
+   **sahibinden is worth trying and may refuse you.** A test on 29.07.2026 came back
+   "Olağandışı bir durum tespit ettik" with a support code — but that test went out through a
+   VPN, and the site blocks datacenter ranges at the edge, so it does not separate "refuses
+   automation" from "refuses that IP". Its `robots.txt` permits district and listing pages;
+   only filtered search (`*/arama/flt/*`), legacy URL forms and `/satici-profili*` are
+   disallowed. Try it, at human pace, and **record what happened either way** — a clean refusal
+   is a finding worth having in `note`, and it is how this question finally gets settled.
+
+   Do not try to get past a refusal. If it blocks you, that source comes in through a person
+   instead, with `npm run import:listings`, which writes the same report you would have.
 
 2. **TÜİK** for district housing sales counts, which are official and tell you whether a
    neighbourhood is actually transacting or just listed.
