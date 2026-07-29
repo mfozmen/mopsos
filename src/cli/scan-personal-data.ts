@@ -35,6 +35,11 @@ const SKIP_DIRECTORIES = new Set([
   'dist',
   '.playwright-mcp',
   '.research',
+  // .claude/worktrees holds other agents' checkouts of this same repository.
+  // Scanning them reports another branch's fixtures as this branch's findings —
+  // forty of them, all from the security scanner's own test file, which is
+  // exempt where it actually lives.
+  'worktrees',
 ]);
 
 /**
