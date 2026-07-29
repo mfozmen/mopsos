@@ -257,6 +257,24 @@ function cheapestRealRate(reports: RateReport[]): { rate: number; bank: string }
   return rates.sort((a, b) => a.rate - b.rate)[0];
 }
 
+/**
+ * A sortable column heading.
+ *
+ * The `th` itself is the control rather than a button inside it: one heading
+ * already contains a `?` button, and nesting buttons is invalid markup. So it
+ * takes focus, answers Enter and Space, and carries `aria-sort` — which is what
+ * makes the state audible. A caret drawn in CSS says it to one kind of reader
+ * only.
+ *
+ * `none` on every column at load. The default order is explained in the caveat
+ * under the rates table; marking a column as sorted before anyone touched it
+ * would claim the reader chose it.
+ */
+function th(content: string, className?: string): string {
+  const classes = className === undefined ? 'sortable' : `${className} sortable`;
+  return `<th class="${classes}" aria-sort="none" tabindex="0">${content}</th>`;
+}
+
 function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | null): string {
   // Three states, and the middle one matters: no column at all when no bank
   // rate can be computed, a dash when the column exists but this row has no
@@ -294,7 +312,7 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
 
 function reportSection(report: ResearchReport, cost?: Affordability): string {
   const owning = cost?.byName ?? new Map<string, number>();
-  const heading = cost === undefined ? '' : '<th class="num">Taksit/Kira</th>';
+  const heading = cost === undefined ? '' : th('Taksit/Kira', 'num');
 
   return `
       <h3>${escape(report.place)}<span class="dated">${turkishDate(report.dated)}</span></h3>
@@ -302,13 +320,13 @@ function reportSection(report: ResearchReport, cost?: Affordability): string {
       <table>
         <thead>
           <tr>
-            <th>Mahalle</th>
-            <th class="num">m² satış</th>
-            <th class="num">m² kira</th>
-            <th class="num">Getiri</th>
+            ${th(`Mahalle`)}
+            ${th(`m² satış`, 'num')}
+            ${th(`m² kira`, 'num')}
+            ${th(`Getiri`, 'num')}
             ${heading}
-            <th class="num">İlan</th>
-            <th class="src">Kaynak</th>
+            ${th(`İlan`, 'num')}
+            ${th(`Kaynak`, 'src')}
           </tr>
         </thead>
         <tbody>${report.neighbourhoods
@@ -468,7 +486,7 @@ function ratesTable(reports: RateReport[]): string {
       <table class="rates">
         <thead>
           <tr>
-            <th>Banka</th><th class="num">Söylenen</th><th class="num">Gerçek</th><th>Ürün</th><th class="when">Okundu</th>
+            ${th(`Banka`)}${th(`Söylenen`, 'num')}${th(`Gerçek`, 'num')}${th(`Ürün`)}${th(`Okundu`, 'when')}
           </tr>
         </thead>
         <tbody>${reports.map(rateRow).join('')}
@@ -578,11 +596,11 @@ function recordTable(records: SeerRecord[]): string {
       <table>
         <thead>
           <tr>
-            <th>Agent</th>
-            <th class="num">Brier</th>
-            <th class="num">Dediği</th>
-            <th class="num">Olan</th>
-            <th class="num">Ölçülen</th>
+            ${th(`Agent`)}
+            ${th(`Brier`, 'num')}
+            ${th(`Dediği`, 'num')}
+            ${th(`Olan`, 'num')}
+            ${th(`Ölçülen`, 'num')}
           </tr>
         </thead>
         <tbody>${records.map(recordRow).join('')}
@@ -594,7 +612,7 @@ function instrumentTable(returns: InstrumentReturn[]): string {
   return `
       <table>
         <thead>
-          <tr><th>Araç</th><th class="num">Yıllık getiri</th><th class="src">Kaynak</th></tr>
+          <tr>${th(`Araç`)}${th(`Yıllık getiri`, 'num')}${th(`Kaynak`, 'src')}</tr>
         </thead>
         <tbody>${returns
           .map(
@@ -812,6 +830,62 @@ const FINANCE_SCRIPT = `
       .map(([term, value]) => '<dt>' + term + '</dt><dd>' + value + '</dd>')
       .join('');
   }
+
+  // Sorting, on every table at once.
+  //
+  // Delegated from the document rather than bound per heading: the tables are
+  // rendered as strings and a listener per a th would have to be re-attached
+  // every time one of them is rebuilt. The comparator lives in the same bundle
+  // as the mortgage arithmetic, so the order a test proves is the order shown.
+  const sortTable = (table, index, direction) => {
+    const body = table.tBodies[0];
+    if (!body) return;
+
+    const rows = [...body.rows];
+    rows.sort((a, b) =>
+      M.compareCells(
+        (a.cells[index] || {}).textContent || '',
+        (b.cells[index] || {}).textContent || '',
+        direction,
+      ),
+    );
+    for (const row of rows) body.appendChild(row);
+  };
+
+  const activate = (heading) => {
+    const table = heading.closest('table');
+    const row = heading.parentElement;
+    if (!table || !row) return;
+
+    const index = [...row.cells].indexOf(heading);
+    // Third click is not a third state: back to ascending, because "unsorted"
+    // is not a thing the reader can see once the rows have moved.
+    const direction = heading.getAttribute('aria-sort') === 'ascending' ? -1 : 1;
+
+    for (const other of table.querySelectorAll('th')) other.setAttribute('aria-sort', 'none');
+    heading.setAttribute('aria-sort', direction === 1 ? 'ascending' : 'descending');
+
+    sortTable(table, index, direction);
+  };
+
+  document.addEventListener('click', (event) => {
+    // The question mark inside a heading is its own control. Without this, asking what a
+    // column means also reorders the table under you.
+    if (event.target.closest('.hint')) return;
+
+    const heading = event.target.closest('th.sortable');
+    if (heading) activate(heading);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+
+    const heading = event.target.closest && event.target.closest('th.sortable');
+    if (!heading) return;
+
+    event.preventDefault();
+    activate(heading);
+  });
 
   for (const button of document.querySelectorAll('.use-rate')) {
     button.addEventListener('click', () => {
@@ -1037,6 +1111,14 @@ const STYLE = `
   .true-rate { font-family: var(--serif); font-variant-numeric: tabular-nums; }
   .true-rate.worse { color: var(--pending); font-weight: 600; }
   .true-rate.unknown { color: var(--muted); cursor: help; }
+
+  /* The caret is the quick read; aria-sort is the one a screen reader gets. */
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--ink); }
+  th.sortable:focus-visible { outline: 2px solid var(--measured); outline-offset: 2px; }
+  th.sortable::after { content: '↕'; margin-left: .35rem; opacity: .28; font-size: .8em; }
+  th[aria-sort='ascending']::after { content: '↑'; opacity: 1; color: var(--measured); }
+  th[aria-sort='descending']::after { content: '↓'; opacity: 1; color: var(--measured); }
 
   /* Asked once, above everything it changes. */
   /* Same grid as the calculator below it: the label sits above its control, so a
