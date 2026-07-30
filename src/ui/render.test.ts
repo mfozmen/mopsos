@@ -828,6 +828,48 @@ describe('sortable tables', () => {
   });
 });
 
+describe('several reports on one page', () => {
+  const reading = (place: string, dated: string, salePerM2: number) => ({
+    place,
+    dated,
+    neighbourhoods: [
+      {
+        name: 'Bir Mahalle',
+        sale_per_m2: salePerM2,
+        listing_count: 12,
+        source: 'emlakjet, 3+1, 55–175 m², medyan',
+      },
+    ],
+  });
+
+  const two = [
+    reading('İzmir / Menemen', '2026-07-29', 42_590),
+    reading('İzmir / Çiğli', '2026-07-28', 49_231),
+  ];
+
+  it('folds every report but the newest, so the page is not a scroll', () => {
+    // Three districts is sixty-odd rows of table before the reader reaches
+    // anything they can act on. The newest reading is the one being read; the
+    // rest are there to compare against, one click away.
+    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
+    const opens = [...housing.matchAll(/<details class="report"( open)?>/g)].map((m) => m[1]);
+
+    expect(opens).toHaveLength(2);
+    expect(opens.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('says what is inside a folded report without opening it', () => {
+    // A row of dates is a filing cabinet. The summary carries the place, when it
+    // was read and how much is in it, so the fold is a decision rather than a
+    // guess.
+    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
+
+    expect(housing).toContain('İzmir / Çiğli');
+    expect(housing).toMatch(/28\.07\.2026/);
+    expect(housing).toMatch(/1 mahalle/);
+  });
+});
+
 describe('the page script', () => {
   /**
    * The other tests here read the rendered HTML as text, so a page whose script

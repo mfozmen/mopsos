@@ -310,12 +310,28 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
           </tr>`;
 }
 
-function reportSection(report: ResearchReport, cost?: Affordability): string {
+/**
+ * One district's reading, folded unless it is the newest.
+ *
+ * Three districts is sixty rows of table before the reader reaches anything
+ * they can act on. The newest reading is the one being read; the others are
+ * there to compare against, and a comparison is a decision — so they sit one
+ * click away rather than in the way.
+ *
+ * The summary carries the place, the date and how much is inside, because a row
+ * of dates is a filing cabinet and nobody opens one of those to decide
+ * something.
+ */
+function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
   const owning = cost?.byName ?? new Map<string, number>();
   const heading = cost === undefined ? '' : th('Taksit/Kira', 'num');
+  const count = report.neighbourhoods.length;
 
   return `
-      <h3>${escape(report.place)}<span class="dated">${turkishDate(report.dated)}</span></h3>
+      <details class="report"${open ? ' open' : ''}>
+      <summary><strong>${escape(report.place)}</strong><span class="dated">${turkishDate(
+        report.dated,
+      )}</span><span class="how-many">${String(count)} mahalle</span></summary>
       <div class="scroller">
       <table>
         <thead>
@@ -371,7 +387,8 @@ function reportSection(report: ResearchReport, cost?: Affordability): string {
           ? ''
           : `
       <p class="caution run">${escape(report.note)}</p>`
-      }`;
+      }
+      </details>`;
 }
 
 /**
@@ -650,7 +667,7 @@ function panelBody(tab: Tab, data: PageData): string {
       data.research.length === 0
         ? empty
         : data.research
-            .map((report) => {
+            .map((report, index) => {
               // Built fresh per report rather than mutated in place: sharing one
               // object across the loop is correct only for as long as nothing
               // here becomes asynchronous, which is not a property worth
@@ -669,7 +686,9 @@ function panelBody(tab: Tab, data: PageData): string {
                       ),
                     };
 
-              return reportSection(report, cost);
+              // Newest first, and only the newest opens. The list arrives in
+              // the loader's order, which is newest per district.
+              return reportSection(report, cost, index === 0);
             })
             .join('');
 
@@ -1107,6 +1126,15 @@ const STYLE = `
   /* Conditions are long because they matter — a package rate with four insurance
      products attached is a different offer. Given room to breathe, not hidden. */
   .rates td.terms { font-size: .88rem; line-height: 1.5; max-width: 30rem; white-space: normal; }
+  /* A folded reading: place, when, and how much is inside — enough to decide
+     whether to open it. */
+  .report { border-top: 1px solid var(--line); }
+  .report > summary { cursor: pointer; padding: .9rem 0; display: flex; flex-wrap: wrap;
+    align-items: baseline; gap: .8rem; font-size: 1rem; }
+  .report > summary::marker { color: var(--muted); }
+  .report[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 1.2rem; }
+  .report .how-many { font-size: .78rem; color: var(--muted); }
+  .report .dated { font-size: .78rem; color: var(--muted); letter-spacing: .04em; }
   .rates summary { cursor: pointer; color: var(--ink); }
   .rates summary::marker { color: var(--muted); }
   .rates details[open] summary { margin-bottom: .5rem; }
