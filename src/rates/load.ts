@@ -151,8 +151,9 @@ export function headlineMisleads(reports: RateReport[]): boolean {
 
   if (measured.length < 2) return false;
 
-  const cheapestSounding = measured.reduce((a, b) => (b.headline < a.headline ? b : a));
-  return measured.every((entry) => entry.real <= cheapestSounding.real);
+  const cheapestSounding = Math.min(...measured.map((entry) => entry.headline));
+  const dearest = Math.max(...measured.map((entry) => entry.real));
+  return measured.some((entry) => entry.headline === cheapestSounding && entry.real === dearest);
 }
 
 /**
