@@ -1,7 +1,13 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
-import { bestOffer, type RateOffer, type RateReport, trueMonthlyRate } from '../rates/load.js';
+import {
+  bestOffer,
+  headlineMisleads,
+  type RateOffer,
+  type RateReport,
+  trueMonthlyRate,
+} from '../rates/load.js';
 
 export interface Tab {
   id: string;
@@ -516,8 +522,11 @@ function ratesTable(reports: RateReport[]): string {
         Sıralama <strong>gerçek maliyete göre</strong> — söylenen orana göre değil.
         <strong>Gerçek</strong> sütunu bankanın kendi örnek ödeme planından hesaplanır:
         peşin alınan faiz ve dosya masrafı eline geçen parayı düşürür, taksit aynı kalır,
-        yani ödediğin oran söylenenden yüksektir. Aradaki fark bu tablonun var olma sebebi:
-        en düşük manşet oran, listedeki en pahalı tekliftir.
+        yani ödediğin oran söylenenden yüksektir. Aradaki fark bu tablonun var olma sebebi.${
+          headlineMisleads(reports)
+            ? ` Şu anki kayıtta en düşük manşet oran, gerçekte listenin en pahalı teklifi.`
+            : ''
+        }
         <strong>—</strong> olan bankalar en altta, çünkü örnek yayınlamamışlar; gerçek
         maliyetleri <em>bilinmiyor</em> ve söylenenden düşük olmadığı kesin — bilinmeyen bir
         sayı ölçülmüş olanların üstüne oturmamalı. Paket oranı sigorta ve ek ürün almayı

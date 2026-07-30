@@ -130,6 +130,32 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
 }
 
 /**
+ * Does the cheapest-sounding offer in the record really cost the most?
+ *
+ * It does today — the prepaid-interest product with the lowest headline is the
+ * dearest thing on the page — and that fact is the table's reason to exist. But
+ * it is a fact about this reading, not a law, and a bank publishing an honest
+ * %1,99 tomorrow would leave the page asserting something false. So the page
+ * asks the record rather than repeating what was true when the prose was
+ * written. Unmeasured offers are not an answer: comparing a known cost to an
+ * unknown one proves nothing either way.
+ */
+export function headlineMisleads(reports: RateReport[]): boolean {
+  const measured = reports
+    .map((report) => {
+      const offer = bestOffer(report);
+      const real = offer === undefined ? undefined : trueMonthlyRate(offer);
+      return real === undefined ? undefined : { headline: offer!.monthly_rate, real };
+    })
+    .filter((entry) => entry !== undefined);
+
+  if (measured.length < 2) return false;
+
+  const cheapestSounding = measured.reduce((a, b) => (b.headline < a.headline ? b : a));
+  return measured.every((entry) => entry.real <= cheapestSounding.real);
+}
+
+/**
  * The offer a bank is judged by: the one that really costs least.
  *
  * Not the one called least. Akbank's %1,99 is a prepaid-interest product that

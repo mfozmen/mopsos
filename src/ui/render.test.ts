@@ -416,14 +416,14 @@ describe('bank rates', () => {
     expect(housing).toMatch(/yayınlamıyor|yok/i);
   });
 
-  it('says why the cheapest headline is not the cheapest offer', () => {
-    // The cheapest published figure in the record is a prepaid-interest product
-    // that wants 309.637 TL up front. The table used to be sorted on that and
-    // said so; it is sorted on the real cost now, and the caveat has to explain
-    // the gap rather than warn about an order that no longer exists.
+  it('explains where the gap between the two columns comes from', () => {
+    // The mechanism, which is true of every reading: interest taken up front
+    // shrinks what you receive while the instalment stays put. Whether the
+    // lowest headline is also the dearest offer is a fact about the current
+    // record, so the page derives that sentence rather than asserting it.
     const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 
-    expect(housing).toMatch(/en düşük manşet oran.*en pahalı/is);
+    expect(housing).toMatch(/peşin alınan faiz.*taksit aynı kalır/is);
   });
 
   it('lets a rate be pushed into the calculator instead of retyped', () => {
@@ -805,6 +805,36 @@ describe('the housing layout', () => {
     const page = housing();
 
     expect(page.indexOf('class="research"')).toBeLessThan(page.indexOf('class="split"'));
+  });
+});
+
+describe('the sentence about the headline being a trap', () => {
+  const bank = (name: string, rate: number, upfront?: number) => ({
+    ...ZIRAAT,
+    bank: name,
+    offers: [
+      {
+        product: 'Konut',
+        monthly_rate: rate,
+        example: {
+          amount: 1_000_000,
+          months: 120,
+          instalment: rate === 1.99 ? 21_964.48 : 27_252.33,
+          upfront_interest: upfront,
+        },
+      },
+    ],
+  });
+  const claim = 'en pahalı teklif';
+
+  it('is there while the record still says so', () => {
+    const rates = [bank('Ucuz görünen', 1.99, 309_637), bank('Dürüst', 2.6)];
+    expect(panel(renderPage({ ...EMPTY, rates }), 'housing')).toContain(claim);
+  });
+
+  it('goes away when a bank publishes an honest low rate', () => {
+    const rates = [bank('Dürüst', 1.99), bank('Pahalı', 2.6, 309_637)];
+    expect(panel(renderPage({ ...EMPTY, rates }), 'housing')).not.toContain(claim);
   });
 });
 

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bestOffer,
+  headlineMisleads,
   loadRateReports,
   type RateExample,
   type RateOffer,
@@ -482,5 +483,43 @@ describe('the offer a bank is judged by', () => {
     );
 
     expect(bestOffer(report)?.product).toBe('Ölçülmüş');
+  });
+});
+
+describe('headlineMisleads', () => {
+  const bank = (name: string, rate: number, upfront?: number) => ({
+    schema_version: 1 as const,
+    bank: name,
+    kind: 'faiz' as const,
+    captured_on: '2026-07-27',
+    source_url: 'https://example.test',
+    offers: [
+      {
+        product: 'Konut',
+        monthly_rate: rate,
+        example: {
+          amount: 1_000_000,
+          months: 120,
+          instalment: rate === 1.99 ? 21_964.48 : 27_252.33,
+          upfront_interest: upfront,
+        },
+      },
+    ],
+  });
+
+  it('is true when the lowest headline really costs the most', () => {
+    expect(headlineMisleads([bank('Ucuz görünen', 1.99, 309_637), bank('Dürüst', 2.6)])).toBe(true);
+  });
+
+  it('is false when the lowest headline is also the cheapest to carry', () => {
+    expect(headlineMisleads([bank('Dürüst', 1.99), bank('Pahalı', 2.6, 309_637)])).toBe(false);
+  });
+
+  it('is false when nothing is measured, because nothing is comparable', () => {
+    const noExample = {
+      ...bank('Örneksiz', 1.99),
+      offers: [{ product: 'Konut', monthly_rate: 1.99 }],
+    };
+    expect(headlineMisleads([noExample])).toBe(false);
   });
 });
