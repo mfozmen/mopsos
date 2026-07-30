@@ -21,9 +21,9 @@ describe('parsePageRequest', () => {
     // This runs whatever it is given, in a browser, on the user's machine. The
     // url arrives from an agent's own reasoning about a bank's website, and
     // file: would read the disk while javascript: would run whatever followed.
-    expect(() => parsePageRequest(['file:///home/someone/.ssh/id_rsa'], () => '/tmp/out')).toThrow(
-      /http/i,
-    );
+    // Not a home directory, on purpose: the scanner refuses those wherever they
+    // appear, and the point here is the scheme rather than the path behind it.
+    expect(() => parsePageRequest(['file:///etc/shadow'], () => '/tmp/out')).toThrow(/http/i);
     expect(() => parsePageRequest(['javascript:fetch("/x")'], () => '/tmp/out')).toThrow(/http/i);
   });
 

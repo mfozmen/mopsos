@@ -1,4 +1,5 @@
-export type PersonalDataKind = 'national_id' | 'iban' | 'phone' | 'personal_amount' | 'address';
+export type PersonalDataKind =
+  'national_id' | 'iban' | 'phone' | 'personal_amount' | 'address' | 'home_path';
 
 export interface PersonalDataFinding {
   kind: PersonalDataKind;
@@ -80,6 +81,50 @@ const RULES: Rule[] = [
     kind: 'personal_amount',
     pattern:
       /\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)\b[^.\n]{0,40}?\b(?:savings|birikim|tasarruf|portfolio|portföy|param|paran|net worth)\w*/gi,
+  },
+  {
+    /**
+     * A home directory names the person who owns it.
+     *
+     * The rule this repository lives under covers anything identifying, not
+     * only money — and a brief that ships with someone's home directory in it
+     * names them to everyone who installs the plugin. One did, on main, for
+     * weeks: `npm run pdf:text -- <url>` from `C:\\Users\\<name>\\source\\mopsos`.
+     *
+     * The user name is the signal, not the path. `C:\\Program Files`, `/tmp/...`
+     * and `src/finance/mortgage.ts` are what this repository is full of, and a
+     * rule that flagged those would be switched off within a week.
+     */
+    kind: 'home_path',
+    pattern: new RegExp(
+      [
+        // Not inside a URL. `/users/` and `/home/` are ordinary REST segments,
+        // and matching without regard to case made that collision worse — a
+        // repository full of source links cannot afford this false positive.
+        '(?<!https?://[^\\s"\'<>]{0,200})',
+        // Case-insensitive: a path gets pasted from a shell, a log or a Windows
+        // dialog, and the case is whatever it happened to be.
+        //
+        // One backslash or two. A Windows path inside a .ts or .js string is
+        // written escaped, and this scanner reads those files — the leak the
+        // rule was written for lived in exactly that form.
+        '(?:[A-Za-z]:\\\\{1,2}Users\\\\{1,2}|/Users/|/home/)',
+        // Service accounts, not people: GitHub Actions, devcontainers, images,
+        // and Windows' shared profiles. A CI log carrying one names nobody, and
+        // flagging them is how a check earns a reputation for noise.
+        //
+        // `root` is here for `/home/root`, which some images use. Bare `/root`
+        // never reaches this rule at all — the prefix only matches `/home/`,
+        // `/Users/` and `X:\Users\`.
+        // The boundary is "not another name character", not "a slash or the
+        // end". The narrower form held for /home/runner/x and not for
+        // "/home/runner." at the end of a sentence — which the scanner found in
+        // this file's own comment, the check working on itself.
+        '(?!(?:runner|ubuntu|vscode|node|admin|administrator|root|Public|Default|Default User|All Users)(?![A-Za-z0-9_-]))',
+        '[A-Za-z0-9._-]+',
+      ].join(''),
+      'gi',
+    ),
   },
   {
     // The `No:` label is optional: Turkish addresses are as often written
