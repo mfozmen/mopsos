@@ -24,7 +24,7 @@ function section(brief: string, heading: string): string {
  * drifting: edit one and the build says so.
  */
 describe('the scout briefs', () => {
-  const scouts = ['rate-scout.md', 'market-scout.md'].map((name) => ({
+  const scouts = ['rate-scout.md', 'market-scout.md', 'savings-scout.md'].map((name) => ({
     name,
     brief: readFileSync(join(AGENTS, name), 'utf8'),
   }));
