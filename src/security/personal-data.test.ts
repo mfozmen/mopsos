@@ -247,6 +247,8 @@ describe('a home directory names the person who owns it', () => {
     expect(findPersonalData(String.raw`C:\Program Files\Google\Chrome`)).toEqual([]);
     expect(findPersonalData('/tmp/mopsos-page-abc/page.txt')).toEqual([]);
     expect(findPersonalData('~/.claude/settings.json')).toEqual([]);
+  });
+});
 
 describe('a size is not a house number', () => {
   it('does not read the 2 in m2 as a door number', () => {
