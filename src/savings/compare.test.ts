@@ -56,6 +56,18 @@ describe('what a savings plan costs', () => {
     expect(wider.costRatio).toBeGreaterThan(0.13);
   });
 
+  it('is not moved by the peşinat, which is part of the price and not a charge on top', () => {
+    // The trap this pins down. A peşinat is the first slice of the amount being
+    // financed, not something paid in addition to it: it is already inside
+    // total_payable and already inside amount_financed. Record it as an extra
+    // and costRatio picks up the deposit as though the firm had charged it,
+    // which is a fifth of the purchase price landing in a column that should
+    // only ever hold the organisation fee.
+    expect(planCost(plan({ down_payment_ratio: 20, down_payment: 600_000 })).costRatio).toBe(
+      planCost(plan()).costRatio,
+    );
+  });
+
   it('carries the wait and what kind of wait it is, so a cost cannot be read alone', () => {
     // The fee is not the price. The price is the fee plus three years of paying
     // somebody else's rent, and whether those three years are owed or merely
@@ -74,6 +86,15 @@ describe('what borrowing the same money costs', () => {
     // lira of interest for every lira borrowed — against the plan's 0,09, paid
     // for with three years of waiting.
     expect(borrowingCostRatio(2.72, 120)).toBeCloseTo(2.4, 2);
+  });
+
+  it('counts only the part of the price that is actually borrowed', () => {
+    // Both sides have to be per lira of the same thing, and the plan's side is
+    // per lira of the purchase price. A mortgage buyer putting %20 down borrows
+    // only %80 of the price, so the interest they pay is %80 of the per-lira
+    // figure. Comparing a plan's cost per lira of house against a loan's cost
+    // per lira borrowed overstates the loan by exactly the deposit.
+    expect(borrowingCostRatio(2.72, 120, 0.8)).toBeCloseTo(0.8 * borrowingCostRatio(2.72, 120), 10);
   });
 
   it('scales exactly to any amount, which is what makes it a ratio at all', () => {

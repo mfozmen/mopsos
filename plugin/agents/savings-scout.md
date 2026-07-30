@@ -34,7 +34,7 @@ to record the figures that make the real comparison possible, and to be exact ab
 2. **The sözleşme and the ön bilgilendirme formu.** This is where the interesting numbers are.
    The campaign page shows a taksit; the contract shows the organizasyon ücreti, when it is
    collected, the teslimat basis, and what happens on fesih. These are usually PDFs:
-   `npm run pdf:text -- <url>` from `C:\Users\fahri\source\mopsos`. If it reports a certificate
+   `npm run pdf:text -- <url>`, run from the repository root. If it reports a certificate
    problem it will tell you to download it with curl first — do that into `.research/` inside
    the repo, then pass the local path.
 3. **BDDK.** These firms are licensed and supervised; the register says who is authorised and
@@ -124,6 +124,24 @@ call-centre number ends up in a commit. The report is the only file you create.
   is the firm's own toplam ödenecek tutar — do **not** add up the instalments yourself. Where
   the firm's total disagrees with its own parts, that disagreement is a finding, and a scout who
   quietly corrects it destroys the only evidence of it.
+- **The peşinat is part of the price, not a charge on top of it.** This is the one place a
+  report gets recorded wrong in a way nothing downstream can detect, so read it twice:
+  - `amount_financed` is the **price of the thing you are buying** — what the plan is sold as.
+    A plan advertised as "3.000.000 TL'lik konut" records `3000000`, whatever the peşinat is.
+    Not the remainder after your own saving.
+  - `total_payable` is **everything that leaves the customer's pocket**: the peşinat, every
+    tasarruf and finansman taksiti, and the fee. The peşinat is already inside it, and already
+    inside `amount_financed` — it is the first slice of your saving towards the amount, not an
+    extra payment beside it.
+  - So in the example above, the %20 peşinat of 600.000 appears in **neither** figure as an
+    addition: `total_payable` is 3.270.000, not 3.870.000.
+
+  The check: **`total_payable` minus `amount_financed` should come out to the organizasyon
+  ücreti**, because that fee is the only charge the firm is allowed to make. If your two figures
+  do not do that, one of them is wrong or the firm is charging something it has not named. Record
+  what was printed either way and say which in `note` — but do not hand back a report where the
+  gap is roughly the peşinat, because that is this mistake and not a finding.
+
 - **`delivery_after_months` and `delivery_basis` are the whole risk of this product.**
   - `contractual` — the sözleşme names the teslimat date and the firm is bound to it. A
     çekilişsiz, tarih belirlemeli plan.

@@ -105,6 +105,21 @@ describe('the savings finance report schema', () => {
     }).not.toThrow();
   });
 
+  it('accepts a fee of nothing in either form, so the claim can be recorded and checked', () => {
+    // "Sıfır organizasyon ücreti" is a real campaign claim. A schema that
+    // refuses to record it leaves the only way to check it — against the firm's
+    // own toplam ödenecek tutar — unavailable. The two forms have to agree about
+    // it, too: a fee recordable in lira but not as a percentage means the same
+    // plan is storable or not depending on which way the firm printed it.
+    expect(() => {
+      assertValid(
+        'savings-finance-report',
+        report({ plans: [plan({ organisation_fee_rate: 0 })] }),
+      );
+      assertValid('savings-finance-report', report({ plans: [plan({ organisation_fee: 0 })] }));
+    }).not.toThrow();
+  });
+
   it('refuses an invented Turkish key rather than silently ignoring it', () => {
     // Three rate-scout runs each invented their own Turkish field names and all
     // three files were rejected on load. Rejected loudly is the point.
