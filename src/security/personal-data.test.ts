@@ -204,6 +204,21 @@ describe('a home directory names the person who owns it', () => {
     }
   });
 
+  it('exempts a service account wherever the path stops', () => {
+    // The exemption looked for a slash or the end of the string after the name,
+    // so it held for /home/runner/x and not for "/home/runner." at the end of a
+    // sentence. The scanner found this in its own source comment, which is the
+    // check working on itself.
+    for (const text of [
+      'see /home/root, which some images use',
+      'logs land in /home/runner.',
+      'the /home/ubuntu; then',
+      'path is /Users/vscode)',
+    ]) {
+      expect(findPersonalData(text), text).toEqual([]);
+    }
+  });
+
   it('leaves a path with no person in it alone', () => {
     // The signal is the user name, not the path. These are the paths this
     // repository is full of, and flagging them would get the check disabled.

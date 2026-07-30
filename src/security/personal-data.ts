@@ -108,7 +108,11 @@ const RULES: Rule[] = [
         // `root` is here for `/home/root`, which some images use. Bare `/root`
         // never reaches this rule at all — the prefix only matches `/home/`,
         // `/Users/` and `X:\Users\`.
-        '(?!(?:runner|ubuntu|vscode|node|admin|administrator|root|Public|Default|Default User|All Users)(?:[/\\\\]|$))',
+        // The boundary is "not another name character", not "a slash or the
+        // end". The narrower form held for /home/runner/x and not for
+        // "/home/runner." at the end of a sentence — which the scanner found in
+        // this file's own comment, the check working on itself.
+        '(?!(?:runner|ubuntu|vscode|node|admin|administrator|root|Public|Default|Default User|All Users)(?![A-Za-z0-9_-]))',
         '[A-Za-z0-9._-]+',
       ].join(''),
       'gi',
