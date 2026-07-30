@@ -129,9 +129,33 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
   return monthly;
 }
 
-/** The cheapest offer in a report, or nothing when the bank published none. */
+/**
+ * The offer a bank is judged by: the one that really costs least.
+ *
+ * Not the one called least. Akbank's %1,99 is a prepaid-interest product that
+ * really costs %3,32, and another of its own offers costs less — so picking on
+ * the headline shows the reader the wrong product from the right bank.
+ *
+ * One function for both the row and its position, because they have to be the
+ * same offer. Taking the minimum real cost across all offers while displaying
+ * the lowest-headline one sorts on a figure the reader cannot see, and where
+ * the displayed offer has no example, the table would sort a bank as measured
+ * and print a dash for it.
+ *
+ * An offer with no real cost never wins against one that has it. Unknown is
+ * never lower than the headline, so the unmeasured one may well be dearer, and
+ * a guess does not belong in the row. Among unmeasured offers the headline is
+ * the only figure there is.
+ */
 export function bestOffer(report: RateReport): RateOffer | undefined {
-  return [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0];
+  const measured = report.offers
+    .map((offer) => ({ offer, real: trueMonthlyRate(offer) }))
+    .filter((entry): entry is { offer: RateOffer; real: number } => entry.real !== undefined)
+    .sort((a, b) => a.real - b.real);
+
+  return (
+    measured[0]?.offer ?? [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0]
+  );
 }
 
 /**
@@ -228,14 +252,15 @@ export function loadRateReports(root: string): RateReport[] {
     .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
 }
 
-/** The cheapest real cost a report carries, or nothing when none can be computed. */
+/**
+ * What the report's best offer really costs, or nothing when it cannot be known.
+ *
+ * Read from the same offer the table shows. A minimum taken across every offer
+ * would rank a bank on a figure that appears nowhere on its row.
+ */
 function realCost(report: RateReport): number | undefined {
-  const costs = report.offers.flatMap((offer) => {
-    const real = trueMonthlyRate(offer);
-    return real === undefined ? [] : [real];
-  });
-
-  return costs.length === 0 ? undefined : Math.min(...costs);
+  const best = bestOffer(report);
+  return best === undefined ? undefined : trueMonthlyRate(best);
 }
 
 function byRealCost(a: RateReport, b: RateReport): number {

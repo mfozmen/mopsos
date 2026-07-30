@@ -422,3 +422,65 @@ describe('the order the record answers "who is cheapest" in', () => {
     expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Ucuz', 'Pahalı']);
   });
 });
+
+describe('the offer a bank is judged by', () => {
+  const two = (a: object, b: object) => ({
+    schema_version: 1 as const,
+    bank: 'Bir Banka',
+    kind: 'faiz' as const,
+    captured_on: '2026-07-28',
+    source_url: 'https://example.test/x',
+    offers: [a, b] as RateOffer[],
+  });
+
+  it('is the one that really costs least, not the one called least', () => {
+    // Akbank's shape, in miniature: a headline of %1,99 that really costs
+    // %3,32, beside a plainer product that really costs less. The row shown and
+    // the row's position have to come from the same offer, or the table sorts
+    // on one number and displays another.
+    const report = two(
+      {
+        product: 'Peşin faizli',
+        monthly_rate: 1.99,
+        example: {
+          amount: 1_000_000,
+          months: 120,
+          instalment: 21_964.48,
+          upfront_interest: 309_637.03,
+          fees: 41_750,
+        },
+      },
+      {
+        product: 'Düz',
+        monthly_rate: 2.6,
+        example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+      },
+    );
+
+    expect(bestOffer(report)?.product).toBe('Düz');
+  });
+
+  it('falls back to the headline when no offer has a real cost', () => {
+    const report = two(
+      { product: 'Pahalı', monthly_rate: 3.4 },
+      { product: 'Ucuz', monthly_rate: 2.7 },
+    );
+
+    expect(bestOffer(report)?.product).toBe('Ucuz');
+  });
+
+  it('prefers a measured offer over an unmeasured cheaper-looking one', () => {
+    // The unmeasured one may well be dearer — unknown is never lower than the
+    // headline. Showing it as the bank's best would put a guess in the row.
+    const report = two(
+      { product: 'Bilinmeyen', monthly_rate: 1.5 },
+      {
+        product: 'Ölçülmüş',
+        monthly_rate: 2.6,
+        example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+      },
+    );
+
+    expect(bestOffer(report)?.product).toBe('Ölçülmüş');
+  });
+});

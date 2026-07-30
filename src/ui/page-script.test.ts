@@ -51,6 +51,7 @@ const DATA: PageData = {
   records: [],
   rates: [
     {
+      schema_version: 1,
       bank: 'Ziraat Bankası',
       kind: 'faiz',
       captured_on: '2026-07-27',

@@ -1,7 +1,7 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
-import { type RateExample, trueMonthlyRate } from '../rates/load.js';
+import { bestOffer, type RateOffer, type RateReport, trueMonthlyRate } from '../rates/load.js';
 
 export interface Tab {
   id: string;
@@ -127,22 +127,10 @@ export interface SeerRecord {
   observed: number;
 }
 
-export interface RateOffer {
-  product: string;
-  monthly_rate: number;
-  max_term_months?: number;
-  conditions?: string;
-  example?: RateExample;
-}
-
-export interface RateReport {
-  bank: string;
-  kind: 'faiz' | 'kar_payi';
-  captured_on: string;
-  source_url: string;
-  offers: RateOffer[];
-  note?: string;
-}
+// The record's own shapes rather than a second declaration of them. Two
+// definitions of one report is how the page came to sort offers by headline
+// while the list around it sorted by real cost.
+export type { RateOffer, RateReport } from '../rates/load.js';
 
 export interface FinanceBundle {
   /** The compiled mortgage module, so the page and the tests share one implementation. */
@@ -478,7 +466,11 @@ function termsCell(offer: RateOffer): string {
 }
 
 function rateRow(report: RateReport): string {
-  const cheapest = [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0];
+  // The record's own answer, not a second one computed here. This sorted on the
+  // headline while the list around it sorted on the real cost, so a bank could
+  // be ranked by one offer and printed as another — and where the printed offer
+  // had no example, the table sorted it as measured and showed a dash.
+  const cheapest = bestOffer(report);
 
   if (!cheapest) {
     // Kept in the table on purpose: a bank that publishes nothing is a different

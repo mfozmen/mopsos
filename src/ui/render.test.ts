@@ -808,6 +808,39 @@ describe('the housing layout', () => {
   });
 });
 
+describe('the row a bank gets', () => {
+  it('shows the offer that really costs least, not the one called least', () => {
+    // The page had its own headline sort, so it could rank a bank by one offer
+    // and print another. VakıfBank's cheapest real cost is a product whose
+    // headline is not its lowest.
+    const bank = {
+      ...ZIRAAT,
+      offers: [
+        {
+          product: 'Manşeti düşük',
+          monthly_rate: 1.99,
+          example: {
+            amount: 1_000_000,
+            months: 120,
+            instalment: 21_964.48,
+            upfront_interest: 309_637.03,
+            fees: 41_750,
+          },
+        },
+        {
+          product: 'Gerçekte ucuz',
+          monthly_rate: 2.6,
+          example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+        },
+      ],
+    };
+    const housing = panel(renderPage({ ...EMPTY, rates: [bank] }), 'housing');
+
+    expect(housing).toContain('Gerçekte ucuz');
+    expect(housing).not.toContain('Manşeti düşük');
+  });
+});
+
 describe('what the table says its order means', () => {
   it('no longer claims to be ordered on the published rate', () => {
     // It was, and saying so was the honest thing while it was true. It ranks on
