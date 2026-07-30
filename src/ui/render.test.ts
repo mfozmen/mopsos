@@ -839,6 +839,28 @@ describe('the sentence about the headline being a trap', () => {
 });
 
 describe('the row a bank gets', () => {
+  it('does not seat a bank as measured and then print a dash for it', () => {
+    // The dangerous shape: the headline-cheapest offer has no worked example,
+    // so ranking on it and displaying it are different answers. The caveat says
+    // dash rows sit at the bottom because their cost is unknown — a dash seated
+    // among measured banks would make that sentence a lie.
+    const bank = {
+      ...ZIRAAT,
+      offers: [
+        { product: 'Kampanya', monthly_rate: 1.99 },
+        {
+          product: 'Standart',
+          monthly_rate: 2.6,
+          example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+        },
+      ],
+    };
+    const housing = panel(renderPage({ ...EMPTY, rates: [bank] }), 'housing');
+
+    expect(housing).toContain('Standart');
+    expect(housing).not.toContain('Kampanya');
+  });
+
   it('shows the offer that really costs least, not the one called least', () => {
     // The page had its own headline sort, so it could rank a bank by one offer
     // and print another. VakıfBank's cheapest real cost is a product whose
