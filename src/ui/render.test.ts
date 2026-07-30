@@ -38,8 +38,11 @@ const ZIRAAT = {
  * next `<section>`, because panels contain sections of their own.
  */
 function panel(html: string, id: string): string {
+  // Bounded by the next TOP-LEVEL panel, marked with `class="tabpanel"`. The
+  // housing panel now contains tab panels of its own, and matching any
+  // `id="panel-` cut the slice off at the first of those.
   const start = html.indexOf(`id="panel-${id}"`);
-  const next = html.indexOf('id="panel-', start + 1);
+  const next = html.indexOf('class="tabpanel"', start + 1);
   const end = next === -1 ? html.indexOf('<footer', start) : next;
   return html.slice(start, end);
 }
@@ -111,7 +114,10 @@ describe('the tabs', () => {
   it('hides every panel except the first, so one tab is one screen', () => {
     const html = renderPage(EMPTY);
 
-    expect(panel(html, 'housing')).not.toContain('hidden');
+    // The panel's own tag, not its contents: the housing panel now holds tab
+    // panels of its own and one of those is hidden by design.
+    const housing = panel(html, 'housing');
+    expect(housing.slice(0, housing.indexOf('>'))).not.toContain('hidden');
     expect(panel(html, 'fx')).toContain('hidden');
   });
 
@@ -867,6 +873,50 @@ describe('several reports on one page', () => {
     expect(housing).toContain('İzmir / Çiğli');
     expect(housing).toMatch(/28\.07\.2026/);
     expect(housing).toMatch(/1 mahalle/);
+  });
+});
+
+describe('the housing tab splits in two', () => {
+  const housing = () => panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+  it('separates what you are looking at from what you can afford', () => {
+    // Two different sessions of thinking. Twenty-eight neighbourhoods and
+    // fifteen banks on one screen is not a page, it is a scroll.
+    const page = housing();
+
+    expect(page).toContain('id="panel-pazar"');
+    expect(page).toContain('id="panel-finansman"');
+    expect(
+      page.slice(page.indexOf('id="panel-pazar"'), page.indexOf('id="panel-finansman"')),
+    ).toContain('class="research"');
+  });
+
+  it('keeps the calculator beside the banks, in the same half', () => {
+    // The rate is a button that feeds the calculator. Putting them on separate
+    // screens would undo the reason they were put side by side.
+    const page = housing();
+    const money = page.slice(page.indexOf('id="panel-finansman"'));
+
+    expect(money).toContain('id="household"');
+    expect(money).toContain('class="rates"');
+    expect(money).toContain('id="finance"');
+  });
+
+  it('shows one half at a time', () => {
+    const page = housing();
+    const hidden = [...page.matchAll(/id="panel-(pazar|finansman)"[^>]*?( hidden)?>/g)].map((m) =>
+      Boolean(m[2]),
+    );
+
+    expect(hidden).toHaveLength(2);
+    expect(hidden.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('gives the inner tabs their own strip, not the outer one', () => {
+    // Two tablists on the page. Wiring every [role=tab] to one handler makes
+    // choosing a district also switch investment.
+    // Elements, not mentions — the stylesheet and the script name it too.
+    expect(renderPage(EMPTY).match(/<div[^>]*role="tablist"/g)).toHaveLength(2);
   });
 });
 
