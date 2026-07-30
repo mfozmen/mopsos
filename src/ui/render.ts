@@ -310,12 +310,28 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
           </tr>`;
 }
 
-function reportSection(report: ResearchReport, cost?: Affordability): string {
+/**
+ * One district's reading, folded unless it is the newest.
+ *
+ * Three districts is sixty rows of table before the reader reaches anything
+ * they can act on. The newest reading is the one being read; the others are
+ * there to compare against, and a comparison is a decision — so they sit one
+ * click away rather than in the way.
+ *
+ * The summary carries the place, the date and how much is inside, because a row
+ * of dates is a filing cabinet and nobody opens one of those to decide
+ * something.
+ */
+function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
   const owning = cost?.byName ?? new Map<string, number>();
   const heading = cost === undefined ? '' : th('Taksit/Kira', 'num');
+  const count = report.neighbourhoods.length;
 
   return `
-      <h3>${escape(report.place)}<span class="dated">${turkishDate(report.dated)}</span></h3>
+      <details class="report"${open ? ' open' : ''}>
+      <summary><strong>${escape(report.place)}</strong><span class="dated">${turkishDate(
+        report.dated,
+      )}</span><span class="how-many">${String(count)} mahalle</span></summary>
       <div class="scroller">
       <table>
         <thead>
@@ -371,7 +387,8 @@ function reportSection(report: ResearchReport, cost?: Affordability): string {
           ? ''
           : `
       <p class="caution run">${escape(report.note)}</p>`
-      }`;
+      }
+      </details>`;
 }
 
 /**
@@ -646,11 +663,20 @@ function panelBody(tab: Tab, data: PageData): string {
     // is exactly why the brief tells a scout not to work it out.
     const cheapest = cheapestRealRate(data.rates);
 
+    // Which reading is the newest, rather than which sorts first. The loader
+    // orders by place name — every reading in the record shares a date today,
+    // so `index === 0` looked right and was the alphabetically first district.
+    // Ties keep the loader's order, so the list stays stable.
+    const newest = data.research.reduce(
+      (best, report, index) => (report.dated > (data.research[best]?.dated ?? '') ? index : best),
+      0,
+    );
+
     const research =
       data.research.length === 0
         ? empty
         : data.research
-            .map((report) => {
+            .map((report, index) => {
               // Built fresh per report rather than mutated in place: sharing one
               // object across the loop is correct only for as long as nothing
               // here becomes asynchronous, which is not a property worth
@@ -669,47 +695,58 @@ function panelBody(tab: Tab, data: PageData): string {
                       ),
                     };
 
-              return reportSection(report, cost);
+              return reportSection(report, cost, index === newest);
             })
             .join('');
 
-    // Research first, then how to pay for what it found. That is the order the
-    // decision is made in, so it is the order the panel is read in.
-    // Three bands rather than one column, and the DOM order is the phone's
-    // order: research, who you are, the banks, the calculator.
+    // Two halves, because they are two different sessions of thinking: what is
+    // this place worth, and what can I reach. Together they were twenty-eight
+    // neighbourhoods and fifteen banks on one screen, which is not a page.
     //
-    // The banks come BEFORE the calculator on purpose. A rate is a button, and
-    // a reader who meets the calculator first fills in the default and never
-    // finds out. Below the breakpoint there is no grid at all, so this order is
-    // what a phone gets — unchanged from before the split existed.
+    // The banks stay with the calculator rather than with the research, even
+    // though a rate looks like a finding. It is a button that feeds the
+    // calculator, and separating them would undo the reason they were put side
+    // by side.
     //
-    // Wide screens rearrange by grid coordinate rather than by moving anything:
-    // who and calculator stack down the left, the banks take the right across
-    // both rows. Research stays full width because twenty-one neighbourhoods
-    // across six columns does not read in half a page.
+    // Inside the second half the DOM order is the phone's order — who you are,
+    // the banks, the calculator — and the wide layout rearranges by grid
+    // coordinate rather than by moving anything, so a phone gets that order
+    // untouched. The banks come before the calculator because a reader who
+    // meets the calculator first fills in the default and never finds out the
+    // table is clickable.
     return `
-      <section class="research">
-        <h3 class="section">Pazar araştırması</h3>
-        ${DISPATCH}
-        ${research}
+      <div class="subtabs" role="tablist" aria-label="Konut">
+        <button role="tab" id="tab-pazar" data-tab="pazar" aria-controls="panel-pazar"
+                aria-selected="true" tabindex="0">Pazar araştırması</button>
+        <button role="tab" id="tab-finansman" data-tab="finansman" aria-controls="panel-finansman"
+                aria-selected="false" tabindex="-1">Finansman</button>
+      </div>
+
+      <section role="tabpanel" id="panel-pazar" aria-labelledby="tab-pazar">
+        <section class="research">
+          ${DISPATCH}
+          ${research}
+        </section>
       </section>
 
-      <div class="split">
-        <section class="who">
-          <h3 class="section">Durumun</h3>
-          ${HOUSEHOLD}
-        </section>
+      <section role="tabpanel" id="panel-finansman" aria-labelledby="tab-finansman" hidden>
+        <div class="split">
+          <section class="who">
+            <h3 class="section">Durumun</h3>
+            ${HOUSEHOLD}
+          </section>
 
-        <section class="evidence">
-          <h3 class="section">Banka oranları</h3>
-          ${ratesTable(data.rates)}
-        </section>
+          <section class="evidence">
+            <h3 class="section">Banka oranları</h3>
+            ${ratesTable(data.rates)}
+          </section>
 
-        <section class="money">
-          <h3 class="section">Finansman</h3>
-          ${FINANCE_FORM}
-        </section>
-      </div>`;
+          <section class="money">
+            <h3 class="section">Finansman</h3>
+            ${FINANCE_FORM}
+          </section>
+        </div>
+      </section>`;
   }
 
   if (tab.id === 'sicil') {
@@ -1032,6 +1069,10 @@ const STYLE = `
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
   .brand small { display: block; font-family: var(--sans); font-size: .7rem; letter-spacing: .16em;
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  /* The inner strip is quieter than the outer one: it chooses a half of one
+     tab, not which investment you are looking at. */
+  .subtabs { margin: 2rem 0 0; border-bottom: 1px solid var(--line); }
+  .subtabs [role="tab"] { font-size: .78rem; padding-bottom: .6rem; }
   [role="tablist"] { display: flex; gap: .35rem; flex-wrap: wrap; margin: 2.5rem 0 0;
     border-bottom: 1px solid var(--line); }
   [role="tab"] { font: inherit; font-size: .82rem; letter-spacing: .06em; background: none;
@@ -1107,6 +1148,15 @@ const STYLE = `
   /* Conditions are long because they matter — a package rate with four insurance
      products attached is a different offer. Given room to breathe, not hidden. */
   .rates td.terms { font-size: .88rem; line-height: 1.5; max-width: 30rem; white-space: normal; }
+  /* A folded reading: place, when, and how much is inside — enough to decide
+     whether to open it. */
+  .report { border-top: 1px solid var(--line); }
+  .report > summary { cursor: pointer; padding: .9rem 0; display: flex; flex-wrap: wrap;
+    align-items: baseline; gap: .8rem; font-size: 1rem; }
+  .report > summary::marker { color: var(--muted); }
+  .report[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 1.2rem; }
+  .report .how-many { font-size: .78rem; color: var(--muted); }
+  .report .dated { font-size: .78rem; color: var(--muted); letter-spacing: .04em; }
   .rates summary { cursor: pointer; color: var(--ink); }
   .rates summary::marker { color: var(--muted); }
   .rates details[open] summary { margin-bottom: .5rem; }
@@ -1218,28 +1268,40 @@ const STYLE = `
  * the whole page — the content never depends on the script having run.
  */
 const SCRIPT = `
-  const tabs = [...document.querySelectorAll('[role="tab"]')];
-  const select = (id) => {
-    for (const tab of tabs) {
-      const chosen = tab.dataset.tab === id;
-      tab.setAttribute('aria-selected', String(chosen));
-      tab.tabIndex = chosen ? 0 : -1;
-      document.getElementById('panel-' + tab.dataset.tab).hidden = !chosen;
+  // Wired per strip rather than once for the page. The housing tab has a strip
+  // of its own, and one handler over every [role=tab] would make choosing
+  // Finansman also switch which investment you are looking at.
+  for (const strip of document.querySelectorAll('[role="tablist"]')) {
+    const tabs = [...strip.querySelectorAll('[role="tab"]')];
+    const outermost = strip === document.querySelector('[role="tablist"]');
+
+    const select = (id) => {
+      for (const tab of tabs) {
+        const chosen = tab.dataset.tab === id;
+        tab.setAttribute('aria-selected', String(chosen));
+        tab.tabIndex = chosen ? 0 : -1;
+        document.getElementById('panel-' + tab.dataset.tab).hidden = !chosen;
+      }
+      // Only the outer strip owns the address bar. Two writers would leave the
+      // hash naming whichever was clicked last, which reloads to the wrong pair.
+      if (outermost) history.replaceState(null, '', '#' + id);
+    };
+
+    for (const tab of tabs) tab.addEventListener('click', () => select(tab.dataset.tab));
+
+    strip.addEventListener('keydown', (event) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+      if (!step) return;
+      const current = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+      const next = tabs[(current + step + tabs.length) % tabs.length];
+      next.focus();
+      select(next.dataset.tab);
+    });
+
+    if (outermost && location.hash) {
+      const wanted = location.hash.slice(1);
+      if (tabs.some((tab) => tab.dataset.tab === wanted)) select(wanted);
     }
-    history.replaceState(null, '', '#' + id);
-  };
-  for (const tab of tabs) tab.addEventListener('click', () => select(tab.dataset.tab));
-  document.querySelector('[role="tablist"]').addEventListener('keydown', (event) => {
-    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
-    if (!step) return;
-    const current = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
-    const next = tabs[(current + step + tabs.length) % tabs.length];
-    next.focus();
-    select(next.dataset.tab);
-  });
-  if (location.hash) {
-    const wanted = location.hash.slice(1);
-    if (tabs.some((tab) => tab.dataset.tab === wanted)) select(wanted);
   }
 `;
 
@@ -1274,7 +1336,7 @@ export function renderPage(data: PageData): string {
   const panels = tabs
     .map(
       (tab, index) => `
-      <section role="tabpanel" id="panel-${tab.id}" aria-labelledby="tab-${tab.id}"${
+      <section class="tabpanel" role="tabpanel" id="panel-${tab.id}" aria-labelledby="tab-${tab.id}"${
         index === 0 ? '' : ' hidden'
       }>${panelBody(tab, data)}
       </section>`,
