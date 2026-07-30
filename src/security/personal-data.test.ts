@@ -179,18 +179,28 @@ describe('a home directory names the person who owns it', () => {
     expect(findPersonalData('open /Users/someone/Documents')).toHaveLength(1);
   });
 
-  it('leaves a service account alone, because nobody is named', () => {
-    // /home/runner is GitHub Actions, /home/ubuntu is a devcontainer, /root is
-    // nobody. A CI log or a container note carrying one of these names no
-    // person, and flagging them is how a check earns a reputation for noise.
-    for (const path of [
-      '/home/runner/work/mopsos/mopsos',
-      '/home/ubuntu/app',
-      '/home/vscode/.cache',
-      '/home/node/app',
-      '/Users/runner/work',
-    ]) {
-      expect(findPersonalData(path), path).toEqual([]);
+  it('leaves every exempted service account alone, all of them', () => {
+    // Every name in the rule's exclusion list, not a sample. An untested
+    // exemption is one nobody notices going wrong, and the cost of a wrong one
+    // here is a check that cries wolf until it gets switched off.
+    const exempt = [
+      'runner', // GitHub Actions
+      'ubuntu', // devcontainers and cloud images
+      'vscode',
+      'node',
+      'admin',
+      'administrator',
+      'root', // only reachable as /home/root; bare /root never matches the rule
+      'Public', // Windows' shared profiles
+      'Default',
+      'Default User',
+      'All Users',
+    ];
+
+    for (const name of exempt) {
+      for (const path of [`/home/${name}/x`, `/Users/${name}/x`, String.raw`C:\Users\${name}\x`]) {
+        expect(findPersonalData(path), path).toEqual([]);
+      }
     }
   });
 

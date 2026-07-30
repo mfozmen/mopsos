@@ -104,6 +104,10 @@ const RULES: Rule[] = [
         // Service accounts, not people: GitHub Actions, devcontainers, images,
         // and Windows' shared profiles. A CI log carrying one names nobody, and
         // flagging them is how a check earns a reputation for noise.
+        //
+        // `root` is here for `/home/root`, which some images use. Bare `/root`
+        // never reaches this rule at all — the prefix only matches `/home/`,
+        // `/Users/` and `X:\Users\`.
         '(?!(?:runner|ubuntu|vscode|node|admin|administrator|root|Public|Default|Default User|All Users)(?:[/\\\\]|$))',
         '[A-Za-z0-9._-]+',
       ].join(''),
