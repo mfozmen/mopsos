@@ -663,6 +663,15 @@ function panelBody(tab: Tab, data: PageData): string {
     // is exactly why the brief tells a scout not to work it out.
     const cheapest = cheapestRealRate(data.rates);
 
+    // Which reading is the newest, rather than which sorts first. The loader
+    // orders by place name — every reading in the record shares a date today,
+    // so `index === 0` looked right and was the alphabetically first district.
+    // Ties keep the loader's order, so the list stays stable.
+    const newest = data.research.reduce(
+      (best, report, index) => (report.dated > (data.research[best]?.dated ?? '') ? index : best),
+      0,
+    );
+
     const research =
       data.research.length === 0
         ? empty
@@ -686,9 +695,7 @@ function panelBody(tab: Tab, data: PageData): string {
                       ),
                     };
 
-              // Newest first, and only the newest opens. The list arrives in
-              // the loader's order, which is newest per district.
-              return reportSection(report, cost, index === 0);
+              return reportSection(report, cost, index === newest);
             })
             .join('');
 

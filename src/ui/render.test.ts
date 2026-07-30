@@ -864,6 +864,23 @@ describe('several reports on one page', () => {
     expect(opens.filter(Boolean)).toHaveLength(1);
   });
 
+  it('opens the newest reading, not whichever sorts first', () => {
+    // The loader orders by place name, not by date — so index 0 is the
+    // alphabetically first district. Every reading in the record shares a date
+    // today, which is exactly why this would have gone unnoticed.
+    const older = reading('Aydın / Efeler', '2026-06-01', 30_000);
+    const newer = reading('İzmir / Menemen', '2026-07-29', 42_590);
+    const housing = panel(renderPage({ ...EMPTY, research: [older, newer] }), 'housing');
+    // Bounded by that block's own summary. Slicing to the end of the panel
+    // swallows the folded report too, and then the assertion passes on the
+    // wrong report — which is how this test first passed against the bug.
+    const from = housing.indexOf('<details class="report" open>');
+    const open = housing.slice(from, housing.indexOf('</summary>', from));
+
+    expect(open).toContain('İzmir / Menemen');
+    expect(housing.indexOf('Aydın / Efeler')).toBeLessThan(housing.indexOf('İzmir / Menemen'));
+  });
+
   it('says what is inside a folded report without opening it', () => {
     // A row of dates is a filing cabinet. The summary carries the place, when it
     // was read and how much is in it, so the fold is a decision rather than a
