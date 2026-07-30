@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bestOffer,
+  headlineMisleads,
   loadRateReports,
   type RateExample,
   type RateOffer,
@@ -362,5 +363,163 @@ describe('supersedes', () => {
     ]);
 
     expect(loadRateReports(root).map((r) => r.bank)).toEqual(['Bir Banka']);
+  });
+});
+
+describe('the order the record answers "who is cheapest" in', () => {
+  const withExample = (bank: string, rate: number, instalment: number, upfront = 0): string =>
+    JSON.stringify({
+      schema_version: 1,
+      bank,
+      captured_on: '2026-07-28',
+      source_url: 'https://example.test/x',
+      offers: [
+        {
+          product: 'Konut',
+          monthly_rate: rate,
+          example: {
+            amount: 1_000_000,
+            months: 120,
+            instalment,
+            fees: 36_802,
+            ...(upfront > 0 ? { upfront_interest: upfront } : {}),
+          },
+        },
+      ],
+    });
+
+  it('ranks on what an offer really costs, not on what it is called', () => {
+    // The whole point of the record. Akbank's %1,99 is a prepaid-interest
+    // product that really costs %3,32; Halkbank's %2,60 really costs %2,72. A
+    // list sorted on the headline puts the dearer one first.
+    const root = rates(
+      // The upfront interest is what makes it %3,32. Without it the fixture is
+      // a %2,09 loan and proves nothing about the thing being tested.
+      ['a-akbank.json', withExample('Akbank', 1.99, 21_964.48, 309_637.03)],
+      ['b-halkbank.json', withExample('Halkbank', 2.6, 27_252.33)],
+    );
+
+    expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Halkbank', 'Akbank']);
+  });
+
+  it('puts a bank whose real cost cannot be known last, not first', () => {
+    // No example means the cost is unknown and higher than the headline —
+    // never lower. Ranking it by its headline would seat an unknown at the top
+    // of a list of measured ones.
+    const root = rates(
+      ['a-known.json', withExample('Bilinen', 3.4, 33_000)],
+      ['b-unknown.json', report('Bilinmeyen', '2026-07-28', 1.5)],
+    );
+
+    expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Bilinen', 'Bilinmeyen']);
+  });
+
+  it('orders the unknowns among themselves by the only figure they have', () => {
+    const root = rates(
+      ['a.json', report('Pahalı', '2026-07-28', 3.5)],
+      ['b.json', report('Ucuz', '2026-07-28', 2.5)],
+    );
+
+    expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Ucuz', 'Pahalı']);
+  });
+});
+
+describe('the offer a bank is judged by', () => {
+  const two = (a: object, b: object) => ({
+    schema_version: 1 as const,
+    bank: 'Bir Banka',
+    kind: 'faiz' as const,
+    captured_on: '2026-07-28',
+    source_url: 'https://example.test/x',
+    offers: [a, b] as RateOffer[],
+  });
+
+  it('is the one that really costs least, not the one called least', () => {
+    // Akbank's shape, in miniature: a headline of %1,99 that really costs
+    // %3,32, beside a plainer product that really costs less. The row shown and
+    // the row's position have to come from the same offer, or the table sorts
+    // on one number and displays another.
+    const report = two(
+      {
+        product: 'Peşin faizli',
+        monthly_rate: 1.99,
+        example: {
+          amount: 1_000_000,
+          months: 120,
+          instalment: 21_964.48,
+          upfront_interest: 309_637.03,
+          fees: 41_750,
+        },
+      },
+      {
+        product: 'Düz',
+        monthly_rate: 2.6,
+        example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+      },
+    );
+
+    expect(bestOffer(report)?.product).toBe('Düz');
+  });
+
+  it('falls back to the headline when no offer has a real cost', () => {
+    const report = two(
+      { product: 'Pahalı', monthly_rate: 3.4 },
+      { product: 'Ucuz', monthly_rate: 2.7 },
+    );
+
+    expect(bestOffer(report)?.product).toBe('Ucuz');
+  });
+
+  it('prefers a measured offer over an unmeasured cheaper-looking one', () => {
+    // The unmeasured one may well be dearer — unknown is never lower than the
+    // headline. Showing it as the bank's best would put a guess in the row.
+    const report = two(
+      { product: 'Bilinmeyen', monthly_rate: 1.5 },
+      {
+        product: 'Ölçülmüş',
+        monthly_rate: 2.6,
+        example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+      },
+    );
+
+    expect(bestOffer(report)?.product).toBe('Ölçülmüş');
+  });
+});
+
+describe('headlineMisleads', () => {
+  const bank = (name: string, rate: number, upfront?: number) => ({
+    schema_version: 1 as const,
+    bank: name,
+    kind: 'faiz' as const,
+    captured_on: '2026-07-27',
+    source_url: 'https://example.test',
+    offers: [
+      {
+        product: 'Konut',
+        monthly_rate: rate,
+        example: {
+          amount: 1_000_000,
+          months: 120,
+          instalment: rate === 1.99 ? 21_964.48 : 27_252.33,
+          upfront_interest: upfront,
+        },
+      },
+    ],
+  });
+
+  it('is true when the lowest headline really costs the most', () => {
+    expect(headlineMisleads([bank('Ucuz görünen', 1.99, 309_637), bank('Dürüst', 2.6)])).toBe(true);
+  });
+
+  it('is false when the lowest headline is also the cheapest to carry', () => {
+    expect(headlineMisleads([bank('Dürüst', 1.99), bank('Pahalı', 2.6, 309_637)])).toBe(false);
+  });
+
+  it('is false when nothing is measured, because nothing is comparable', () => {
+    const noExample = {
+      ...bank('Örneksiz', 1.99),
+      offers: [{ product: 'Konut', monthly_rate: 1.99 }],
+    };
+    expect(headlineMisleads([noExample])).toBe(false);
   });
 });

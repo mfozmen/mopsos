@@ -129,9 +129,60 @@ export function trueMonthlyRate(offer: RateOffer): number | undefined {
   return monthly;
 }
 
-/** The cheapest offer in a report, or nothing when the bank published none. */
+/**
+ * Does the cheapest-sounding offer in the record really cost the most?
+ *
+ * It does today — the prepaid-interest product with the lowest headline is the
+ * dearest thing on the page — and that fact is the table's reason to exist. But
+ * it is a fact about this reading, not a law, and a bank publishing an honest
+ * %1,99 tomorrow would leave the page asserting something false. So the page
+ * asks the record rather than repeating what was true when the prose was
+ * written. Unmeasured offers are not an answer: comparing a known cost to an
+ * unknown one proves nothing either way.
+ */
+export function headlineMisleads(reports: RateReport[]): boolean {
+  const measured = reports
+    .map((report) => {
+      const offer = bestOffer(report);
+      const real = offer === undefined ? undefined : trueMonthlyRate(offer);
+      return real === undefined ? undefined : { headline: offer!.monthly_rate, real };
+    })
+    .filter((entry) => entry !== undefined);
+
+  if (measured.length < 2) return false;
+
+  const cheapestSounding = Math.min(...measured.map((entry) => entry.headline));
+  const dearest = Math.max(...measured.map((entry) => entry.real));
+  return measured.some((entry) => entry.headline === cheapestSounding && entry.real === dearest);
+}
+
+/**
+ * The offer a bank is judged by: the one that really costs least.
+ *
+ * Not the one called least. Akbank's %1,99 is a prepaid-interest product that
+ * really costs %3,32, and another of its own offers costs less — so picking on
+ * the headline shows the reader the wrong product from the right bank.
+ *
+ * One function for both the row and its position, because they have to be the
+ * same offer. Taking the minimum real cost across all offers while displaying
+ * the lowest-headline one sorts on a figure the reader cannot see, and where
+ * the displayed offer has no example, the table would sort a bank as measured
+ * and print a dash for it.
+ *
+ * An offer with no real cost never wins against one that has it. Unknown is
+ * never lower than the headline, so the unmeasured one may well be dearer, and
+ * a guess does not belong in the row. Among unmeasured offers the headline is
+ * the only figure there is.
+ */
 export function bestOffer(report: RateReport): RateOffer | undefined {
-  return [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0];
+  const measured = report.offers
+    .map((offer) => ({ offer, real: trueMonthlyRate(offer) }))
+    .filter((entry): entry is { offer: RateOffer; real: number } => entry.real !== undefined)
+    .sort((a, b) => a.real - b.real);
+
+  return (
+    measured[0]?.offer ?? [...report.offers].sort((a, b) => a.monthly_rate - b.monthly_rate)[0]
+  );
 }
 
 /**
@@ -212,13 +263,47 @@ export function loadRateReports(root: string): RateReport[] {
     if (replaced.has(kept.file)) newest.delete(bank);
   }
 
-  // Cheapest first: "who is cheapest today" is the question being asked. A bank
-  // with nothing on offer sorts last rather than vanishing.
+  // Cheapest first, on what an offer really costs rather than on what it is
+  // called. That distinction is the whole record: Akbank's %1,99 is a
+  // prepaid-interest product that really costs %3,32, and Halkbank's %2,60
+  // really costs %2,72 — so a list ordered on the headline puts the dearer one
+  // first, which is the mistake this was all built to correct.
+  //
+  // A bank whose real cost cannot be known ranks below every bank whose can. No
+  // example means the cost is unknown and higher than the headline, never lower,
+  // so seating it by that headline would put an unknown above measured ones.
+  // Among themselves the unknowns keep headline order, which is the only figure
+  // they have.
   return [...newest.values()]
     .map((kept) => kept.report)
-    .sort((a, b) => {
-      const left = bestOffer(a)?.monthly_rate ?? Number.POSITIVE_INFINITY;
-      const right = bestOffer(b)?.monthly_rate ?? Number.POSITIVE_INFINITY;
-      return left === right ? byCodePoint(a.bank, b.bank) : left - right;
-    });
+    .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
+}
+
+/**
+ * What the report's best offer really costs, or nothing when it cannot be known.
+ *
+ * Read from the same offer the table shows. A minimum taken across every offer
+ * would rank a bank on a figure that appears nowhere on its row.
+ */
+function realCost(report: RateReport): number | undefined {
+  const best = bestOffer(report);
+  return best === undefined ? undefined : trueMonthlyRate(best);
+}
+
+function byRealCost(a: RateReport, b: RateReport): number {
+  const left = realCost(a);
+  const right = realCost(b);
+
+  if (left === undefined && right === undefined) return 0;
+  if (left === undefined) return 1;
+  if (right === undefined) return -1;
+
+  return left - right;
+}
+
+function byHeadline(a: RateReport, b: RateReport): number {
+  const left = bestOffer(a)?.monthly_rate ?? Number.POSITIVE_INFINITY;
+  const right = bestOffer(b)?.monthly_rate ?? Number.POSITIVE_INFINITY;
+
+  return left - right;
 }
