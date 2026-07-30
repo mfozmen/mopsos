@@ -364,3 +364,61 @@ describe('supersedes', () => {
     expect(loadRateReports(root).map((r) => r.bank)).toEqual(['Bir Banka']);
   });
 });
+
+describe('the order the record answers "who is cheapest" in', () => {
+  const withExample = (bank: string, rate: number, instalment: number, upfront = 0): string =>
+    JSON.stringify({
+      schema_version: 1,
+      bank,
+      captured_on: '2026-07-28',
+      source_url: 'https://example.test/x',
+      offers: [
+        {
+          product: 'Konut',
+          monthly_rate: rate,
+          example: {
+            amount: 1_000_000,
+            months: 120,
+            instalment,
+            fees: 36_802,
+            ...(upfront > 0 ? { upfront_interest: upfront } : {}),
+          },
+        },
+      ],
+    });
+
+  it('ranks on what an offer really costs, not on what it is called', () => {
+    // The whole point of the record. Akbank's %1,99 is a prepaid-interest
+    // product that really costs %3,32; Halkbank's %2,60 really costs %2,72. A
+    // list sorted on the headline puts the dearer one first.
+    const root = rates(
+      // The upfront interest is what makes it %3,32. Without it the fixture is
+      // a %2,09 loan and proves nothing about the thing being tested.
+      ['a-akbank.json', withExample('Akbank', 1.99, 21_964.48, 309_637.03)],
+      ['b-halkbank.json', withExample('Halkbank', 2.6, 27_252.33)],
+    );
+
+    expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Halkbank', 'Akbank']);
+  });
+
+  it('puts a bank whose real cost cannot be known last, not first', () => {
+    // No example means the cost is unknown and higher than the headline —
+    // never lower. Ranking it by its headline would seat an unknown at the top
+    // of a list of measured ones.
+    const root = rates(
+      ['a-known.json', withExample('Bilinen', 3.4, 33_000)],
+      ['b-unknown.json', report('Bilinmeyen', '2026-07-28', 1.5)],
+    );
+
+    expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Bilinen', 'Bilinmeyen']);
+  });
+
+  it('orders the unknowns among themselves by the only figure they have', () => {
+    const root = rates(
+      ['a.json', report('Pahalı', '2026-07-28', 3.5)],
+      ['b.json', report('Ucuz', '2026-07-28', 2.5)],
+    );
+
+    expect(loadRateReports(root).map((report) => report.bank)).toEqual(['Ucuz', 'Pahalı']);
+  });
+});

@@ -212,13 +212,46 @@ export function loadRateReports(root: string): RateReport[] {
     if (replaced.has(kept.file)) newest.delete(bank);
   }
 
-  // Cheapest first: "who is cheapest today" is the question being asked. A bank
-  // with nothing on offer sorts last rather than vanishing.
+  // Cheapest first, on what an offer really costs rather than on what it is
+  // called. That distinction is the whole record: Akbank's %1,99 is a
+  // prepaid-interest product that really costs %3,32, and Halkbank's %2,60
+  // really costs %2,72 — so a list ordered on the headline puts the dearer one
+  // first, which is the mistake this was all built to correct.
+  //
+  // A bank whose real cost cannot be known ranks below every bank whose can. No
+  // example means the cost is unknown and higher than the headline, never lower,
+  // so seating it by that headline would put an unknown above measured ones.
+  // Among themselves the unknowns keep headline order, which is the only figure
+  // they have.
   return [...newest.values()]
     .map((kept) => kept.report)
-    .sort((a, b) => {
-      const left = bestOffer(a)?.monthly_rate ?? Number.POSITIVE_INFINITY;
-      const right = bestOffer(b)?.monthly_rate ?? Number.POSITIVE_INFINITY;
-      return left === right ? byCodePoint(a.bank, b.bank) : left - right;
-    });
+    .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
+}
+
+/** The cheapest real cost a report carries, or nothing when none can be computed. */
+function realCost(report: RateReport): number | undefined {
+  const costs = report.offers.flatMap((offer) => {
+    const real = trueMonthlyRate(offer);
+    return real === undefined ? [] : [real];
+  });
+
+  return costs.length === 0 ? undefined : Math.min(...costs);
+}
+
+function byRealCost(a: RateReport, b: RateReport): number {
+  const left = realCost(a);
+  const right = realCost(b);
+
+  if (left === undefined && right === undefined) return 0;
+  if (left === undefined) return 1;
+  if (right === undefined) return -1;
+
+  return left - right;
+}
+
+function byHeadline(a: RateReport, b: RateReport): number {
+  const left = bestOffer(a)?.monthly_rate ?? Number.POSITIVE_INFINITY;
+  const right = bestOffer(b)?.monthly_rate ?? Number.POSITIVE_INFINITY;
+
+  return left - right;
 }

@@ -416,13 +416,14 @@ describe('bank rates', () => {
     expect(housing).toMatch(/yayınlamıyor|yok/i);
   });
 
-  it('says the order is by published rate, which is not the same as cheapest', () => {
+  it('says why the cheapest headline is not the cheapest offer', () => {
     // The cheapest published figure in the record is a prepaid-interest product
-    // that wants 309.637 TL up front. Sorting by headline rate is useful and
-    // misleading at once, so the page says which of the two it is doing.
+    // that wants 309.637 TL up front. The table used to be sorted on that and
+    // said so; it is sorted on the real cost now, and the caveat has to explain
+    // the gap rather than warn about an order that no longer exists.
     const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 
-    expect(housing).toMatch(/en ucuz.*değil|değil.*en ucuz/is);
+    expect(housing).toMatch(/en düşük manşet oran.*en pahalı/is);
   });
 
   it('lets a rate be pushed into the calculator instead of retyped', () => {
@@ -804,6 +805,19 @@ describe('the housing layout', () => {
     const page = housing();
 
     expect(page.indexOf('class="research"')).toBeLessThan(page.indexOf('class="split"'));
+  });
+});
+
+describe('what the table says its order means', () => {
+  it('no longer claims to be ordered on the published rate', () => {
+    // It was, and saying so was the honest thing while it was true. It ranks on
+    // the real cost now, and a caveat describing the old order would be worse
+    // than none — it would tell the reader to distrust exactly the number they
+    // should be reading.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing).not.toContain('Sıralama <strong>yayınlanan aylık orana göre</strong>');
+    expect(housing).toContain('gerçek maliyete göre');
   });
 });
 

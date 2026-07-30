@@ -521,13 +521,15 @@ function ratesTable(reports: RateReport[]): string {
       </div>
       <p class="note">Orana tıklayınca hesaba geçer. Oranlar sık değişir — okunma tarihine bak.</p>
       <p class="caveat">
-        Sıralama <strong>yayınlanan aylık orana göre</strong>; “en ucuz” demek değil.
+        Sıralama <strong>gerçek maliyete göre</strong> — söylenen orana göre değil.
         <strong>Gerçek</strong> sütunu bankanın kendi örnek ödeme planından hesaplanır:
-        peşin alınan faiz ve dosya masrafı eline geçen parayı düşürür, taksit aynı kalır —
-        yani ödediğin oran söylenenden yüksektir. <strong>—</strong> ise banka örnek
-        yayınlamamış demektir; o zaman gerçek maliyet <em>bilinmiyor</em> ve söylenenden
-        düşük olmadığı kesin. Paket oranı sigorta ve ek ürün almayı şart koşar, değişken
-        oran başlangıç değeridir.
+        peşin alınan faiz ve dosya masrafı eline geçen parayı düşürür, taksit aynı kalır,
+        yani ödediğin oran söylenenden yüksektir. Aradaki fark bu tablonun var olma sebebi:
+        en düşük manşet oran, listedeki en pahalı tekliftir.
+        <strong>—</strong> olan bankalar en altta, çünkü örnek yayınlamamışlar; gerçek
+        maliyetleri <em>bilinmiyor</em> ve söylenenden düşük olmadığı kesin — bilinmeyen bir
+        sayı ölçülmüş olanların üstüne oturmamalı. Paket oranı sigorta ve ek ürün almayı
+        şart koşar, değişken oran başlangıç değeridir.
       </p>`;
 }
 
