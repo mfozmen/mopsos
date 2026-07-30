@@ -37,6 +37,11 @@ So:
   It opens one page in a browser belonging to this run alone, writes the visible text and a
   full-page screenshot, and exits. Nobody can navigate it out from under you.
 
+  It opens a **real browser with a window**, not a headless one, because that is the
+  difference between reading a listing site and being refused by it. Nothing is patched to
+  achieve that — it is a browser, used the way a person uses one. A window appearing on the
+  user's screen is the cost.
+
   Give it a longer wait when a rate table is drawn by script — `10` or `15` rather than the
   default `5`. It says so when a page comes back nearly empty, because a page that loaded
   blank and a page that refused you look identical in a text file nobody opens.
@@ -57,10 +62,25 @@ worse than no report at all, because the next reading will be compared against i
 
 ## Where to look, in order
 
-1. **Listing sites** — sahibinden, hepsiemlak, emlakjet, zingat and the like. This is the only
-   place neighbourhood-level prices exist at all. Read the **public listing pages**; never go
-   behind a login. Obey `robots.txt`: if listing pages are disallowed on a site, do not fetch
-   them there — go to another source and say so in `note`.
+1. **Listing sites** — sahibinden, hepsiemlak, emlakjet, zingat and the like. This is the only place
+   neighbourhood-level prices exist at all. Read the **public listing pages**; never go behind a
+   login. Obey `robots.txt`: if listing pages are disallowed on a site, do not fetch them there
+   — go to another source and say so in `note`.
+
+   **sahibinden works, through `npm run read:page`.** It refuses the bundled headless browser
+   and it refuses real Chrome run headless; it does not refuse a real browser with a window,
+   which is what that command now opens. Nothing is patched to achieve this —
+   `navigator.webdriver` is still `true` and the user agent is the browser's own. Its
+   `robots.txt` permits district and listing pages; only filtered search (`*/arama/flt/*`),
+   legacy URL forms and `/satici-profili*` are disallowed, and those stay off limits.
+
+   A window will open on the user's screen while you read. That is the cost and it is the
+   honest one: you are using a browser the way a person uses a browser.
+
+   If it refuses you anyway, record that in `note` and move on. Do not try to get past it — a
+   refusal is a finding, and that source can still come in through a person with
+   `npm run import:listings`.
+
 2. **TÜİK** for district housing sales counts, which are official and tell you whether a
    neighbourhood is actually transacting or just listed.
 3. **TCMB** for the house price index and the new-tenant rent index, which are regional, not

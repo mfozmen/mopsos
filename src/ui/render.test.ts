@@ -701,6 +701,20 @@ describe('market research', () => {
     expect(housing).toContain('Bu raporda okuma yok');
   });
 
+  it('explains what the confidence words mean, where they are shown', () => {
+    // "orta güven" beside a number is a label until someone says what it takes
+    // to earn it. The reader has no way to guess that high means a second
+    // source rather than a bigger sample.
+    const housing = panel(
+      renderPage({ ...EMPTY, research: [report({ sale_per_m2: 48_000 })] }),
+      'housing',
+    );
+    const header = housing.slice(housing.indexOf('İlan'), housing.indexOf('İlan') + 900);
+
+    expect(header).toContain('class="hint"');
+    expect(header).toContain('ikinci bir kaynak');
+  });
+
   it('says how much the scout trusts a figure', () => {
     // The brief spends a table on high/medium/low and the schema requires it.
     // A figure whose reliability is recorded and then not shown is presented as

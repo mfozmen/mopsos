@@ -23,7 +23,8 @@
     "dev": "tsx src/cli/dev.ts",
     "queue": "tsx src/cli/queue.ts",
     "check:rates": "tsx src/cli/check-rates.ts",
-    "read:page": "tsx src/cli/read-page.ts"
+    "read:page": "tsx src/cli/read-page.ts",
+    "import:listings": "tsx src/cli/import-listings.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",

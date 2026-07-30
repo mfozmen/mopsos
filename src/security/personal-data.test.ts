@@ -249,3 +249,20 @@ describe('a home directory names the person who owns it', () => {
     expect(findPersonalData('~/.claude/settings.json')).toEqual([]);
   });
 });
+
+describe('a size is not a house number', () => {
+  it('does not read the 2 in m2 as a door number', () => {
+    // "mahalle,m2,fiyat" is a CSV header. The pattern wants a street keyword
+    // followed by a house number, and a digit glued to a letter is a unit.
+    expect(findPersonalData('mahalle,m2,fiyat')).toEqual([]);
+    expect(findPersonalData('daire,m2,fiyat')).toEqual([]);
+  });
+
+  it('still catches an address written the way Turkish addresses are', () => {
+    // Loosened here would be worse than noisy: this repository is public and
+    // the thing it must never carry is where the person lives.
+    expect(findPersonalData('Gül Sokak 14/3')).toHaveLength(1);
+    expect(findPersonalData('Egekent 2 Mahallesi 1234 Sokak No: 5')).toHaveLength(1);
+    expect(findPersonalData('Atatürk Caddesi No:12 Daire 4')).toHaveLength(1);
+  });
+});

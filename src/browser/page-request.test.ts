@@ -3,7 +3,13 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { allowsRequestTo, isRefusalError, launchAdvice, parsePageRequest } from './page-request.js';
+import {
+  allowsRequestTo,
+  isRefusalError,
+  launchAdvice,
+  parsePageRequest,
+  browserOptions,
+} from './page-request.js';
 
 describe('parsePageRequest', () => {
   it('takes a url and where to put what it reads', () => {
@@ -194,6 +200,25 @@ describe('isRefusalError', () => {
       'page.goto: net::ERR_CONNECTION_REFUSED',
     ]) {
       expect(isRefusalError(new Error(message)), message).toBe(false);
+    }
+  });
+});
+
+describe('browserOptions', () => {
+  it('opens a browser the machine already has', () => {
+    expect(browserOptions('chrome')).toEqual({ channel: 'chrome', headless: false });
+  });
+
+  it('falls back to the bundled browser, still with a window', () => {
+    // Headless is the thing that gets refused: real Chrome in headless mode was
+    // blocked on the same connection where headful passed, so the window is the
+    // point, not the binary.
+    expect(browserOptions()).toEqual({ headless: false });
+  });
+
+  it('never launches headless, whatever it launches', () => {
+    for (const channel of ['chrome', 'msedge', undefined]) {
+      expect(browserOptions(channel).headless).toBe(false);
     }
   });
 });

@@ -69,6 +69,11 @@ So:
   It opens one page in a browser belonging to this run alone, writes the visible text and a
   full-page screenshot, and exits. Nobody can navigate it out from under you.
 
+  It opens a **real browser with a window**, not a headless one, because that is the
+  difference between reading a listing site and being refused by it. Nothing is patched to
+  achieve that — it is a browser, used the way a person uses one. A window appearing on the
+  user's screen is the cost.
+
   Give it a longer wait when a rate table is drawn by script — `10` or `15` rather than the
   default `5`. It says so when a page comes back nearly empty, because a page that loaded
   blank and a page that refused you look identical in a text file nobody opens.
