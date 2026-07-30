@@ -98,9 +98,17 @@ const RULES: Rule[] = [
     kind: 'home_path',
     pattern: new RegExp(
       [
+        // Not inside a URL. `/users/` and `/home/` are ordinary REST segments,
+        // and matching without regard to case made that collision worse — a
+        // repository full of source links cannot afford this false positive.
+        '(?<!https?://[^\\s"\'<>]{0,200})',
         // Case-insensitive: a path gets pasted from a shell, a log or a Windows
         // dialog, and the case is whatever it happened to be.
-        '(?:[A-Za-z]:\\\\Users\\\\|/Users/|/home/)',
+        //
+        // One backslash or two. A Windows path inside a .ts or .js string is
+        // written escaped, and this scanner reads those files — the leak the
+        // rule was written for lived in exactly that form.
+        '(?:[A-Za-z]:\\\\{1,2}Users\\\\{1,2}|/Users/|/home/)',
         // Service accounts, not people: GitHub Actions, devcontainers, images,
         // and Windows' shared profiles. A CI log carrying one names nobody, and
         // flagging them is how a check earns a reputation for noise.

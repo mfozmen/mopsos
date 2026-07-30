@@ -174,6 +174,27 @@ describe('a home directory names the person who owns it', () => {
     }
   });
 
+  it('catches a path written the way a source file writes one', () => {
+    // A Windows path inside a .ts or .js string is escaped: 'C:\Users\name'.
+    // The scanner reads those files, and the leak that started all of this was
+    // in one — a rule that only matches the single-backslash form misses the
+    // exact case it exists for.
+    expect(findPersonalData(String.raw`const p = 'C:\Users\alice\src';`)).toHaveLength(1);
+    expect(findPersonalData(String.raw`"C:\\Users\\alice"`)).toHaveLength(1);
+  });
+
+  it('leaves a URL path alone, which is not a home directory', () => {
+    // /users/ and /home/ are ordinary REST segments, and matching without case
+    // made that worse. A repository full of source links cannot afford this one.
+    for (const text of [
+      'https://example.com/users/alice',
+      'see https://api.test/home/alice/settings',
+      'https://github.com/mfozmen/mopsos/blob/main/src/Users/x.ts',
+    ]) {
+      expect(findPersonalData(text), text).toEqual([]);
+    }
+  });
+
   it('catches a Unix home directory', () => {
     expect(findPersonalData('cd /home/someone/src && npm test')).toHaveLength(1);
     expect(findPersonalData('open /Users/someone/Documents')).toHaveLength(1);
