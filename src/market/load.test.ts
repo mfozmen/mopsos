@@ -159,6 +159,21 @@ describe('the readings behind a district', () => {
     expect(loadMarketReports(root)[0]?.earlier[0]?.corrected).toBe(false);
   });
 
+  it('puts the most recent of several earlier readings first', () => {
+    // Two of them, because the comparator is never run with one — the ordering
+    // this list promises had no case that could tell whether it held.
+    const root = market(
+      ['2026-07-13-cigli.json', report({ captured_on: '2026-07-13' })],
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+    );
+
+    expect(loadMarketReports(root)[0]?.earlier.map((reading) => reading.dated)).toEqual([
+      '2026-07-20',
+      '2026-07-13',
+    ]);
+  });
+
   it('has nothing behind a district looked at once', () => {
     expect(loadMarketReports(market(['a.json', report()]))[0]?.earlier).toEqual([]);
   });
