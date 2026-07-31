@@ -24,6 +24,54 @@ function report(monthly_rate: number, example?: RateExample): RateReport {
   };
 }
 
+function twoOffers(): RateReport {
+  return {
+    ...report(2.6, HALKBANK_EXAMPLE),
+    offers: [
+      { product: 'Yeni Evlilere Özel', monthly_rate: 2.6, example: HALKBANK_EXAMPLE },
+      { product: 'Peşin Faizli', monthly_rate: 1.99, example: AKBANK_EXAMPLE },
+    ],
+  };
+}
+
+describe('which series the change belongs to', () => {
+  it('follows one product where the bank still sells it', () => {
+    // A bank's cheapest product changing is not its rate falling. Comparing
+    // the best of one reading against the best of another mixes two series and
+    // reports a move when nothing was repriced.
+    const then = twoOffers();
+    const now = {
+      ...then,
+      offers: [
+        { product: 'Yeni Evlilere Özel', monthly_rate: 2.6, example: HALKBANK_EXAMPLE },
+        { product: 'Peşin Faizli', monthly_rate: 1.99, example: HALKBANK_EXAMPLE },
+      ],
+    };
+
+    expect(moved(now, then)?.basis).toBe('offer');
+    expect(moved(now, then)?.points).toBe(0);
+  });
+
+  it('falls back to the bank when the product it led with is gone', () => {
+    const then = {
+      ...report(1.99, AKBANK_EXAMPLE),
+      offers: [{ product: 'Çekilen Ürün', monthly_rate: 1.99, example: AKBANK_EXAMPLE }],
+    };
+    const now = {
+      ...report(2.6, HALKBANK_EXAMPLE),
+      offers: [{ product: 'Yeni Ürün', monthly_rate: 2.6, example: HALKBANK_EXAMPLE }],
+    };
+
+    expect(moved(now, then)?.basis).toBe('bank');
+  });
+
+  it('names the product it followed, so the reader can see which series it is', () => {
+    const then = twoOffers();
+
+    expect(moved(twoOffers(), then)?.product).toBe('Yeni Evlilere Özel');
+  });
+});
+
 describe('what moved between two readings', () => {
   it('measures the change in what an offer really costs', () => {
     // %3,32 then, %2,72 now: six tenths of a point cheaper to carry.

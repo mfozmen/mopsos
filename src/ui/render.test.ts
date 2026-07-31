@@ -1187,6 +1187,36 @@ describe('the readings behind a bank', () => {
     expect(housing).toMatch(/0,60 puan ucuz/);
   });
 
+  it('says when the comparison changed product, since that is a different question', () => {
+    // The bank's best then against its best now moves when a cheaper product
+    // appears and nothing was repriced. Shown the same way as one product's
+    // own change, it reads as a rate that fell.
+    const gone = {
+      corrected: false,
+      report: {
+        ...ZIRAAT,
+        captured_on: '2026-07-20',
+        offers: [
+          {
+            product: 'Çekilen Ürün',
+            monthly_rate: 1.99,
+            example: {
+              amount: 1_000_000,
+              months: 120,
+              instalment: 21_964.48,
+              upfront_interest: 309_637.03,
+              fees: 41_750,
+            },
+          },
+        ],
+      },
+    };
+    const now = { ...ZIRAAT, offers: [...HALKBANK_OFFERS], earlier: [gone] };
+    const housing = panel(renderPage({ ...EMPTY, rates: [now] }), 'housing');
+
+    expect(housing).toContain('en ucuz ürün değişti');
+  });
+
   it('says nothing moved rather than printing a zero', () => {
     const same = {
       corrected: false,

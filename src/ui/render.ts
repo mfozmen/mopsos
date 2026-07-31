@@ -599,13 +599,21 @@ function sinceThen(now: RateReport, then: RateReport): string {
   if (movement === undefined) return '';
 
   const points = Math.abs(movement.points);
-  // Below a basis point is rounding in a published example, not a rate move.
+  // Anything that would print as 0,00 — the two decimals shown below are the
+  // boundary. A difference that small is rounding in a published example, not
+  // a rate move, and "0,00 puan pahalı" is a movement claimed out of nothing.
   if (points < 0.005) return ` <span class="steady">değişmedi</span>`;
+
+  // Which series it is, where it is not one product's own price. The best of
+  // one reading against the best of another moves when a cheaper product
+  // appears and nothing was repriced.
+  const which =
+    movement.basis === 'bank' ? ` <span class="steady">(en ucuz ürün değişti)</span>` : '';
 
   return ` <span class="moved">${points.toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })} puan ${movement.points > 0 ? 'pahalı' : 'ucuz'}</span>`;
+  })} puan ${movement.points > 0 ? 'pahalı' : 'ucuz'}</span>${which}`;
 }
 
 function foldSummary(earlier: { corrected: boolean }[]): string {

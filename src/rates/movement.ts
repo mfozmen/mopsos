@@ -1,4 +1,4 @@
-import { bestOffer, type RateReport, trueMonthlyRate } from './load.js';
+import { bestOffer, type RateOffer, type RateReport, trueMonthlyRate } from './load.js';
 
 export interface Movement {
   /**
@@ -9,6 +9,17 @@ export interface Movement {
    * distinction.
    */
   points: number;
+  /**
+   * Which series this is.
+   *
+   * `offer` follows one product the bank sold at both readings. `bank` compares
+   * the best it had then against the best it has now, which is a different
+   * question and can move when nothing was repriced — a cheaper product
+   * appearing is not a rate falling.
+   */
+  basis: 'offer' | 'bank';
+  /** The product followed, when the series is one. */
+  product?: string;
 }
 
 /**
@@ -25,13 +36,28 @@ export interface Movement {
  * would be a rise of forty or fifty basis points — larger than most real moves.
  */
 export function moved(now: RateReport, then: RateReport): Movement | undefined {
-  const nowOffer = bestOffer(now);
-  const thenOffer = bestOffer(then);
-  if (nowOffer === undefined || thenOffer === undefined) return undefined;
+  const led = bestOffer(now);
+  const same = led === undefined ? undefined : then.offers.find((o) => o.product === led.product);
 
-  const nowCost = trueMonthlyRate(nowOffer);
-  const thenCost = trueMonthlyRate(thenOffer);
-  if (nowCost === undefined || thenCost === undefined) return undefined;
+  const pair =
+    led !== undefined && same !== undefined
+      ? { now: led, then: same, basis: 'offer' as const, product: led.product }
+      : { now: led, then: bestOffer(then), basis: 'bank' as const };
 
-  return { points: nowCost - thenCost };
+  const points = change(pair.now, pair.then);
+  if (points === undefined) return undefined;
+
+  return {
+    points,
+    basis: pair.basis,
+    ...(pair.basis === 'offer' ? { product: pair.product } : {}),
+  };
+}
+
+function change(now?: RateOffer, then?: RateOffer): number | undefined {
+  if (now === undefined || then === undefined) return undefined;
+
+  const nowCost = trueMonthlyRate(now);
+  const thenCost = trueMonthlyRate(then);
+  return nowCost === undefined || thenCost === undefined ? undefined : nowCost - thenCost;
 }
