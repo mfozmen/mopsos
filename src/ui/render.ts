@@ -569,19 +569,6 @@ function termsCell(offer: RateOffer): string {
 }
 
 /**
- * The readings this bank's row stands in front of.
- *
- * Its own row rather than something folded into a cell, because the cell it
- * would belong in is the one the table sorts by date — and a cell holding four
- * dates cannot also be a date. Folded by default: eight of fifteen banks have
- * history, and unfolding all of it doubles the table to answer a question
- * nobody asked yet.
- *
- * Both figures for each reading, because the headline alone cannot answer "did
- * it get dearer": the two move independently, which is the reason this record
- * exists at all.
- */
-/**
  * Which way this bank has gone since an earlier reading.
  *
  * The two figures on their own leave the reader subtracting, and the question
@@ -631,6 +618,19 @@ function foldSummary(earlier: { corrected: boolean }[]): string {
     .join(', ');
 }
 
+/**
+ * The readings this bank's row stands in front of.
+ *
+ * Its own row rather than something folded into a cell, because the cell it
+ * would belong in is the one the table sorts by date — and a cell holding four
+ * dates cannot also be a date. Folded by default: eight of fifteen banks have
+ * history, and unfolding all of it doubles the table to answer a question
+ * nobody asked yet.
+ *
+ * Both figures for each reading, because the headline alone cannot answer "did
+ * it get dearer": the two move independently, which is the reason this record
+ * exists at all.
+ */
 function historyRow(report: ShownRateReport): string {
   if (report.earlier.length === 0) return '';
 

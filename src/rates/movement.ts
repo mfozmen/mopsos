@@ -37,27 +37,28 @@ export interface Movement {
  */
 export function moved(now: RateReport, then: RateReport): Movement | undefined {
   const led = bestOffer(now);
-  const same = led === undefined ? undefined : then.offers.find((o) => o.product === led.product);
+  // Matched on the product name exactly, because there is nothing else to match
+  // on. A bank that retitles a product between readings — a wording tweak, a
+  // dotting fix — reads here as having withdrawn one and launched another, and
+  // the comparison quietly falls back to the bank. Bank names get followed
+  // through supersedes claims for this reason; products have no such record to
+  // follow, and inventing a similarity rule would merge two real products the
+  // first time two names look alike.
+  const kept = led === undefined ? undefined : then.offers.find((o) => o.product === led.product);
 
-  const pair =
-    led !== undefined && same !== undefined
-      ? { now: led, then: same, basis: 'offer' as const, product: led.product }
-      : { now: led, then: bestOffer(then), basis: 'bank' as const };
+  if (led !== undefined && kept !== undefined) {
+    const points = change(led, kept);
+    return points === undefined ? undefined : { points, basis: 'offer', product: led.product };
+  }
 
-  const points = change(pair.now, pair.then);
-  if (points === undefined) return undefined;
-
-  return {
-    points,
-    basis: pair.basis,
-    ...(pair.basis === 'offer' ? { product: pair.product } : {}),
-  };
+  const points = change(led, bestOffer(then));
+  return points === undefined ? undefined : { points, basis: 'bank' };
 }
 
-function change(now?: RateOffer, then?: RateOffer): number | undefined {
-  if (now === undefined || then === undefined) return undefined;
+function change(later?: RateOffer, earlier?: RateOffer): number | undefined {
+  if (later === undefined || earlier === undefined) return undefined;
 
-  const nowCost = trueMonthlyRate(now);
-  const thenCost = trueMonthlyRate(then);
-  return nowCost === undefined || thenCost === undefined ? undefined : nowCost - thenCost;
+  const laterCost = trueMonthlyRate(later);
+  const earlierCost = trueMonthlyRate(earlier);
+  return laterCost === undefined || earlierCost === undefined ? undefined : laterCost - earlierCost;
 }
