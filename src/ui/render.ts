@@ -548,33 +548,35 @@ function historyRow(report: ShownRateReport): string {
 
   const readings = report.earlier
     .map((reading) => {
-      const offer = bestOffer(reading.report);
-      const real = offer === undefined ? undefined : trueMonthlyRate(offer);
-      const figures =
-        offer === undefined
-          ? 'oran yayınlamamış'
-          : `${ratePercent(offer.monthly_rate)} → ${real === undefined ? '—' : ratePercent(real)}`;
+      const when = `<time datetime="${reading.report.captured_on}">${turkishDate(
+        reading.report.captured_on,
+      )}</time>`;
 
-      // A correction says the earlier reading was wrong, not that the rate
-      // moved. Printed like the others it would invent a movement out of a
-      // mistake — one of the record's corrections exists only because a bank
+      // A correction is not a rate that moved, so it gets no figures at all —
+      // printing them beside a genuine reading invents a movement out of a
+      // mistake, and one of the record's corrections exists only because a bank
       // name was spelled with a dotless ı.
+      //
       // "Yerine yenisi yazıldı", not "bu okuma yanlıştı". `supersedes` says one
-      // file replaced another and nothing more; one of the record's own
-      // corrections says in its note that it does not correct the earlier
-      // reading but completes it. The scout's account is in the fold — the line
-      // above it should not claim to summarise what it has not read.
-      return reading.corrected
-        ? `<li class="corrected"><time datetime="${reading.report.captured_on}">${turkishDate(
-            reading.report.captured_on,
-          )}</time> yerine yenisi yazıldı${
-            reading.reason === undefined
-              ? ''
-              : `<details class="why"><summary>neden</summary><p>${escape(reading.reason)}</p></details>`
-          }</li>`
-        : `<li><time datetime="${reading.report.captured_on}">${turkishDate(
-            reading.report.captured_on,
-          )}</time> ${figures}</li>`;
+      // file replaced another and nothing more; one correction says in its own
+      // note that it does not correct the earlier reading but completes it. The
+      // scout's account is in the fold, and the line above it should not claim
+      // to summarise what it has not read.
+      if (reading.corrected) {
+        const why =
+          reading.reason === undefined
+            ? ''
+            : `<details class="why"><summary>neden</summary><p>${escape(reading.reason)}</p></details>`;
+        return `<li class="corrected">${when} yerine yenisi yazıldı${why}</li>`;
+      }
+
+      const offer = bestOffer(reading.report);
+      if (offer === undefined) return `<li>${when} oran yayınlamamış</li>`;
+
+      const real = trueMonthlyRate(offer);
+      return `<li>${when} ${ratePercent(offer.monthly_rate)} → ${
+        real === undefined ? '—' : ratePercent(real)
+      }</li>`;
     })
     .join('');
 
