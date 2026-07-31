@@ -1,6 +1,7 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
+import { byCodePoint } from '../order.js';
 import {
   bestOffer,
   headlineMisleads,
@@ -191,6 +192,47 @@ function tl(value: number): string {
 
 function percent(fraction: number): string {
   return `%${(fraction * 100).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}`;
+}
+
+/**
+ * How stale the picture is, said once above everything it applies to.
+ *
+ * The first thing worth knowing before trusting any number here is whether
+ * anything on the page is still current, and a per-row date column cannot
+ * answer that — it takes reading every row and holding the oldest in your head.
+ * Both ends are named because a fresh rate beside a four-day-old market reading
+ * is a picture with a stale half, and the newest date alone hides it.
+ *
+ * The age itself is filled in by the browser rather than written in here. This
+ * file is generated once and then sits on disk; a page built on Monday that
+ * still says "1 gün önce" on Friday misinforms about exactly the thing the line
+ * exists to report. Without scripting it degrades to the dates, which stay true.
+ */
+function freshness(data: PageData): string {
+  const dates = [
+    ...data.research.map((r) => r.dated),
+    ...data.rates.map((r) => r.captured_on),
+  ].sort(byCodePoint);
+
+  const oldest = dates[0];
+  const newest = dates[dates.length - 1];
+  if (oldest === undefined || newest === undefined) return '';
+
+  // "Sayfadaki", not "kayıttaki". The loaders keep the newest reading per bank
+  // and per district, so older ones exist and are not counted here. Saying the
+  // plain number would claim the record is smaller than it is.
+  const count = `Sayfadaki ${dates.length} okuma`;
+  const when =
+    oldest === newest
+      ? `tümü ${since(newest)} tarihli`
+      : `en yenisi ${since(newest)}, en eskisi ${since(oldest)}`;
+
+  return `
+      <p class="freshness">${count} · ${when}</p>`;
+}
+
+function since(iso: string): string {
+  return `<time datetime="${iso}" data-since="${iso}">${turkishDate(iso)}</time>`;
 }
 
 function turkishDate(iso: string): string {
@@ -1070,6 +1112,10 @@ const STYLE = `
   }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
+  /* Beside the name on a wide screen, under it on a narrow one, and quiet in
+     both: a caveat on the whole page rather than a heading of its own. */
+  .freshness { margin: 0; font-size: .8rem; color: var(--muted); }
+  .freshness time { color: var(--ink); }
   .brand small { display: block; font-family: var(--sans); font-size: .7rem; letter-spacing: .16em;
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
   /* The inner strip is quieter than the outer one: it chooses a half of one
@@ -1317,7 +1363,26 @@ const SCRIPT = `
  * and a naive pattern skips it — and there is no reason to re-derive something
  * we are holding.
  */
-export const PAGE_SCRIPTS: readonly string[] = [SCRIPT, FINANCE_SCRIPT];
+/**
+ * Says how long ago each date on the page was, at the moment it is read.
+ *
+ * Deliberately coarse: days, not hours. Two readings taken hours apart are not
+ * a direction, and an age precise to the minute invites reading one into them.
+ */
+const SINCE_SCRIPT = `
+  document.querySelectorAll('[data-since]').forEach(function (el) {
+    var on = el.getAttribute('data-since').split('-');
+    var then = new Date(+on[0], +on[1] - 1, +on[2]);
+    var today = new Date();
+    var days = Math.round(
+      (new Date(today.getFullYear(), today.getMonth(), today.getDate()) - then) / 86400000
+    );
+    if (days < 0) return;
+    el.textContent += ' (' + (days === 0 ? 'bugün' : days === 1 ? 'dün' : days + ' gün önce') + ')';
+  });
+`;
+
+export const PAGE_SCRIPTS: readonly string[] = [SCRIPT, FINANCE_SCRIPT, SINCE_SCRIPT];
 
 /**
  * The whole page, as one self-contained document.
@@ -1357,7 +1422,7 @@ export function renderPage(data: PageData): string {
 <body>
   <div class="wrap">
     <header>
-      <h1 class="brand">Mopsos<small>yatırım araştırması</small></h1>
+      <h1 class="brand">Mopsos<small>yatırım araştırması</small></h1>${freshness(data)}
     </header>
 
     <div role="tablist" aria-label="Bölümler">

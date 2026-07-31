@@ -65,8 +65,8 @@ const DATA: PageData = {
 /** The page's defaults, as the form ships them. */
 const DEFAULT = { downPayment: 1_000_000, months: 120, rate: 2.79 };
 
-function open() {
-  const dom = new JSDOM(renderPage(DATA), {
+function open(data: PageData = DATA) {
+  const dom = new JSDOM(renderPage(data), {
     runScripts: 'dangerously',
     url: 'https://mopsos.test/',
   });
@@ -239,5 +239,48 @@ describe('sending the agent out', () => {
     // and a button that looks idle gets pressed again.
     expect(page.text('ask-status')).toContain('sıraya alındı');
     expect(page.disabled('#ask-rates')).toBe(true);
+  });
+});
+
+describe('how long ago a reading was', () => {
+  const isoDaysAgo = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+  };
+
+  const withDates = (research: string, rate: string): PageData => ({
+    ...DATA,
+    research: [{ place: 'Menemen', dated: research, neighbourhoods: [] }],
+    rates: [{ ...DATA.rates[0]!, captured_on: rate }],
+  });
+
+  const line = (research: string, rate: string): string =>
+    open(withDates(research, rate)).region('.freshness');
+
+  it('counts days at the moment the page is read, not when it was built', () => {
+    expect(line(isoDaysAgo(0), isoDaysAgo(5))).toContain('5 gün önce');
+  });
+
+  it('says bugün rather than 0 gün önce', () => {
+    expect(line(isoDaysAgo(0), isoDaysAgo(5))).toContain('bugün');
+  });
+
+  it('says dün rather than 1 gün önce', () => {
+    expect(line(isoDaysAgo(1), isoDaysAgo(5))).toContain('dün');
+  });
+
+  it('leaves a date in the future alone rather than counting backwards', () => {
+    // A clock set wrong on the reading machine should not make the page say
+    // "-1 gün önce", which reads as a bug in the record rather than in the clock.
+    expect(line(isoDaysAgo(-1), isoDaysAgo(5))).not.toContain('-1');
+  });
+
+  it('keeps the date itself, so the line still means something without the age', () => {
+    expect(line(isoDaysAgo(0), isoDaysAgo(5))).toMatch(/\d{2}\.\d{2}\.\d{4}/);
   });
 });
