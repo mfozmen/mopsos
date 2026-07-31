@@ -603,6 +603,45 @@ describe('the readings behind the one on show', () => {
     );
   });
 
+  it('keeps everything read under a name the bank was renamed away from', () => {
+    // A correction points at the reading it replaces, not at the whole history
+    // behind it. Following only that one hop leaves anything older under the old
+    // spelling reachable from nowhere: not shown, not behind the new name, and
+    // not pointed at by anything — which is the disappearance this exists to end.
+    const root = rates(
+      ['2026-07-06-vakif.json', report('VakifBank', '2026-07-06', 3.4)],
+      ['2026-07-20-vakif.json', report('VakifBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 2.99, { supersedes: '2026-07-20-vakif.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.earlier.map((reading) => reading.report.captured_on)).toEqual([
+      '2026-07-20',
+      '2026-07-06',
+    ]);
+  });
+
+  it('does not lend one bank the readings of another that is still on show', () => {
+    // Two spellings both alive is a different situation from a rename: nothing
+    // says they are one bank, and filing each under both would show every
+    // reading twice.
+    const root = rates(
+      ['2026-07-20-a.json', report('Aaa Bank', '2026-07-20', 3.19)],
+      ['2026-07-27-a.json', report('Aaa Bank', '2026-07-27', 2.99)],
+      ['2026-07-27-b.json', report('Bbb Bank', '2026-07-27', 2.5)],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(2);
+    expect(shown.map((report) => report.earlier.length).sort()).toEqual([0, 1]);
+  });
+
   it('leaves a genuine earlier reading unmarked', () => {
     const root = rates(
       ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],

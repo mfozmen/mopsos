@@ -255,12 +255,14 @@ export function loadRateReports(root: string): ShownRateReport[] {
   const readAtByFile = new Map<string, string>();
   const claims: { supersedes: string; at: string }[] = [];
   const replaced = new Set<string>();
+  const readings: { report: RateReport; file: string }[] = [];
   const byFile = new Map<string, RateReport>();
-  const readingsByBank = new Map<string, { report: RateReport; file: string }[]>();
-  // Which bank a corrected file belongs under. Not its own bank field: the case
-  // corrections exist for is the name being wrong, so the reading it replaced
-  // is filed under the spelling that replaced it.
-  const correctedBy = new Map<string, { bank: string; note?: string }>();
+  // The note of the reading that replaced a given file, where it wrote one.
+  const noteOnReplacing = new Map<string, string>();
+  // Names the record has linked by a supersedes claim, treated as one bank.
+  // The case corrections exist for is the name itself being wrong, so following
+  // the claim is the only thing that ties "VakifBank" to "VakıfBank".
+  const renamedTo = new Map<string, string>();
 
   for (const file of files) {
     const path = join(directory, file);
@@ -286,8 +288,8 @@ export function loadRateReports(root: string): ShownRateReport[] {
       claims.push({ supersedes: report.supersedes, at: readAt(report) });
     }
 
+    readings.push({ report, file });
     byFile.set(file, report);
-    readingsByBank.set(report.bank, [...(readingsByBank.get(report.bank) ?? []), { report, file }]);
 
     const previous = newest.get(report.bank);
     if (previous === undefined || readAt(previous.report) <= readAt(report)) {
@@ -304,13 +306,12 @@ export function loadRateReports(root: string): ShownRateReport[] {
     if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
   }
 
-  for (const report of byFile.values()) {
-    if (report.supersedes !== undefined && replaced.has(report.supersedes)) {
-      correctedBy.set(report.supersedes, {
-        bank: report.bank,
-        ...(report.note === undefined ? {} : { note: report.note }),
-      });
-    }
+  for (const { report } of readings) {
+    if (report.supersedes === undefined || !replaced.has(report.supersedes)) continue;
+    if (report.note !== undefined) noteOnReplacing.set(report.supersedes, report.note);
+
+    const was = byFile.get(report.supersedes)?.bank;
+    if (was !== undefined && was !== report.bank) renamedTo.set(was, report.bank);
   }
 
   for (const [bank, kept] of newest) {
@@ -332,17 +333,42 @@ export function loadRateReports(root: string): ShownRateReport[] {
     .map((kept) => ({ ...kept.report, earlier: earlierThan(kept) }))
     .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
 
-  function earlierThan(kept: { report: RateReport; file: string }): EarlierReading[] {
-    const own = (readingsByBank.get(kept.report.bank) ?? []).filter(
-      (reading) => reading.file !== kept.file && !replaced.has(reading.file),
-    );
-    const corrections = [...byFile.entries()]
-      .filter(([file]) => correctedBy.get(file)?.bank === kept.report.bank)
-      .map(([file, report]) => ({ report, file }));
+  /**
+   * The name a bank ended up under, following every rename the record claims.
+   *
+   * One hop is not enough. A correction points at the reading it replaces, not
+   * at the whole history behind it, so a reading older than that one under the
+   * abandoned spelling is pointed at by nothing — and was reachable from
+   * nowhere, which is the disappearance this was built to end.
+   */
+  function nowCalled(bank: string): string {
+    const seen = new Set<string>();
+    let name = bank;
+    while (renamedTo.has(name) && !seen.has(name)) {
+      seen.add(name);
+      name = renamedTo.get(name) ?? name;
+    }
+    return name;
+  }
 
-    return [...own, ...corrections]
+  function earlierThan(kept: { report: RateReport; file: string }): EarlierReading[] {
+    // Two spellings both still on show is not a rename: nothing says they are
+    // one bank, and filing each reading under both would show it twice. Only
+    // when a single row survives the group does it inherit the whole group.
+    const group = nowCalled(kept.report.bank);
+    const sole =
+      [...newest.values()].filter((other) => nowCalled(other.report.bank) === group).length === 1;
+
+    return readings
+      .filter(
+        (reading) =>
+          reading.file !== kept.file &&
+          (sole
+            ? nowCalled(reading.report.bank) === group
+            : reading.report.bank === kept.report.bank),
+      )
       .map((reading) => {
-        const replacementNote = correctedBy.get(reading.file)?.note;
+        const replacementNote = noteOnReplacing.get(reading.file);
         return {
           report: reading.report,
           corrected: replaced.has(reading.file),
