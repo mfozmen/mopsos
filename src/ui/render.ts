@@ -209,9 +209,10 @@ function percent(fraction: number): string {
  * exists to report. Without scripting it degrades to the dates, which stay true.
  */
 function freshness(data: PageData): string {
-  const dates = [...data.research.map((r) => r.dated), ...data.rates.map((r) => r.captured_on)]
-    .filter((date) => date !== undefined)
-    .sort(byCodePoint);
+  const dates = [
+    ...data.research.map((r) => r.dated),
+    ...data.rates.map((r) => r.captured_on),
+  ].sort(byCodePoint);
 
   const oldest = dates[0];
   const newest = dates[dates.length - 1];
