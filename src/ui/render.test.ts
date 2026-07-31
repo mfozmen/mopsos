@@ -1053,3 +1053,49 @@ describe('the page script', () => {
     }
   });
 });
+
+describe('how stale the picture is', () => {
+  const reading = (dated: string) => ({ place: 'Menemen', dated, neighbourhoods: [] });
+  const rate = (captured_on: string) => ({ ...ZIRAAT, captured_on });
+
+  it('says when the record was last looked at, and how long ago', () => {
+    const page = renderPage({ ...EMPTY, research: [reading('2026-07-29')] });
+
+    expect(page).toContain('29.07.2026');
+    expect(page).toContain('data-since="2026-07-29"');
+  });
+
+  it('says how old the oldest reading on the page is, not only the newest', () => {
+    // The first thing to know before trusting a number is whether anything here
+    // is still current. A fresh rate beside a four-day-old market reading is a
+    // picture with a stale half, and the newest date alone hides that.
+    const page = renderPage({
+      ...EMPTY,
+      research: [reading('2026-07-29')],
+      rates: [rate('2026-07-27')],
+    });
+
+    expect(page).toContain('data-since="2026-07-29"');
+    expect(page).toContain('data-since="2026-07-27"');
+  });
+
+  it('counts every reading behind the page', () => {
+    const page = renderPage({
+      ...EMPTY,
+      research: [reading('2026-07-29'), reading('2026-07-28')],
+      rates: [rate('2026-07-27')],
+    });
+
+    expect(page).toMatch(/3\s*okuma/);
+  });
+
+  it('says nothing at all when there is nothing to be stale', () => {
+    expect(renderPage(EMPTY)).not.toContain('class="freshness"');
+  });
+
+  it('does not repeat itself when every reading is from the same day', () => {
+    const page = renderPage({ ...EMPTY, research: [reading('2026-07-29'), reading('2026-07-29')] });
+
+    expect(page.match(/data-since="/g)).toHaveLength(1);
+  });
+});
