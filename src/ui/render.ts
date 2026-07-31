@@ -4,7 +4,6 @@ import { owningVsRenting } from '../market/affordability.js';
 import { byCodePoint } from '../order.js';
 import {
   bestOffer,
-  type EarlierReading,
   headlineMisleads,
   type RateOffer,
   type RateReport,
@@ -122,6 +121,8 @@ export interface ResearchReport {
   at?: string;
   /** Earlier readings of the same district, newest first. */
   earlier?: ResearchReport[];
+  /** True when a later reading replaced this one because it was wrong. */
+  corrected?: boolean;
   neighbourhoods: Neighbourhood[];
   /** What the run could not do — a site that refused it, a source it fell back to. */
   note?: string;
@@ -391,7 +392,12 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
       <details class="report"${open ? ' open' : ''}>
       <summary><strong>${escape(report.place)}</strong><span class="dated">${turkishDate(
         report.dated,
-      )}${clockTime(report.at)}</span><span class="how-many">${String(count)} mahalle</span></summary>
+      )}${clockTime(report.at)}</span>${
+        // Opened, a corrected reading shows the figures it got wrong, and
+        // nothing in the table says so. The label has to travel with the
+        // reading rather than only with the count above it.
+        report.corrected === true ? `<span class="was-replaced">yerine yenisi yazıldı</span>` : ''
+      }<span class="how-many">${String(count)} mahalle</span></summary>
       <div class="scroller">
       <table>
         <thead>
@@ -469,7 +475,7 @@ function earlierReadings(report: ResearchReport): string {
 
   return `
       <details class="earlier-readings">
-      <summary>${String(earlier.length)} eski okuma</summary>${earlier
+      <summary>${foldSummary(earlier.map((reading) => ({ corrected: reading.corrected === true })))}</summary>${earlier
         .map((reading) => reportSection(reading))
         .join('')}
       </details>`;
@@ -574,7 +580,7 @@ function termsCell(offer: RateOffer): string {
  * it get dearer": the two move independently, which is the reason this record
  * exists at all.
  */
-function foldSummary(earlier: EarlierReading[]): string {
+function foldSummary(earlier: { corrected: boolean }[]): string {
   // A correction is not an earlier reading of the rate. Counting the two
   // together says the rate was once something else, and for a correction it
   // never was — the reading was wrong, the price never moved.
@@ -1251,6 +1257,9 @@ const STYLE = `
   .earlier-readings { margin: 1rem 0 0; }
   .earlier-readings > summary { font-size: .8rem; color: var(--muted); cursor: pointer; }
   .earlier-readings .report { margin-left: 1rem; }
+  /* On the reading, not only in the count above it: opened, it shows figures
+     that were wrong, and the table itself does not say so. */
+  .was-replaced { margin-left: .6rem; font-size: .75rem; color: var(--muted); }
   /* Folded readings sit under the bank they belong to and stay quieter than it:
      what a rate was last week is context for today's figure, not a rival to it. */
   .history td { padding-top: 0; border-top: 0; }

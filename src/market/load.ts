@@ -56,6 +56,14 @@ export interface ShownMarketReport {
    * past, two would be a past of a past, which nothing asks for.
    */
   earlier: ShownMarketReport[];
+  /**
+   * True when a later reading replaced this one because it was wrong.
+   *
+   * A correction is not a second observation. Counted as an earlier reading it
+   * says the district's prices were once something else, and for a correction
+   * they never were — the same distinction the rates side already keeps.
+   */
+  corrected: boolean;
 }
 
 /**
@@ -100,7 +108,10 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   if (!existsSync(directory)) return [];
 
   const newest = new Map<string, MarketReport>();
-  const byPlace = new Map<string, MarketReport[]>();
+  const byPlace = new Map<string, { report: MarketReport; file: string }[]>();
+  const readAtByFile = new Map<string, string>();
+  const claims: { supersedes: string; at: string }[] = [];
+  const replaced = new Set<string>();
 
   for (const file of readdirSync(directory)
     .filter((name) => name.endsWith('.json'))
@@ -118,11 +129,24 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
 
     const report = data as MarketReport;
     const place = `${report.province} / ${report.district}`;
-    byPlace.set(place, [...(byPlace.get(place) ?? []), report]);
+    byPlace.set(place, [...(byPlace.get(place) ?? []), { report, file }]);
+    readAtByFile.set(file, readAt(report));
+    if (report.supersedes !== undefined) {
+      claims.push({ supersedes: report.supersedes, at: readAt(report) });
+    }
     const previous = newest.get(place);
     if (previous === undefined || readAt(previous) <= readAt(report)) {
       newest.set(place, report);
     }
+  }
+
+  // Only a later reading may retire an earlier one, and a claim pointing at
+  // nothing is ignored rather than honoured: a typo there must not make a
+  // reading vanish, because a district that quietly disappears looks the same
+  // as one nobody has been to.
+  for (const claim of claims) {
+    const target = readAtByFile.get(claim.supersedes);
+    if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
   }
 
   return [...newest.entries()]
@@ -130,9 +154,9 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
     .map(([place, report]) => ({
       ...shown(place, report),
       earlier: (byPlace.get(place) ?? [])
-        .filter((other) => other !== report)
-        .sort((a, b) => byCodePoint(readAt(b), readAt(a)))
-        .map((other) => shown(place, other)),
+        .filter((other) => other.report !== report)
+        .sort((a, b) => byCodePoint(readAt(b.report), readAt(a.report)))
+        .map((other) => ({ ...shown(place, other.report), corrected: replaced.has(other.file) })),
     }));
 }
 
@@ -140,6 +164,7 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
 function shown(place: string, report: MarketReport): ShownMarketReport {
   return {
     earlier: [],
+    corrected: false,
     place,
     dated: report.captured_on,
     ...(report.captured_at === undefined ? {} : { at: report.captured_at }),

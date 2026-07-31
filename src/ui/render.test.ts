@@ -1226,6 +1226,38 @@ describe('the readings behind a district', () => {
     expect(panel(page, 'housing')).toContain('09:15');
   });
 
+  it('counts a corrected district reading apart from a genuine earlier one', () => {
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_857, {
+          earlier: [
+            reading('2026-07-20', 48_000, { corrected: true }),
+            reading('2026-07-13', 46_000),
+          ],
+        }),
+      ],
+    });
+
+    expect(panel(page, 'housing')).toContain('1 eski okuma, 1 düzeltme');
+  });
+
+  it('says on the reading itself that it was replaced', () => {
+    // Opened, a corrected reading shows the figures it got wrong. Nothing on
+    // the table says so, and the whole point of keeping it is that it was
+    // wrong — so the label has to travel with it, not only with the count.
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_857, {
+          earlier: [reading('2026-07-20', 48_000, { corrected: true })],
+        }),
+      ],
+    });
+
+    expect(panel(page, 'housing')).toContain('yerine yenisi yazıldı');
+  });
+
   it('adds nothing to a district looked at once', () => {
     const page = renderPage({ ...EMPTY, research: [reading('2026-07-29', 52_857)] });
 

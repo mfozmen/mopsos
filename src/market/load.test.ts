@@ -111,6 +111,31 @@ describe('the readings behind a district', () => {
     expect(shown?.earlier.map((reading) => reading.dated)).toEqual(['2026-07-20']);
   });
 
+  it('marks a replaced reading as corrected, not as a second observation', () => {
+    // The rates side already refuses to count a correction as an earlier
+    // reading, because that says the price was once something else when it
+    // never was. Nothing in the market record uses supersedes yet, and the
+    // first one that does must not read as a district that moved.
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      [
+        '2026-07-28-cigli.json',
+        report({ captured_on: '2026-07-28', supersedes: '2026-07-20-cigli.json' }),
+      ],
+    );
+
+    expect(loadMarketReports(root)[0]?.earlier[0]?.corrected).toBe(true);
+  });
+
+  it('leaves a genuine earlier reading unmarked', () => {
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+    );
+
+    expect(loadMarketReports(root)[0]?.earlier[0]?.corrected).toBe(false);
+  });
+
   it('has nothing behind a district looked at once', () => {
     expect(loadMarketReports(market(['a.json', report()]))[0]?.earlier).toEqual([]);
   });
