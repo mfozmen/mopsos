@@ -1161,12 +1161,12 @@ describe('the readings behind a bank', () => {
   it('keeps the reason behind a fold of its own, so a long note cannot flood the row', () => {
     // The record's correction notes run to two thousand characters — a scout's
     // whole working log. Inlined, one correction buries the table it belongs to.
-    const reason = 'Önceki okuma ücretleri eksik almıştı. '.repeat(40);
-    const history = { ...earlier('2026-07-20', 1.99, true), reason };
+    const replacementNote = 'Önceki okuma ücretleri eksik almıştı. '.repeat(40);
+    const history = { ...earlier('2026-07-20', 1.99, true), replacementNote };
     const housing = panel(renderPage(withHistory(history)), 'housing');
 
-    expect(housing).toContain(reason.trim().slice(0, 30));
-    expect(housing).toMatch(/<summary>neden<\/summary>/);
+    expect(housing).toContain(replacementNote.trim().slice(0, 30));
+    expect(housing).toContain('<summary>yeni okumanın notu</summary>');
   });
 
   it('adds nothing to a bank nobody has read twice', () => {

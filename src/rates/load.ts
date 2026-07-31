@@ -59,13 +59,16 @@ export interface EarlierReading {
    */
   corrected: boolean;
   /**
-   * What the reading that replaced this one said about replacing it.
+   * The note on the reading that replaced this one, where it wrote one.
    *
-   * The reason lives in the correcting report's note, and leaving it there
+   * Named for what it is rather than for what it usually contains. Every
+   * correction in this record explains itself there, so leaving it in the file
    * means the only way to learn why a reading was retired is to open the JSON —
-   * which is the thing this record's history was unreadable for.
+   * which is what made this history unreadable. But `note` is a general remark
+   * field, and a scout is free to write something else in it; presenting it as
+   * "the reason" would put an explanation in the record's mouth.
    */
-  reason?: string;
+  replacementNote?: string;
 }
 
 /**
@@ -339,11 +342,11 @@ export function loadRateReports(root: string): ShownRateReport[] {
 
     return [...own, ...corrections]
       .map((reading) => {
-        const reason = correctedBy.get(reading.file)?.note;
+        const replacementNote = correctedBy.get(reading.file)?.note;
         return {
           report: reading.report,
           corrected: replaced.has(reading.file),
-          ...(reason === undefined ? {} : { reason }),
+          ...(replacementNote === undefined ? {} : { replacementNote }),
         };
       })
       .sort((a, b) => byCodePoint(readAt(b.report), readAt(a.report)));

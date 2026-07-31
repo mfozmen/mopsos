@@ -598,7 +598,7 @@ describe('the readings behind the one on show', () => {
       ],
     );
 
-    expect(loadRateReports(root)[0]?.earlier[0]?.reason).toBe(
+    expect(loadRateReports(root)[0]?.earlier[0]?.replacementNote).toBe(
       'Önceki okuma ücretleri eksik almıştı.',
     );
   });

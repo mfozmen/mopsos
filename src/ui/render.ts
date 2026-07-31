@@ -564,9 +564,9 @@ function historyRow(report: ShownRateReport): string {
       // to summarise what it has not read.
       if (reading.corrected) {
         const why =
-          reading.reason === undefined
+          reading.replacementNote === undefined
             ? ''
-            : `<details class="why"><summary>neden</summary><p>${escape(reading.reason)}</p></details>`;
+            : `<details class="why"><summary>yeni okumanın notu</summary><p>${escape(reading.replacementNote)}</p></details>`;
         return `<li class="corrected">${when} yerine yenisi yazıldı${why}</li>`;
       }
 
