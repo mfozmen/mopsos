@@ -4,9 +4,11 @@ import { owningVsRenting } from '../market/affordability.js';
 import { byCodePoint } from '../order.js';
 import {
   bestOffer,
+  type EarlierReading,
   headlineMisleads,
   type RateOffer,
   type RateReport,
+  type ShownRateReport,
   trueMonthlyRate,
 } from '../rates/load.js';
 
@@ -137,7 +139,7 @@ export interface SeerRecord {
 // The record's own shapes rather than a second declaration of them. Two
 // definitions of one report is how the page came to sort offers by headline
 // while the list around it sorted by real cost.
-export type { RateOffer, RateReport } from '../rates/load.js';
+export type { RateOffer, RateReport, ShownRateReport } from '../rates/load.js';
 
 export interface FinanceBundle {
   /** The compiled mortgage module, so the page and the tests share one implementation. */
@@ -151,7 +153,7 @@ export interface PageData {
   research: ResearchReport[];
   instruments: InstrumentReturn[];
   records: SeerRecord[];
-  rates: RateReport[];
+  rates: ShownRateReport[];
   finance: FinanceBundle;
 }
 
@@ -513,6 +515,80 @@ function termsCell(offer: RateOffer): string {
             </td>`;
 }
 
+/**
+ * The readings this bank's row stands in front of.
+ *
+ * Its own row rather than something folded into a cell, because the cell it
+ * would belong in is the one the table sorts by date — and a cell holding four
+ * dates cannot also be a date. Folded by default: eight of fifteen banks have
+ * history, and unfolding all of it doubles the table to answer a question
+ * nobody asked yet.
+ *
+ * Both figures for each reading, because the headline alone cannot answer "did
+ * it get dearer": the two move independently, which is the reason this record
+ * exists at all.
+ */
+function foldSummary(earlier: EarlierReading[]): string {
+  // A correction is not an earlier reading of the rate. Counting the two
+  // together says the rate was once something else, and for a correction it
+  // never was — the reading was wrong, the price never moved.
+  const corrections = earlier.filter((reading) => reading.corrected).length;
+  const readings = earlier.length - corrections;
+
+  return [
+    readings === 0 ? '' : `${readings} eski okuma`,
+    corrections === 0 ? '' : `${corrections} düzeltme`,
+  ]
+    .filter((part) => part !== '')
+    .join(', ');
+}
+
+function historyRow(report: ShownRateReport): string {
+  if (report.earlier.length === 0) return '';
+
+  const readings = report.earlier
+    .map((reading) => {
+      const when = `<time datetime="${reading.report.captured_on}">${turkishDate(
+        reading.report.captured_on,
+      )}</time>`;
+
+      // A correction is not a rate that moved, so it gets no figures at all —
+      // printing them beside a genuine reading invents a movement out of a
+      // mistake, and one of the record's corrections exists only because a bank
+      // name was spelled with a dotless ı.
+      //
+      // "Yerine yenisi yazıldı", not "bu okuma yanlıştı". `supersedes` says one
+      // file replaced another and nothing more; one correction says in its own
+      // note that it does not correct the earlier reading but completes it. The
+      // scout's account is in the fold, and the line above it should not claim
+      // to summarise what it has not read.
+      if (reading.corrected) {
+        const why =
+          reading.replacementNote === undefined
+            ? ''
+            : `<details class="why"><summary>yeni okumanın notu</summary><p>${escape(reading.replacementNote)}</p></details>`;
+        return `<li class="corrected">${when} yerine yenisi yazıldı${why}</li>`;
+      }
+
+      const offer = bestOffer(reading.report);
+      if (offer === undefined) return `<li>${when} oran yayınlamamış</li>`;
+
+      const real = trueMonthlyRate(offer);
+      return `<li>${when} ${ratePercent(offer.monthly_rate)} → ${
+        real === undefined ? '—' : ratePercent(real)
+      }</li>`;
+    })
+    .join('');
+
+  return `
+          <tr class="history">
+            <td colspan="5"><details>
+              <summary>${foldSummary(report.earlier)}</summary>
+              <ul>${readings}</ul>
+            </details></td>
+          </tr>`;
+}
+
 function rateRow(report: RateReport): string {
   // The record's own answer, not a second one computed here. This sorted on the
   // headline while the list around it sorted on the real cost, so a bank could
@@ -544,7 +620,7 @@ function rateRow(report: RateReport): string {
           </tr>`;
 }
 
-function ratesTable(reports: RateReport[]): string {
+function ratesTable(reports: ShownRateReport[]): string {
   if (reports.length === 0) return `<p class="empty">${RATES_EMPTY}</p>`;
 
   return `
@@ -555,7 +631,7 @@ function ratesTable(reports: RateReport[]): string {
             ${th(`Banka`)}${th(`Söylenen`, 'num')}${th(`Gerçek`, 'num')}${th(`Ürün`)}${th(`Okundu`, 'when')}
           </tr>
         </thead>
-        <tbody>${reports.map(rateRow).join('')}
+        <tbody>${reports.map((report) => rateRow(report) + historyRow(report)).join('')}
         </tbody>
       </table>
       </div>
@@ -932,7 +1008,15 @@ const FINANCE_SCRIPT = `
     const body = table.tBodies[0];
     if (!body) return;
 
-    const rows = [...body.rows];
+    // A bank's folded readings live in a row of their own, and sorting the rows
+    // independently would leave them under whichever bank landed above — one
+    // bank's history attributed to another. Paired up first, moved together.
+    const rows = [...body.rows].filter((row) => !row.classList.contains('history'));
+    const folded = new Map(rows.map((row) => {
+      const next = row.nextElementSibling;
+      return [row, next && next.classList.contains('history') ? next : null];
+    }));
+
     rows.sort((a, b) =>
       M.compareCells(
         (a.cells[index] || {}).textContent || '',
@@ -940,7 +1024,11 @@ const FINANCE_SCRIPT = `
         direction,
       ),
     );
-    for (const row of rows) body.appendChild(row);
+    for (const row of rows) {
+      body.appendChild(row);
+      const under = folded.get(row);
+      if (under) body.appendChild(under);
+    }
   };
 
   const activate = (heading) => {
@@ -1112,6 +1200,18 @@ const STYLE = `
   }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
+  /* Folded readings sit under the bank they belong to and stay quieter than it:
+     what a rate was last week is context for today's figure, not a rival to it. */
+  .history td { padding-top: 0; border-top: 0; }
+  .history summary { font-size: .8rem; color: var(--muted); cursor: pointer; }
+  .history ul { margin: .4rem 0 .2rem; padding-left: 1.1rem; font-size: .85rem; }
+  .history li { margin: .15rem 0; }
+  .history .corrected { color: var(--muted); }
+  /* The reason a reading was retired is a scout's working note and can run to
+     two thousand characters. Reachable, not inlined. */
+  .why { display: inline; margin-left: .4rem; }
+  .why summary { display: inline; font-size: .8rem; text-decoration: underline dotted; }
+  .why p { margin: .3rem 0 .5rem; max-width: 62ch; }
   /* Beside the name on a wide screen, under it on a narrow one, and quiet in
      both: a caveat on the whole page rather than a heading of its own. */
   .freshness { margin: 0; font-size: .8rem; color: var(--muted); }

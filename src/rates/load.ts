@@ -46,6 +46,42 @@ export interface RateReport {
   note?: string;
 }
 
+/** A reading of a bank taken before the one on show. */
+export interface EarlierReading {
+  report: RateReport;
+  /**
+   * True when a later reading replaced this one because it was wrong.
+   *
+   * A correction is not a movement. Listed unmarked beside a genuine earlier
+   * reading it reads as the rate having changed, which invents a market move
+   * out of a mistake — one of this record's corrections exists only because a
+   * bank name was spelled with a dotless ı, and nothing about the rate moved.
+   */
+  corrected: boolean;
+  /**
+   * The note on the reading that replaced this one, where it wrote one.
+   *
+   * Named for what it is rather than for what it usually contains. Every
+   * correction in this record explains itself there, so leaving it in the file
+   * means the only way to learn why a reading was retired is to open the JSON —
+   * which is what made this history unreadable. But `note` is a general remark
+   * field, and a scout is free to write something else in it; presenting it as
+   * "the reason" would put an explanation in the record's mouth.
+   */
+  replacementNote?: string;
+}
+
+/**
+ * The reading on show, with the ones it stands in front of.
+ *
+ * Every reading is written and, until this existed, only the newest was
+ * readable — the record kept a history it could not answer questions from.
+ */
+export interface ShownRateReport extends RateReport {
+  /** Newest first, because "what did it say last time" is the question asked. */
+  earlier: EarlierReading[];
+}
+
 /**
  * How far our annual cost rate may sit BELOW the bank's own before the example
  * is treated as incomplete, in percentage points.
@@ -197,7 +233,7 @@ export function bestOffer(report: RateReport): RateOffer | undefined {
  * disappears from the comparison looks the same as a bank that has no offer,
  * and only one of those means somebody should go and look again.
  */
-export function loadRateReports(root: string): RateReport[] {
+export function loadRateReports(root: string): ShownRateReport[] {
   const directory = join(root, 'rates');
   if (!existsSync(directory)) return [];
 
@@ -219,6 +255,14 @@ export function loadRateReports(root: string): RateReport[] {
   const readAtByFile = new Map<string, string>();
   const claims: { supersedes: string; at: string }[] = [];
   const replaced = new Set<string>();
+  const readings: { report: RateReport; file: string }[] = [];
+  const byFile = new Map<string, RateReport>();
+  // The note of the reading that replaced a given file, where it wrote one.
+  const noteOnReplacing = new Map<string, string>();
+  // Names the record has linked by a supersedes claim, treated as one bank.
+  // The case corrections exist for is the name itself being wrong, so following
+  // the claim is the only thing that ties "VakifBank" to "VakıfBank".
+  const renamedTo = new Map<string, string>();
 
   for (const file of files) {
     const path = join(directory, file);
@@ -244,6 +288,9 @@ export function loadRateReports(root: string): RateReport[] {
       claims.push({ supersedes: report.supersedes, at: readAt(report) });
     }
 
+    readings.push({ report, file });
+    byFile.set(file, report);
+
     const previous = newest.get(report.bank);
     if (previous === undefined || readAt(previous.report) <= readAt(report)) {
       newest.set(report.bank, { report, file });
@@ -257,6 +304,14 @@ export function loadRateReports(root: string): RateReport[] {
   for (const claim of claims) {
     const target = readAtByFile.get(claim.supersedes);
     if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
+  }
+
+  for (const { report } of readings) {
+    if (report.supersedes === undefined || !replaced.has(report.supersedes)) continue;
+    if (report.note !== undefined) noteOnReplacing.set(report.supersedes, report.note);
+
+    const was = byFile.get(report.supersedes)?.bank;
+    if (was !== undefined && was !== report.bank) renamedTo.set(was, report.bank);
   }
 
   for (const [bank, kept] of newest) {
@@ -275,8 +330,53 @@ export function loadRateReports(root: string): RateReport[] {
   // Among themselves the unknowns keep headline order, which is the only figure
   // they have.
   return [...newest.values()]
-    .map((kept) => kept.report)
+    .map((kept) => ({ ...kept.report, earlier: earlierThan(kept) }))
     .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
+
+  /**
+   * The name a bank ended up under, following every rename the record claims.
+   *
+   * One hop is not enough. A correction points at the reading it replaces, not
+   * at the whole history behind it, so a reading older than that one under the
+   * abandoned spelling is pointed at by nothing — and was reachable from
+   * nowhere, which is the disappearance this was built to end.
+   */
+  function nowCalled(bank: string): string {
+    const seen = new Set<string>();
+    let name = bank;
+    while (renamedTo.has(name) && !seen.has(name)) {
+      seen.add(name);
+      name = renamedTo.get(name) ?? name;
+    }
+    return name;
+  }
+
+  function earlierThan(kept: { report: RateReport; file: string }): EarlierReading[] {
+    // Two spellings both still on show is not a rename: nothing says they are
+    // one bank, and filing each reading under both would show it twice. Only
+    // when a single row survives the group does it inherit the whole group.
+    const group = nowCalled(kept.report.bank);
+    const sole =
+      [...newest.values()].filter((other) => nowCalled(other.report.bank) === group).length === 1;
+
+    return readings
+      .filter(
+        (reading) =>
+          reading.file !== kept.file &&
+          (sole
+            ? nowCalled(reading.report.bank) === group
+            : reading.report.bank === kept.report.bank),
+      )
+      .map((reading) => {
+        const replacementNote = noteOnReplacing.get(reading.file);
+        return {
+          report: reading.report,
+          corrected: replaced.has(reading.file),
+          ...(replacementNote === undefined ? {} : { replacementNote }),
+        };
+      })
+      .sort((a, b) => byCodePoint(readAt(b.report), readAt(a.report)));
+  }
 }
 
 /**

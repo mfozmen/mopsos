@@ -523,3 +523,179 @@ describe('headlineMisleads', () => {
     expect(headlineMisleads([noExample])).toBe(false);
   });
 });
+
+describe('the readings behind the one on show', () => {
+  it('carries the earlier readings of a bank rather than dropping them', () => {
+    const root = rates(
+      ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],
+      ['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)],
+    );
+
+    const [shown] = loadRateReports(root);
+
+    expect(shown?.offers[0]?.monthly_rate).toBe(2.79);
+    expect(shown?.earlier.map((reading) => reading.report.captured_on)).toEqual(['2026-07-20']);
+  });
+
+  it('puts the most recent of them first, because that is the one asked about', () => {
+    const root = rates(
+      ['2026-07-13-ziraat.json', report('Ziraat Bankası', '2026-07-13', 3.4)],
+      ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],
+      ['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier.map((r) => r.report.captured_on)).toEqual([
+      '2026-07-20',
+      '2026-07-13',
+    ]);
+  });
+
+  it('has nothing behind a bank looked at once', () => {
+    const root = rates(['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)]);
+
+    expect(loadRateReports(root)[0]?.earlier).toEqual([]);
+  });
+
+  it('marks a replaced reading as corrected, not as a rate that moved', () => {
+    // A correction says the earlier reading was wrong. Listed unmarked beside a
+    // genuine one it reads as the rate having changed, which invents a movement
+    // out of a mistake.
+    const root = rates(
+      ['2026-07-20-vakif.json', report('VakifBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 3.19, { supersedes: '2026-07-20-vakif.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.earlier).toEqual([expect.objectContaining({ corrected: true })]);
+  });
+
+  it('does not list a reading twice when the correction spells the bank differently', () => {
+    const root = rates(
+      ['2026-07-20-vakif.json', report('VakifBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 3.19, { supersedes: '2026-07-20-vakif.json' }),
+      ],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier).toHaveLength(1);
+  });
+
+  it('carries why a reading was replaced, so the reason is not only in the file', () => {
+    const root = rates(
+      ['2026-07-20-vakif.json', report('VakıfBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 3.19, {
+          supersedes: '2026-07-20-vakif.json',
+          note: 'Önceki okuma ücretleri eksik almıştı.',
+        }),
+      ],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier[0]?.replacementNote).toBe(
+      'Önceki okuma ücretleri eksik almıştı.',
+    );
+  });
+
+  it('keeps everything read under a name the bank was renamed away from', () => {
+    // A correction points at the reading it replaces, not at the whole history
+    // behind it. Following only that one hop leaves anything older under the old
+    // spelling reachable from nowhere: not shown, not behind the new name, and
+    // not pointed at by anything — which is the disappearance this exists to end.
+    const root = rates(
+      ['2026-07-06-vakif.json', report('VakifBank', '2026-07-06', 3.4)],
+      ['2026-07-20-vakif.json', report('VakifBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 2.99, { supersedes: '2026-07-20-vakif.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.earlier.map((reading) => reading.report.captured_on)).toEqual([
+      '2026-07-20',
+      '2026-07-06',
+    ]);
+  });
+
+  it('follows a bank renamed twice all the way to the name it ends under', () => {
+    // One hop is what a single lookup gives, and it is not enough: after a
+    // second rename the oldest reading answers to a name nothing points at any
+    // more, and it drops off the reachable end.
+    const root = rates(
+      ['2026-07-06-a.json', report('Aaa Bank', '2026-07-06', 3.4)],
+      [
+        '2026-07-13-b.json',
+        report('Bbb Bank', '2026-07-13', 3.19, { supersedes: '2026-07-06-a.json' }),
+      ],
+      [
+        '2026-07-20-c.json',
+        report('Ccc Bank', '2026-07-20', 2.99, { supersedes: '2026-07-13-b.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.bank).toBe('Ccc Bank');
+    expect(shown[0]?.earlier.map((reading) => reading.report.captured_on)).toEqual([
+      '2026-07-13',
+      '2026-07-06',
+    ]);
+  });
+
+  it('still finishes when the claims point in a circle', () => {
+    // A record that says A became B and B became A contradicts itself, and no
+    // reading of it is the right one. All that is promised here is that the
+    // walk stops: a loader that hangs takes the whole page with it.
+    const root = rates(
+      ['2026-07-06-a.json', report('Aaa Bank', '2026-07-06', 3.4)],
+      [
+        '2026-07-13-b.json',
+        report('Bbb Bank', '2026-07-13', 3.19, { supersedes: '2026-07-06-a.json' }),
+      ],
+      [
+        '2026-07-20-a.json',
+        report('Aaa Bank', '2026-07-20', 2.99, { supersedes: '2026-07-13-b.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.captured_on).toBe('2026-07-20');
+  });
+
+  it('does not lend one bank the readings of another that is still on show', () => {
+    // Two spellings both alive is a different situation from a rename: nothing
+    // says they are one bank, and filing each under both would show every
+    // reading twice.
+    const root = rates(
+      ['2026-07-20-a.json', report('Aaa Bank', '2026-07-20', 3.19)],
+      ['2026-07-27-a.json', report('Aaa Bank', '2026-07-27', 2.99)],
+      ['2026-07-27-b.json', report('Bbb Bank', '2026-07-27', 2.5)],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(2);
+    expect(shown.map((report) => report.earlier.length).sort()).toEqual([0, 1]);
+  });
+
+  it('leaves a genuine earlier reading unmarked', () => {
+    const root = rates(
+      ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],
+      ['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier[0]?.corrected).toBe(false);
+  });
+});
