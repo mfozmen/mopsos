@@ -1101,6 +1101,14 @@ describe('how stale the picture is', () => {
   });
 });
 
+const HALKBANK_OFFERS = [
+  {
+    product: 'Yeni Evlilere Özel',
+    monthly_rate: 2.6,
+    example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+  },
+];
+
 describe('the readings behind a bank', () => {
   // A prepaid-interest offer, so the two figures differ and the row has to
   // print both to mean anything: %1,99 asked, %3,32 actually paid.
@@ -1167,6 +1175,48 @@ describe('the readings behind a bank', () => {
 
     expect(housing).toContain(replacementNote.trim().slice(0, 30));
     expect(housing).toContain('<summary>yeni okumanın notu</summary>');
+  });
+
+  it('says which way an earlier reading has moved since', () => {
+    // The two figures on their own leave the reader subtracting. What is being
+    // asked is whether borrowing got cheaper here, and %3,32 then against
+    // %2,72 now is six tenths of a point.
+    const now = { ...ZIRAAT, offers: [...HALKBANK_OFFERS], earlier: [earlier('2026-07-20', 1.99)] };
+    const housing = panel(renderPage({ ...EMPTY, rates: [now] }), 'housing');
+
+    expect(housing).toMatch(/0,60 puan ucuz/);
+  });
+
+  it('says nothing moved rather than printing a zero', () => {
+    const same = {
+      corrected: false,
+      report: { ...ZIRAAT, captured_on: '2026-07-20', offers: [...HALKBANK_OFFERS] },
+    };
+    const now = { ...ZIRAAT, offers: [...HALKBANK_OFFERS], earlier: [same] };
+    const housing = panel(renderPage({ ...EMPTY, rates: [now] }), 'housing');
+
+    expect(housing).toContain('değişmedi');
+  });
+
+  it('stays silent when the earlier reading could not be measured', () => {
+    // A bank that gained a worked example between readings did not get dearer;
+    // our knowledge changed. Rendered as a movement it is forty basis points of
+    // fiction, larger than most real moves.
+    const unmeasured = {
+      corrected: false,
+      report: {
+        ...ZIRAAT,
+        captured_on: '2026-07-20',
+        offers: [{ product: 'Konut', monthly_rate: 2.6 }],
+      },
+    };
+    const now = { ...ZIRAAT, offers: [...HALKBANK_OFFERS], earlier: [unmeasured] };
+    const housing = panel(renderPage({ ...EMPTY, rates: [now] }), 'housing');
+
+    // Not "değişmedi" either: that claims it held steady, and nobody knows.
+    // The dash in the row already says the cost is unknown.
+    expect(housing).not.toMatch(/puan (ucuz|pahalı)/);
+    expect(housing).not.toContain('değişmedi');
   });
 
   it('adds nothing to a bank nobody has read twice', () => {

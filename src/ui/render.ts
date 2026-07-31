@@ -10,6 +10,7 @@ import {
   type ShownRateReport,
   trueMonthlyRate,
 } from '../rates/load.js';
+import { moved } from '../rates/movement.js';
 
 export interface Tab {
   id: string;
@@ -580,6 +581,33 @@ function termsCell(offer: RateOffer): string {
  * it get dearer": the two move independently, which is the reason this record
  * exists at all.
  */
+/**
+ * Which way this bank has gone since an earlier reading.
+ *
+ * The two figures on their own leave the reader subtracting, and the question
+ * being asked is not "what were the numbers" but "did borrowing here get
+ * cheaper". Measured on the real cost, because the headline and the real cost
+ * move independently and a series built on the headline reports movements
+ * nobody paid.
+ *
+ * Nothing at all when either reading cannot be measured — not even "değişmedi",
+ * which claims it held steady when nobody knows. The dash beside it already
+ * says the cost is unknown.
+ */
+function sinceThen(now: RateReport, then: RateReport): string {
+  const movement = moved(now, then);
+  if (movement === undefined) return '';
+
+  const points = Math.abs(movement.points);
+  // Below a basis point is rounding in a published example, not a rate move.
+  if (points < 0.005) return ` <span class="steady">değişmedi</span>`;
+
+  return ` <span class="moved">${points.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} puan ${movement.points > 0 ? 'pahalı' : 'ucuz'}</span>`;
+}
+
 function foldSummary(earlier: { corrected: boolean }[]): string {
   // A correction is not an earlier reading of the rate. Counting the two
   // together says the rate was once something else, and for a correction it
@@ -628,7 +656,7 @@ function historyRow(report: ShownRateReport): string {
       const real = trueMonthlyRate(offer);
       return `<li>${when} ${ratePercent(offer.monthly_rate)} → ${
         real === undefined ? '—' : ratePercent(real)
-      }</li>`;
+      }${sinceThen(report, reading.report)}</li>`;
     })
     .join('');
 
@@ -1267,6 +1295,11 @@ const STYLE = `
   .history ul { margin: .4rem 0 .2rem; padding-left: 1.1rem; font-size: .85rem; }
   .history li { margin: .15rem 0; }
   .history .corrected { color: var(--muted); }
+  /* The answer to the question the two figures raise, so it carries a little
+     more weight than the figures themselves. */
+  .moved { font-weight: 600; }
+  .steady, .moved { font-size: .8rem; }
+  .steady { color: var(--muted); }
   /* The reason a reading was retired is a scout's working note and can run to
      two thousand characters. Reachable, not inlined. */
   .why { display: inline; margin-left: .4rem; }
