@@ -10,7 +10,7 @@ import {
   type ShownRateReport,
   trueMonthlyRate,
 } from '../rates/load.js';
-import { moved } from '../rates/movement.js';
+import { type Movement, moved } from '../rates/movement.js';
 
 export interface Tab {
   id: string;
@@ -581,8 +581,7 @@ function termsCell(offer: RateOffer): string {
  * which claims it held steady when nobody knows. The dash beside it already
  * says the cost is unknown.
  */
-function sinceThen(now: RateReport, then: RateReport): string {
-  const movement = moved(now, then);
+function sinceThen(movement: Movement | undefined): string {
   if (movement === undefined) return '';
 
   const points = Math.abs(movement.points);
@@ -658,13 +657,22 @@ function historyRow(report: ShownRateReport): string {
         return `<li class="corrected">${when} yerine yenisi yazıldı${why}</li>`;
       }
 
-      const offer = bestOffer(reading.report);
+      // The offer the movement was measured on, not this reading's own
+      // cheapest. Where the bank still sells the product it leads with today,
+      // that is the product being followed — and printing a different one
+      // beside the figure is the fault that had the table ranking a bank by one
+      // product and showing another.
+      const movement = moved(report, reading.report);
+      const offer =
+        movement?.product === undefined
+          ? bestOffer(reading.report)
+          : reading.report.offers.find((o) => o.product === movement.product);
       if (offer === undefined) return `<li>${when} oran yayınlamamış</li>`;
 
       const real = trueMonthlyRate(offer);
       return `<li>${when} ${ratePercent(offer.monthly_rate)} → ${
         real === undefined ? '—' : ratePercent(real)
-      }${sinceThen(report, reading.report)}</li>`;
+      }${sinceThen(movement)}</li>`;
     })
     .join('');
 

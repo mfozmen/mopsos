@@ -1217,6 +1217,35 @@ describe('the readings behind a bank', () => {
     expect(housing).toContain('en ucuz ürün değişti');
   });
 
+  it('prints the figures of the very offer the movement was measured on', () => {
+    // The line used to show the earlier reading's own cheapest offer while the
+    // movement beside it followed a different one — the same fault as ranking a
+    // bank by one product and printing another, a line lower down.
+    const AKBANK_EXAMPLE = {
+      amount: 1_000_000,
+      months: 120,
+      instalment: 21_964.48,
+      upfront_interest: 309_637.03,
+      fees: 41_750,
+    };
+    const both = {
+      corrected: false,
+      report: {
+        ...ZIRAAT,
+        captured_on: '2026-07-20',
+        offers: [
+          { product: 'Yeni Evlilere Özel', monthly_rate: 3.4, example: AKBANK_EXAMPLE },
+          { product: 'Başka Ürün', monthly_rate: 2.6, example: HALKBANK_OFFERS[0]!.example },
+        ],
+      },
+    };
+    const now = { ...ZIRAAT, offers: [...HALKBANK_OFFERS], earlier: [both] };
+    const housing = panel(renderPage({ ...EMPTY, rates: [now] }), 'housing');
+
+    // %3,40 is the followed product; %2,60 is the reading's own cheapest.
+    expect(housing).toMatch(/20\.07\.2026<\/time> %3,40/);
+  });
+
   it('says nothing moved rather than printing a zero', () => {
     const same = {
       corrected: false,
