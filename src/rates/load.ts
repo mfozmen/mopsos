@@ -46,6 +46,39 @@ export interface RateReport {
   note?: string;
 }
 
+/** A reading of a bank taken before the one on show. */
+export interface EarlierReading {
+  report: RateReport;
+  /**
+   * True when a later reading replaced this one because it was wrong.
+   *
+   * A correction is not a movement. Listed unmarked beside a genuine earlier
+   * reading it reads as the rate having changed, which invents a market move
+   * out of a mistake — one of this record's corrections exists only because a
+   * bank name was spelled with a dotless ı, and nothing about the rate moved.
+   */
+  corrected: boolean;
+  /**
+   * What the reading that replaced this one said about replacing it.
+   *
+   * The reason lives in the correcting report's note, and leaving it there
+   * means the only way to learn why a reading was retired is to open the JSON —
+   * which is the thing this record's history was unreadable for.
+   */
+  reason?: string;
+}
+
+/**
+ * The reading on show, with the ones it stands in front of.
+ *
+ * Every reading is written and, until this existed, only the newest was
+ * readable — the record kept a history it could not answer questions from.
+ */
+export interface ShownRateReport extends RateReport {
+  /** Newest first, because "what did it say last time" is the question asked. */
+  earlier: EarlierReading[];
+}
+
 /**
  * How far our annual cost rate may sit BELOW the bank's own before the example
  * is treated as incomplete, in percentage points.
@@ -197,7 +230,7 @@ export function bestOffer(report: RateReport): RateOffer | undefined {
  * disappears from the comparison looks the same as a bank that has no offer,
  * and only one of those means somebody should go and look again.
  */
-export function loadRateReports(root: string): RateReport[] {
+export function loadRateReports(root: string): ShownRateReport[] {
   const directory = join(root, 'rates');
   if (!existsSync(directory)) return [];
 
@@ -219,6 +252,12 @@ export function loadRateReports(root: string): RateReport[] {
   const readAtByFile = new Map<string, string>();
   const claims: { supersedes: string; at: string }[] = [];
   const replaced = new Set<string>();
+  const byFile = new Map<string, RateReport>();
+  const readingsByBank = new Map<string, { report: RateReport; file: string }[]>();
+  // Which bank a corrected file belongs under. Not its own bank field: the case
+  // corrections exist for is the name being wrong, so the reading it replaced
+  // is filed under the spelling that replaced it.
+  const correctedBy = new Map<string, { bank: string; note?: string }>();
 
   for (const file of files) {
     const path = join(directory, file);
@@ -244,6 +283,9 @@ export function loadRateReports(root: string): RateReport[] {
       claims.push({ supersedes: report.supersedes, at: readAt(report) });
     }
 
+    byFile.set(file, report);
+    readingsByBank.set(report.bank, [...(readingsByBank.get(report.bank) ?? []), { report, file }]);
+
     const previous = newest.get(report.bank);
     if (previous === undefined || readAt(previous.report) <= readAt(report)) {
       newest.set(report.bank, { report, file });
@@ -257,6 +299,15 @@ export function loadRateReports(root: string): RateReport[] {
   for (const claim of claims) {
     const target = readAtByFile.get(claim.supersedes);
     if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
+  }
+
+  for (const report of byFile.values()) {
+    if (report.supersedes !== undefined && replaced.has(report.supersedes)) {
+      correctedBy.set(report.supersedes, {
+        bank: report.bank,
+        ...(report.note === undefined ? {} : { note: report.note }),
+      });
+    }
   }
 
   for (const [bank, kept] of newest) {
@@ -275,8 +326,28 @@ export function loadRateReports(root: string): RateReport[] {
   // Among themselves the unknowns keep headline order, which is the only figure
   // they have.
   return [...newest.values()]
-    .map((kept) => kept.report)
+    .map((kept) => ({ ...kept.report, earlier: earlierThan(kept) }))
     .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
+
+  function earlierThan(kept: { report: RateReport; file: string }): EarlierReading[] {
+    const own = (readingsByBank.get(kept.report.bank) ?? []).filter(
+      (reading) => reading.file !== kept.file && !replaced.has(reading.file),
+    );
+    const corrections = [...byFile.entries()]
+      .filter(([file]) => correctedBy.get(file)?.bank === kept.report.bank)
+      .map(([file, report]) => ({ report, file }));
+
+    return [...own, ...corrections]
+      .map((reading) => {
+        const reason = correctedBy.get(reading.file)?.note;
+        return {
+          report: reading.report,
+          corrected: replaced.has(reading.file),
+          ...(reason === undefined ? {} : { reason }),
+        };
+      })
+      .sort((a, b) => byCodePoint(readAt(b.report), readAt(a.report)));
+  }
 }
 
 /**

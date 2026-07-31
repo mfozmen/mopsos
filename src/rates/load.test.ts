@@ -523,3 +523,92 @@ describe('headlineMisleads', () => {
     expect(headlineMisleads([noExample])).toBe(false);
   });
 });
+
+describe('the readings behind the one on show', () => {
+  it('carries the earlier readings of a bank rather than dropping them', () => {
+    const root = rates(
+      ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],
+      ['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)],
+    );
+
+    const [shown] = loadRateReports(root);
+
+    expect(shown?.offers[0]?.monthly_rate).toBe(2.79);
+    expect(shown?.earlier.map((reading) => reading.report.captured_on)).toEqual(['2026-07-20']);
+  });
+
+  it('puts the most recent of them first, because that is the one asked about', () => {
+    const root = rates(
+      ['2026-07-13-ziraat.json', report('Ziraat Bankası', '2026-07-13', 3.4)],
+      ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],
+      ['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier.map((r) => r.report.captured_on)).toEqual([
+      '2026-07-20',
+      '2026-07-13',
+    ]);
+  });
+
+  it('has nothing behind a bank looked at once', () => {
+    const root = rates(['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)]);
+
+    expect(loadRateReports(root)[0]?.earlier).toEqual([]);
+  });
+
+  it('marks a replaced reading as corrected, not as a rate that moved', () => {
+    // A correction says the earlier reading was wrong. Listed unmarked beside a
+    // genuine one it reads as the rate having changed, which invents a movement
+    // out of a mistake.
+    const root = rates(
+      ['2026-07-20-vakif.json', report('VakifBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 3.19, { supersedes: '2026-07-20-vakif.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.earlier).toEqual([expect.objectContaining({ corrected: true })]);
+  });
+
+  it('does not list a reading twice when the correction spells the bank differently', () => {
+    const root = rates(
+      ['2026-07-20-vakif.json', report('VakifBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 3.19, { supersedes: '2026-07-20-vakif.json' }),
+      ],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier).toHaveLength(1);
+  });
+
+  it('carries why a reading was replaced, so the reason is not only in the file', () => {
+    const root = rates(
+      ['2026-07-20-vakif.json', report('VakıfBank', '2026-07-20', 3.19)],
+      [
+        '2026-07-27-vakif.json',
+        report('VakıfBank', '2026-07-27', 3.19, {
+          supersedes: '2026-07-20-vakif.json',
+          note: 'Önceki okuma ücretleri eksik almıştı.',
+        }),
+      ],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier[0]?.reason).toBe(
+      'Önceki okuma ücretleri eksik almıştı.',
+    );
+  });
+
+  it('leaves a genuine earlier reading unmarked', () => {
+    const root = rates(
+      ['2026-07-20-ziraat.json', report('Ziraat Bankası', '2026-07-20', 3.19)],
+      ['2026-07-27-ziraat.json', report('Ziraat Bankası', '2026-07-27', 2.79)],
+    );
+
+    expect(loadRateReports(root)[0]?.earlier[0]?.corrected).toBe(false);
+  });
+});

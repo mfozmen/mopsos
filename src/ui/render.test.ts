@@ -31,6 +31,7 @@ const ZIRAAT = {
   captured_on: '2026-07-27',
   source_url: 'https://example.test/konut',
   offers: [{ product: 'Konut Kredisi', monthly_rate: 2.79, conditions: 'Maaş müşterisi' }],
+  earlier: [],
 };
 
 /**
@@ -1097,5 +1098,89 @@ describe('how stale the picture is', () => {
     const page = renderPage({ ...EMPTY, research: [reading('2026-07-29'), reading('2026-07-29')] });
 
     expect(page.match(/data-since="/g)).toHaveLength(1);
+  });
+});
+
+describe('the readings behind a bank', () => {
+  // A prepaid-interest offer, so the two figures differ and the row has to
+  // print both to mean anything: %1,99 asked, %3,32 actually paid.
+  const earlier = (captured_on: string, monthly_rate: number, corrected = false) => ({
+    corrected,
+    report: {
+      ...ZIRAAT,
+      captured_on,
+      offers: [
+        {
+          product: 'Konut Kredisi',
+          monthly_rate,
+          example: {
+            amount: 1_000_000,
+            months: 120,
+            instalment: 21_964.48,
+            upfront_interest: 309_637.03,
+            fees: 41_750,
+          },
+        },
+      ],
+    },
+  });
+  const withHistory = (...history: ReturnType<typeof earlier>[]) => ({
+    ...EMPTY,
+    rates: [{ ...ZIRAAT, earlier: history }],
+  });
+
+  it('offers the earlier readings of a bank that has some', () => {
+    const housing = panel(renderPage(withHistory(earlier('2026-07-20', 3.19))), 'housing');
+
+    expect(housing).toContain('20.07.2026');
+  });
+
+  it('shows what the earlier reading really cost, so the two can be compared', () => {
+    // The headline alone cannot answer "did it get dearer" — the whole record
+    // exists because the two figures move independently.
+    const housing = panel(renderPage(withHistory(earlier('2026-07-20', 1.99))), 'housing');
+
+    expect(housing).toMatch(/20\.07\.2026[\s\S]{0,200}%1,99[\s\S]{0,200}%3,3/);
+  });
+
+  it('says a correction is a correction rather than showing it as a rate that moved', () => {
+    const housing = panel(renderPage(withHistory(earlier('2026-07-20', 3.19, true))), 'housing');
+
+    expect(housing).toMatch(/düzelt/i);
+  });
+
+  it('calls a correction a correction in the summary, not an earlier reading', () => {
+    // "1 eski okuma" would say the rate was once something else. It was not —
+    // the reading was wrong, and the rate never moved.
+    const housing = panel(renderPage(withHistory(earlier('2026-07-20', 1.99, true))), 'housing');
+
+    expect(housing).toContain('1 düzeltme');
+    expect(housing).not.toContain('1 eski okuma');
+  });
+
+  it('keeps the reason behind a fold of its own, so a long note cannot flood the row', () => {
+    // The record's correction notes run to two thousand characters — a scout's
+    // whole working log. Inlined, one correction buries the table it belongs to.
+    const reason = 'Önceki okuma ücretleri eksik almıştı. '.repeat(40);
+    const history = { ...earlier('2026-07-20', 1.99, true), reason };
+    const housing = panel(renderPage(withHistory(history)), 'housing');
+
+    expect(housing).toContain(reason.trim().slice(0, 30));
+    expect(housing).toMatch(/<summary>neden<\/summary>/);
+  });
+
+  it('adds nothing to a bank nobody has read twice', () => {
+    const housing = panel(renderPage({ ...EMPTY, rates: [{ ...ZIRAAT, earlier: [] }] }), 'housing');
+
+    expect(housing).not.toContain('class="history"');
+  });
+
+  it('counts them in the summary, so the history is visible while folded', () => {
+    const housing = panel(
+      renderPage(withHistory(earlier('2026-07-20', 3.19), earlier('2026-07-13', 3.4))),
+      'housing',
+    );
+
+    expect(housing).toMatch(/2 eski okuma/);
   });
 });

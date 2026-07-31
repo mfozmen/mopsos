@@ -57,6 +57,7 @@ const DATA: PageData = {
       captured_on: '2026-07-27',
       source_url: 'https://example.test/konut',
       offers: [{ product: 'Konut Kredisi', monthly_rate: RATE }],
+      earlier: [],
     },
   ],
   finance: { bundle: compiled.outputFiles[0]?.text ?? '', rules: loadMortgageRules() },
@@ -282,5 +283,53 @@ describe('how long ago a reading was', () => {
 
   it('keeps the date itself, so the line still means something without the age', () => {
     expect(line(isoDaysAgo(0), isoDaysAgo(5))).toMatch(/\d{2}\.\d{2}\.\d{4}/);
+  });
+});
+
+describe('sorting a table that has readings folded under its rows', () => {
+  const bank = (name: string, monthly_rate: number, earlier: unknown[] = []): unknown => ({
+    ...DATA.rates[0]!,
+    bank: name,
+    offers: [{ product: 'Konut Kredisi', monthly_rate }],
+    earlier,
+  });
+
+  const history = {
+    corrected: false,
+    report: { ...DATA.rates[0]!, captured_on: '2026-07-20', earlier: undefined },
+  };
+
+  const page = (): ReturnType<typeof open> =>
+    open({
+      ...DATA,
+      // Both banks carry history. With only one, the naive sort happens to put
+      // the orphaned row last anyway -- its cells are empty, and empty sorts
+      // last -- so the test would pass against the bug it exists to catch.
+      rates: [
+        bank('Aaa Bank', 3.5, [history]),
+        bank('Zzz Bank', 2.5, [history]),
+      ] as PageData['rates'],
+    });
+
+  /** Every row of the rates table, as "bank name" or "history" in document order. */
+  const order = (dom: ReturnType<typeof open>): string[] =>
+    [...dom.window.document.querySelectorAll<HTMLTableRowElement>('table.rates tbody tr')].map(
+      (row) =>
+        row.classList.contains('history') ? 'history' : (row.cells[0]?.textContent ?? '').trim(),
+    );
+
+  it('keeps the readings of a bank underneath it when the order changes', () => {
+    // The rows are sorted independently, so a history row left behind would end
+    // up folded under whichever bank happened to land above it — attributing
+    // one bank's past to another.
+    const dom = page();
+    expect(order(dom)).toEqual(['Aaa Bank', 'history', 'Zzz Bank', 'history']);
+
+    // Sorted on the rate rather than the name: ascending by name would leave
+    // the rows where they already are, and a test that cannot tell proves
+    // nothing.
+    dom.click('table.rates thead th:nth-child(2)');
+
+    expect(order(dom)).toEqual(['Zzz Bank', 'history', 'Aaa Bank', 'history']);
   });
 });
