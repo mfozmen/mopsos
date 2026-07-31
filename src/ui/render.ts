@@ -10,6 +10,7 @@ import {
   type ShownRateReport,
   trueMonthlyRate,
 } from '../rates/load.js';
+import { type Movement, moved } from '../rates/movement.js';
 
 export interface Tab {
   id: string;
@@ -568,18 +569,39 @@ function termsCell(offer: RateOffer): string {
 }
 
 /**
- * The readings this bank's row stands in front of.
+ * Which way this bank has gone since an earlier reading.
  *
- * Its own row rather than something folded into a cell, because the cell it
- * would belong in is the one the table sorts by date — and a cell holding four
- * dates cannot also be a date. Folded by default: eight of fifteen banks have
- * history, and unfolding all of it doubles the table to answer a question
- * nobody asked yet.
+ * The two figures on their own leave the reader subtracting, and the question
+ * being asked is not "what were the numbers" but "did borrowing here get
+ * cheaper". Measured on the real cost, because the headline and the real cost
+ * move independently and a series built on the headline reports movements
+ * nobody paid.
  *
- * Both figures for each reading, because the headline alone cannot answer "did
- * it get dearer": the two move independently, which is the reason this record
- * exists at all.
+ * Nothing at all when either reading cannot be measured — not even "değişmedi",
+ * which claims it held steady when nobody knows. The dash beside it already
+ * says the cost is unknown.
  */
+function sinceThen(movement: Movement | undefined): string {
+  if (movement === undefined) return '';
+
+  const points = Math.abs(movement.points);
+  // Anything that would print as 0,00 — the two decimals shown below are the
+  // boundary. A difference that small is rounding in a published example, not
+  // a rate move, and "0,00 puan pahalı" is a movement claimed out of nothing.
+  if (points < 0.005) return ` <span class="steady">değişmedi</span>`;
+
+  // Which series it is, where it is not one product's own price. The best of
+  // one reading against the best of another moves when a cheaper product
+  // appears and nothing was repriced.
+  const which =
+    movement.basis === 'bank' ? ` <span class="steady">(en ucuz ürün değişti)</span>` : '';
+
+  return ` <span class="moved">${points.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} puan ${movement.points > 0 ? 'pahalı' : 'ucuz'}</span>${which}`;
+}
+
 function foldSummary(earlier: { corrected: boolean }[]): string {
   // A correction is not an earlier reading of the rate. Counting the two
   // together says the rate was once something else, and for a correction it
@@ -595,6 +617,19 @@ function foldSummary(earlier: { corrected: boolean }[]): string {
     .join(', ');
 }
 
+/**
+ * The readings this bank's row stands in front of.
+ *
+ * Its own row rather than something folded into a cell, because the cell it
+ * would belong in is the one the table sorts by date — and a cell holding four
+ * dates cannot also be a date. Folded by default: eight of fifteen banks have
+ * history, and unfolding all of it doubles the table to answer a question
+ * nobody asked yet.
+ *
+ * Both figures for each reading, because the headline alone cannot answer "did
+ * it get dearer": the two move independently, which is the reason this record
+ * exists at all.
+ */
 function historyRow(report: ShownRateReport): string {
   if (report.earlier.length === 0) return '';
 
@@ -622,13 +657,22 @@ function historyRow(report: ShownRateReport): string {
         return `<li class="corrected">${when} yerine yenisi yazıldı${why}</li>`;
       }
 
-      const offer = bestOffer(reading.report);
+      // The offer the movement was measured on, not this reading's own
+      // cheapest. Where the bank still sells the product it leads with today,
+      // that is the product being followed — and printing a different one
+      // beside the figure is the fault that had the table ranking a bank by one
+      // product and showing another.
+      const movement = moved(report, reading.report);
+      const offer =
+        movement?.product === undefined
+          ? bestOffer(reading.report)
+          : reading.report.offers.find((o) => o.product === movement.product);
       if (offer === undefined) return `<li>${when} oran yayınlamamış</li>`;
 
       const real = trueMonthlyRate(offer);
       return `<li>${when} ${ratePercent(offer.monthly_rate)} → ${
         real === undefined ? '—' : ratePercent(real)
-      }</li>`;
+      }${sinceThen(movement)}</li>`;
     })
     .join('');
 
@@ -1267,6 +1311,11 @@ const STYLE = `
   .history ul { margin: .4rem 0 .2rem; padding-left: 1.1rem; font-size: .85rem; }
   .history li { margin: .15rem 0; }
   .history .corrected { color: var(--muted); }
+  /* The answer to the question the two figures raise, so it carries a little
+     more weight than the figures themselves. */
+  .moved { font-weight: 600; }
+  .steady, .moved { font-size: .8rem; }
+  .steady { color: var(--muted); }
   /* The reason a reading was retired is a scout's working note and can run to
      two thousand characters. Reachable, not inlined. */
   .why { display: inline; margin-left: .4rem; }
