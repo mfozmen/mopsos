@@ -38,9 +38,24 @@ export interface ShownNeighbourhood extends MarketNeighbourhood {
 export interface ShownMarketReport {
   place: string;
   dated: string;
+  /**
+   * To the minute, where the reading recorded it.
+   *
+   * Two readings of one district on one date are in this record already, hours
+   * apart, and the second says in its own note that it is not a direction
+   * reading. By date alone they are the same reading printed twice.
+   */
+  at?: string;
   neighbourhoods: ShownNeighbourhood[];
   note?: string;
   reading?: string;
+  /**
+   * Earlier readings of the same district, newest first.
+   *
+   * Empty on those readings themselves: one level of history is a district's
+   * past, two would be a past of a past, which nothing asks for.
+   */
+  earlier: ShownMarketReport[];
 }
 
 /**
@@ -85,6 +100,7 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   if (!existsSync(directory)) return [];
 
   const newest = new Map<string, MarketReport>();
+  const byPlace = new Map<string, MarketReport[]>();
 
   for (const file of readdirSync(directory)
     .filter((name) => name.endsWith('.json'))
@@ -102,6 +118,7 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
 
     const report = data as MarketReport;
     const place = `${report.province} / ${report.district}`;
+    byPlace.set(place, [...(byPlace.get(place) ?? []), report]);
     const previous = newest.get(place);
     if (previous === undefined || readAt(previous) <= readAt(report)) {
       newest.set(place, report);
@@ -111,13 +128,26 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   return [...newest.entries()]
     .sort(([left], [right]) => byCodePoint(left, right))
     .map(([place, report]) => ({
-      place,
-      dated: report.captured_on,
-      ...(report.note === undefined ? {} : { note: report.note }),
-      ...(report.reading === undefined ? {} : { reading: report.reading }),
-      neighbourhoods: report.neighbourhoods.map((neighbourhood) => {
-        const yield_ = grossYield(neighbourhood);
-        return { ...neighbourhood, ...(yield_ === undefined ? {} : { gross_yield: yield_ }) };
-      }),
+      ...shown(place, report),
+      earlier: (byPlace.get(place) ?? [])
+        .filter((other) => other !== report)
+        .sort((a, b) => byCodePoint(readAt(b), readAt(a)))
+        .map((other) => shown(place, other)),
     }));
+}
+
+/** One reading, as the interface shows it. */
+function shown(place: string, report: MarketReport): ShownMarketReport {
+  return {
+    earlier: [],
+    place,
+    dated: report.captured_on,
+    ...(report.captured_at === undefined ? {} : { at: report.captured_at }),
+    ...(report.note === undefined ? {} : { note: report.note }),
+    ...(report.reading === undefined ? {} : { reading: report.reading }),
+    neighbourhoods: report.neighbourhoods.map((neighbourhood) => {
+      const yield_ = grossYield(neighbourhood);
+      return { ...neighbourhood, ...(yield_ === undefined ? {} : { gross_yield: yield_ }) };
+    }),
+  };
 }

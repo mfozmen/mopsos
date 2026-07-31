@@ -113,6 +113,15 @@ export interface ResearchReport {
   place: string;
   /** ISO date the research was done. */
   dated: string;
+  /**
+   * To the minute, where the reading recorded it. Mirrors `ShownMarketReport.at`.
+   *
+   * Two readings of one district on one date are in this record already, hours
+   * apart. By date alone they are the same reading printed twice.
+   */
+  at?: string;
+  /** Earlier readings of the same district, newest first. */
+  earlier?: ResearchReport[];
   neighbourhoods: Neighbourhood[];
   /** What the run could not do — a site that refused it, a source it fell back to. */
   note?: string;
@@ -235,6 +244,19 @@ function freshness(data: PageData): string {
 
 function since(iso: string): string {
   return `<time datetime="${iso}" data-since="${iso}">${turkishDate(iso)}</time>`;
+}
+
+/**
+ * The time of day, where a reading recorded one.
+ *
+ * Read off the timestamp rather than parsed into a Date: the offset written in
+ * the record is the one the reading was taken at, and converting to the
+ * reader's zone would move a nine o'clock reading to eight and call it the same
+ * reading.
+ */
+function clockTime(at?: string): string {
+  const time = at?.slice(11, 16);
+  return time === undefined || time === '' ? '' : ` ${time}`;
 }
 
 function turkishDate(iso: string): string {
@@ -369,7 +391,7 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
       <details class="report"${open ? ' open' : ''}>
       <summary><strong>${escape(report.place)}</strong><span class="dated">${turkishDate(
         report.dated,
-      )}</span><span class="how-many">${String(count)} mahalle</span></summary>
+      )}${clockTime(report.at)}</span><span class="how-many">${String(count)} mahalle</span></summary>
       <div class="scroller">
       <table>
         <thead>
@@ -425,7 +447,31 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
           ? ''
           : `
       <p class="caution run">${escape(report.note)}</p>`
-      }
+      }${earlierReadings(report)}
+      </details>`;
+}
+
+/**
+ * The readings this district's report stands in front of.
+ *
+ * Each is rendered as the report it is, folded, rather than reduced to a line:
+ * the question "what did it say then" is answered by the same table that
+ * answers "what does it say now", and a second way of showing a reading is a
+ * second thing to keep true.
+ *
+ * No Taksit/Kira column on them. That ratio is worked out from the cheapest
+ * real rate in the record *today*, and putting last month's prices against this
+ * month's rate produces a figure that was never true of any moment.
+ */
+function earlierReadings(report: ResearchReport): string {
+  const earlier = report.earlier ?? [];
+  if (earlier.length === 0) return '';
+
+  return `
+      <details class="earlier-readings">
+      <summary>${String(earlier.length)} eski okuma</summary>${earlier
+        .map((reading) => reportSection(reading))
+        .join('')}
       </details>`;
 }
 
@@ -1200,6 +1246,11 @@ const STYLE = `
   }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
+  /* One level in from the report it belongs to, and quieter: what a district
+     looked like last week is context for today's table, not a rival to it. */
+  .earlier-readings { margin: 1rem 0 0; }
+  .earlier-readings > summary { font-size: .8rem; color: var(--muted); cursor: pointer; }
+  .earlier-readings .report { margin-left: 1rem; }
   /* Folded readings sit under the bank they belong to and stay quieter than it:
      what a rate was last week is context for today's figure, not a rival to it. */
   .history td { padding-top: 0; border-top: 0; }
