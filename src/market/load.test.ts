@@ -97,3 +97,105 @@ describe('loadMarketReports', () => {
     ]);
   });
 });
+
+describe('the readings behind a district', () => {
+  it('carries the earlier readings rather than dropping them', () => {
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+    );
+
+    const [shown] = loadMarketReports(root);
+
+    expect(shown?.dated).toBe('2026-07-28');
+    expect(shown?.earlier.map((reading) => reading.dated)).toEqual(['2026-07-20']);
+  });
+
+  it('marks a replaced reading as corrected, not as a second observation', () => {
+    // The rates side already refuses to count a correction as an earlier
+    // reading, because that says the price was once something else when it
+    // never was. Nothing in the market record uses supersedes yet, and the
+    // first one that does must not read as a district that moved.
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      [
+        '2026-07-28-cigli.json',
+        report({ captured_on: '2026-07-28', supersedes: '2026-07-20-cigli.json' }),
+      ],
+    );
+
+    expect(loadMarketReports(root)[0]?.earlier[0]?.corrected).toBe(true);
+  });
+
+  it('ignores a claim that points at another district', () => {
+    // supersedes is filled in by hand, so a pasted filename from the run next
+    // to it is an ordinary mistake. Honoured across districts it relabels a
+    // genuine reading of an unrelated place as a correction, quietly, and the
+    // reader has no way to see it happened.
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+      [
+        '2026-07-28-menemen.json',
+        report({
+          district: 'Menemen',
+          captured_on: '2026-07-28',
+          supersedes: '2026-07-20-cigli.json',
+        }),
+      ],
+    );
+
+    const cigli = loadMarketReports(root).find((place) => place.place.endsWith('Çiğli'));
+
+    expect(cigli?.earlier[0]?.corrected).toBe(false);
+  });
+
+  it('leaves a genuine earlier reading unmarked', () => {
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+    );
+
+    expect(loadMarketReports(root)[0]?.earlier[0]?.corrected).toBe(false);
+  });
+
+  it('has nothing behind a district looked at once', () => {
+    expect(loadMarketReports(market(['a.json', report()]))[0]?.earlier).toEqual([]);
+  });
+
+  it('carries the time when two readings share a day, or they cannot be told apart', () => {
+    // The record holds exactly this: two readings of Menemen hours apart on one
+    // date, the second saying in its own note that it is not a direction
+    // reading. Shown by date alone they are the same reading twice.
+    const root = market(
+      [
+        '2026-07-29-a.json',
+        report({ captured_on: '2026-07-29', captured_at: '2026-07-29T09:15:00+03:00' }),
+      ],
+      [
+        '2026-07-29-b.json',
+        report({ captured_on: '2026-07-29', captured_at: '2026-07-29T18:40:00+03:00' }),
+      ],
+    );
+
+    const [shown] = loadMarketReports(root);
+
+    expect(shown?.at).toBe('2026-07-29T18:40:00+03:00');
+    expect(shown?.earlier[0]?.at).toBe('2026-07-29T09:15:00+03:00');
+  });
+
+  it('leaves the earlier reading its own figures, not the newest ones', () => {
+    const root = market(
+      [
+        '2026-07-20-cigli.json',
+        report({
+          captured_on: '2026-07-20',
+          neighbourhoods: [neighbourhood({ sale_per_m2: 40_000 })],
+        }),
+      ],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+    );
+
+    expect(loadMarketReports(root)[0]?.earlier[0]?.neighbourhoods[0]?.sale_per_m2).toBe(40_000);
+  });
+});

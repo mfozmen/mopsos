@@ -38,9 +38,32 @@ export interface ShownNeighbourhood extends MarketNeighbourhood {
 export interface ShownMarketReport {
   place: string;
   dated: string;
+  /**
+   * To the minute, where the reading recorded it.
+   *
+   * Two readings of one district on one date are in this record already, hours
+   * apart, and the second says in its own note that it is not a direction
+   * reading. By date alone they are the same reading printed twice.
+   */
+  at?: string;
   neighbourhoods: ShownNeighbourhood[];
   note?: string;
   reading?: string;
+  /**
+   * Earlier readings of the same district, newest first.
+   *
+   * Empty on those readings themselves: one level of history is a district's
+   * past, two would be a past of a past, which nothing asks for.
+   */
+  earlier: ShownMarketReport[];
+  /**
+   * True when a later reading replaced this one because it was wrong.
+   *
+   * A correction is not a second observation. Counted as an earlier reading it
+   * says the district's prices were once something else, and for a correction
+   * they never were — the same distinction the rates side already keeps.
+   */
+  corrected: boolean;
 }
 
 /**
@@ -85,6 +108,11 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   if (!existsSync(directory)) return [];
 
   const newest = new Map<string, MarketReport>();
+  const byPlace = new Map<string, { report: MarketReport; file: string }[]>();
+  const readAtByFile = new Map<string, string>();
+  const placeByFile = new Map<string, string>();
+  const claims: { supersedes: string; at: string; place: string }[] = [];
+  const replaced = new Set<string>();
 
   for (const file of readdirSync(directory)
     .filter((name) => name.endsWith('.json'))
@@ -102,22 +130,59 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
 
     const report = data as MarketReport;
     const place = `${report.province} / ${report.district}`;
+    byPlace.set(place, [...(byPlace.get(place) ?? []), { report, file }]);
+    readAtByFile.set(file, readAt(report));
+    placeByFile.set(file, place);
+    if (report.supersedes !== undefined) {
+      claims.push({ supersedes: report.supersedes, at: readAt(report), place });
+    }
     const previous = newest.get(place);
     if (previous === undefined || readAt(previous) <= readAt(report)) {
       newest.set(place, report);
     }
   }
 
+  // Only a later reading may retire an earlier one, and a claim pointing at
+  // nothing is ignored rather than honoured: a typo there must not make a
+  // reading vanish, because a district that quietly disappears looks the same
+  // as one nobody has been to.
+  //
+  // And only within the district it was made from. `supersedes` is filled in by
+  // hand, so a filename pasted from the run alongside is an ordinary mistake —
+  // and honoured across districts it relabels a genuine reading of an unrelated
+  // place as a correction, silently. A district has no rename to follow the way
+  // a bank does, so there is nothing for the claim to reach across.
+  for (const claim of claims) {
+    const target = readAtByFile.get(claim.supersedes);
+    if (target === undefined || target > claim.at) continue;
+    if (placeByFile.get(claim.supersedes) !== claim.place) continue;
+    replaced.add(claim.supersedes);
+  }
+
   return [...newest.entries()]
     .sort(([left], [right]) => byCodePoint(left, right))
     .map(([place, report]) => ({
-      place,
-      dated: report.captured_on,
-      ...(report.note === undefined ? {} : { note: report.note }),
-      ...(report.reading === undefined ? {} : { reading: report.reading }),
-      neighbourhoods: report.neighbourhoods.map((neighbourhood) => {
-        const yield_ = grossYield(neighbourhood);
-        return { ...neighbourhood, ...(yield_ === undefined ? {} : { gross_yield: yield_ }) };
-      }),
+      ...shown(place, report),
+      earlier: (byPlace.get(place) ?? [])
+        .filter((other) => other.report !== report)
+        .sort((a, b) => byCodePoint(readAt(b.report), readAt(a.report)))
+        .map((other) => ({ ...shown(place, other.report), corrected: replaced.has(other.file) })),
     }));
+}
+
+/** One reading, as the interface shows it. */
+function shown(place: string, report: MarketReport): ShownMarketReport {
+  return {
+    earlier: [],
+    corrected: false,
+    place,
+    dated: report.captured_on,
+    ...(report.captured_at === undefined ? {} : { at: report.captured_at }),
+    ...(report.note === undefined ? {} : { note: report.note }),
+    ...(report.reading === undefined ? {} : { reading: report.reading }),
+    neighbourhoods: report.neighbourhoods.map((neighbourhood) => {
+      const yield_ = grossYield(neighbourhood);
+      return { ...neighbourhood, ...(yield_ === undefined ? {} : { gross_yield: yield_ }) };
+    }),
+  };
 }
