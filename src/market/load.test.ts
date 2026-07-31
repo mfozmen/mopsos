@@ -127,6 +127,29 @@ describe('the readings behind a district', () => {
     expect(loadMarketReports(root)[0]?.earlier[0]?.corrected).toBe(true);
   });
 
+  it('ignores a claim that points at another district', () => {
+    // supersedes is filled in by hand, so a pasted filename from the run next
+    // to it is an ordinary mistake. Honoured across districts it relabels a
+    // genuine reading of an unrelated place as a correction, quietly, and the
+    // reader has no way to see it happened.
+    const root = market(
+      ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],
+      ['2026-07-28-cigli.json', report({ captured_on: '2026-07-28' })],
+      [
+        '2026-07-28-menemen.json',
+        report({
+          district: 'Menemen',
+          captured_on: '2026-07-28',
+          supersedes: '2026-07-20-cigli.json',
+        }),
+      ],
+    );
+
+    const cigli = loadMarketReports(root).find((place) => place.place.endsWith('Çiğli'));
+
+    expect(cigli?.earlier[0]?.corrected).toBe(false);
+  });
+
   it('leaves a genuine earlier reading unmarked', () => {
     const root = market(
       ['2026-07-20-cigli.json', report({ captured_on: '2026-07-20' })],

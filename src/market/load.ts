@@ -110,7 +110,8 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   const newest = new Map<string, MarketReport>();
   const byPlace = new Map<string, { report: MarketReport; file: string }[]>();
   const readAtByFile = new Map<string, string>();
-  const claims: { supersedes: string; at: string }[] = [];
+  const placeByFile = new Map<string, string>();
+  const claims: { supersedes: string; at: string; place: string }[] = [];
   const replaced = new Set<string>();
 
   for (const file of readdirSync(directory)
@@ -131,8 +132,9 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
     const place = `${report.province} / ${report.district}`;
     byPlace.set(place, [...(byPlace.get(place) ?? []), { report, file }]);
     readAtByFile.set(file, readAt(report));
+    placeByFile.set(file, place);
     if (report.supersedes !== undefined) {
-      claims.push({ supersedes: report.supersedes, at: readAt(report) });
+      claims.push({ supersedes: report.supersedes, at: readAt(report), place });
     }
     const previous = newest.get(place);
     if (previous === undefined || readAt(previous) <= readAt(report)) {
@@ -144,9 +146,17 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   // nothing is ignored rather than honoured: a typo there must not make a
   // reading vanish, because a district that quietly disappears looks the same
   // as one nobody has been to.
+  //
+  // And only within the district it was made from. `supersedes` is filled in by
+  // hand, so a filename pasted from the run alongside is an ordinary mistake —
+  // and honoured across districts it relabels a genuine reading of an unrelated
+  // place as a correction, silently. A district has no rename to follow the way
+  // a bank does, so there is nothing for the claim to reach across.
   for (const claim of claims) {
     const target = readAtByFile.get(claim.supersedes);
-    if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
+    if (target === undefined || target > claim.at) continue;
+    if (placeByFile.get(claim.supersedes) !== claim.place) continue;
+    replaced.add(claim.supersedes);
   }
 
   return [...newest.entries()]
