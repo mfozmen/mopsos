@@ -13,16 +13,11 @@
 export type Level = 'province' | 'district' | 'neighbourhood';
 
 /** The source vocabulary the schemas already use. */
+import type { Reliability } from '../snapshots/source.js';
+
 export type Source = 'evds' | 'tuik' | 'listing_snapshot' | 'market_close';
 
-/**
- * How far a level can be trusted, as a class rather than a number.
- *
- * `official` is published on a calendar and resolves itself. `mixed` is part
- * official and part ours. `collected` exists only because we wrote it down, and
- * only from the day we started.
- */
-export type Reliability = 'official' | 'mixed' | 'collected';
+export type { Reliability } from '../snapshots/source.js';
 
 export interface Place {
   /**
@@ -55,7 +50,7 @@ const SOURCES: Record<Level, Source[]> = {
 const RELIABILITY: Record<Level, Reliability> = {
   province: 'official',
   district: 'mixed',
-  neighbourhood: 'collected',
+  neighbourhood: 'self_collected',
 };
 
 /** A place, named from the outside in: province, then district, then mahalle. */

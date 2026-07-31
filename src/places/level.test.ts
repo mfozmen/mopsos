@@ -77,6 +77,6 @@ describe('what each level can be measured with', () => {
   it('says how far each level can be trusted, so the three do not read alike', () => {
     expect(reliabilityOf('province')).toBe('official');
     expect(reliabilityOf('district')).toBe('mixed');
-    expect(reliabilityOf('neighbourhood')).toBe('collected');
+    expect(reliabilityOf('neighbourhood')).toBe('self_collected');
   });
 });
