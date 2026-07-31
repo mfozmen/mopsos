@@ -626,6 +626,54 @@ describe('the readings behind the one on show', () => {
     ]);
   });
 
+  it('follows a bank renamed twice all the way to the name it ends under', () => {
+    // One hop is what a single lookup gives, and it is not enough: after a
+    // second rename the oldest reading answers to a name nothing points at any
+    // more, and it drops off the reachable end.
+    const root = rates(
+      ['2026-07-06-a.json', report('Aaa Bank', '2026-07-06', 3.4)],
+      [
+        '2026-07-13-b.json',
+        report('Bbb Bank', '2026-07-13', 3.19, { supersedes: '2026-07-06-a.json' }),
+      ],
+      [
+        '2026-07-20-c.json',
+        report('Ccc Bank', '2026-07-20', 2.99, { supersedes: '2026-07-13-b.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.bank).toBe('Ccc Bank');
+    expect(shown[0]?.earlier.map((reading) => reading.report.captured_on)).toEqual([
+      '2026-07-13',
+      '2026-07-06',
+    ]);
+  });
+
+  it('still finishes when the claims point in a circle', () => {
+    // A record that says A became B and B became A contradicts itself, and no
+    // reading of it is the right one. All that is promised here is that the
+    // walk stops: a loader that hangs takes the whole page with it.
+    const root = rates(
+      ['2026-07-06-a.json', report('Aaa Bank', '2026-07-06', 3.4)],
+      [
+        '2026-07-13-b.json',
+        report('Bbb Bank', '2026-07-13', 3.19, { supersedes: '2026-07-06-a.json' }),
+      ],
+      [
+        '2026-07-20-a.json',
+        report('Aaa Bank', '2026-07-20', 2.99, { supersedes: '2026-07-13-b.json' }),
+      ],
+    );
+
+    const shown = loadRateReports(root);
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.captured_on).toBe('2026-07-20');
+  });
+
   it('does not lend one bank the readings of another that is still on show', () => {
     // Two spellings both alive is a different situation from a rename: nothing
     // says they are one bank, and filing each under both would show every
