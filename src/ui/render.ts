@@ -556,18 +556,6 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
 }
 
 /**
- * The readings this district's report stands in front of.
- *
- * Each is rendered as the report it is, folded, rather than reduced to a line:
- * the question "what did it say then" is answered by the same table that
- * answers "what does it say now", and a second way of showing a reading is a
- * second thing to keep true.
- *
- * No Taksit/Kira column on them. That ratio is worked out from the cheapest
- * real rate in the record *today*, and putting last month's prices against this
- * month's rate produces a figure that was never true of any moment.
- */
-/**
  * What moved in a district since one of its earlier readings.
  *
  * Per neighbourhood, never per district: a district median moves when the mix
@@ -599,6 +587,18 @@ function whatMoved(now: ResearchReport, then: ResearchReport): string {
       </ul>`;
 }
 
+/**
+ * The readings this district's report stands in front of.
+ *
+ * Each is rendered as the report it is, folded, rather than reduced to a line:
+ * the question "what did it say then" is answered by the same table that
+ * answers "what does it say now", and a second way of showing a reading is a
+ * second thing to keep true.
+ *
+ * No Taksit/Kira column on them. That ratio is worked out from the cheapest
+ * real rate in the record *today*, and putting last month's prices against this
+ * month's rate produces a figure that was never true of any moment.
+ */
 function earlierReadings(report: ResearchReport): string {
   const earlier = report.earlier ?? [];
   if (earlier.length === 0) return '';
