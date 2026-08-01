@@ -440,10 +440,9 @@ function compareBlock(reports: ResearchReport[]): string {
         Barlar aynı okumadaki yerleri kıyaslar, zaman içindeki yönü değil. Her barın yanındaki
         ilan sayısına bak: 3 ilanlık bir medyan ile 40 ilanlık bir medyan aynı şey değildir.
         Farklı oda sayısı ya da metrekare bandında ölçülmüş iki mahalle birbirinden çıkarılamaz —
-        bant her satırın kaynağında yazıyor. Bu kayıtta aynı kaynağın aynı gün iki örneklemesi
-        arasında <strong>%4,8</strong> fark ölçüldü (Menemen/Ulukent, 29.07.2026 —
-        53.450’ye karşı 50.909 ₺/m²); yöntemin kendi gürültüsü bu kadar, ve bundan
-        küçük farklar bulgu değildir.
+        bant her satırın kaynağında yazıyor. Küçük farklar bulgu değildir: aynı kaynağın aynı
+        gün iki kez örneklenmesi bile medyanı oynatabiliyor, ve ne kadar oynattığı okumadan
+        okumaya değişir — hangi okumanın ne kadar duyarlı olduğu o okumanın kendi notunda yazar.
       </p>`
       }
       </details>`;
@@ -1909,6 +1908,9 @@ const COMPARE_SCRIPT = `
 
         var drop = node('button', 'bar-drop', '×');
         drop.type = 'button';
+        // Every bar carries the same ×. Unlabelled, a screen reader gets a row
+        // of identical buttons and no way to tell which one it is on.
+        drop.setAttribute('aria-label', 'Kaldır: ' + p.name + ', ' + p.district);
         // The whole place, all three names. Turkish place names collide at
         // every level — "Merkez" is the central district of most provinces and
         // "Cumhuriyet" is a mahalle in most of those — so anything shorter

@@ -519,6 +519,16 @@ describe('comparing neighbourhoods', () => {
     expect(dom.region('#compare-out .caution')).toMatch(/farklı (tarih|gün)/i);
   });
 
+  it('names the place each remove button removes', () => {
+    // Every bar carries the same × and nothing else. Unlabelled, a screen
+    // reader gets a row of identical buttons and no way to tell them apart.
+    const dom = withPlaces();
+    dom.click('#compare-add');
+
+    const drop = dom.window.document.querySelector('#compare-out .bar-drop');
+    expect(drop?.getAttribute('aria-label')).toContain('30 Ağustos');
+  });
+
   it('does not let a place name close the data block it sits in', () => {
     // `</script>` is the one sequence that can end a script element early.
     // Unescaped, a place or a note containing it would close the block and put
