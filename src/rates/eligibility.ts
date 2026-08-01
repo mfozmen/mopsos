@@ -22,15 +22,19 @@ export type Gate = 'newlywed';
  * leaves the reader where they already are — looking at an offer they may not
  * qualify for — while inventing one hides a rate they could have had.
  */
-// The roots rather than one bank's sentence. "evlilik süresi", "evlenme
-// tarihi", "evlendikten sonra" and "nikâh tarihi" are the same gate written
-// four ways, and matching only the phrasing in front of us would make Halkbank's
-// wording the definition of the condition.
+// Several phrasings, because "evlilik süresi", "evlenme tarihi", "evlendikten
+// sonra" and "nikâh tarihi" are one gate written four ways — matching only the
+// sentence in front of us would make Halkbank's wording the definition of the
+// condition.
 //
-// `evli` on its own is left out deliberately: it appears in sentences that
-// impose nothing ("evli olsun olmasın"), and a false positive here hides a rate
-// the reader could have had.
-const MARRIAGE = /yeni evli|evlilik|evlen(me|dik)|nik[aâ]h/i;
+// Not the bare verb root. Turkish negates with -me/-ma, so `evlen` + `me` is
+// also the stem of "evlenmemiş", "evlenmeyen", "evlenmeden" — the opposite
+// condition, and a product for people who are not married would be dimmed for
+// exactly the readers it is meant for. `evli` alone is out for the same reason:
+// it turns up in sentences that impose nothing ("evli olsun olmasın"). Both
+// false positives hide a rate the reader could have had, which is the worse
+// direction to fail in.
+const MARRIAGE = /yeni evli|evlilik|evlenme tarih|evlendik|nik[aâ]h/i;
 
 export function gatedOn(offer: RateOffer): Gate[] {
   return MARRIAGE.test(`${offer.product} ${offer.conditions ?? ''}`) ? ['newlywed'] : [];

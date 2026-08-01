@@ -456,8 +456,9 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
             `${String(ASSUMED.months)} ay vade, kayıttaki en ucuz <strong>gerçek</strong> oranla ` +
             `(${escape(cost.bank)}, aylık %${cost.monthlyRate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) ` +
             `ve asgari peşinatla. Daire büyüklüğü orandan düşer; sonucu değiştiren vade ve orandır. ` +
-            `Hayat durumuna bağlı ürünler (yeni evli, şehit yakını, ilk ev) bu orana girmez — ` +
-            `sayfa üretilirken hesaplandığı için senin cevabına göre değişemiyor.</p>`
+            `Yeni evlilere özel ürünler bu orana girmez — sayfa üretilirken hesaplandığı için ` +
+            `senin cevabına göre değişemiyor. Şehit yakını ve ilk ev gibi başka koşullu ürünler ` +
+            `henüz ayırt edilmiyor, girebilirler.</p>`
       }${
         report.reading === undefined
           ? `\n      <p class="caution run">Bu raporda okuma yok — agent rakamları getirmiş ama ne anlama geldiğini yazmamış.</p>`
