@@ -1520,6 +1520,23 @@ describe('savings finance, which is not a loan', () => {
     expect(housing).toContain('Bakıldı Ama Yok');
   });
 
+  it('gives every row one cell per heading, which is what the sort reads by', () => {
+    // The sort script indexes row.cells by the heading's position, and cells
+    // counts DOM nodes rather than the columns a colspan covers. A short row
+    // sorts by whatever happens to sit at that index — the date under the
+    // Teslimat heading — or by nothing at all.
+    const silent = { ...firm, provider: 'Bakıldı Ama Yok', plans: [] };
+    const housing = panel(renderPage({ ...EMPTY, savings: [firm, silent] }), 'housing');
+    const table = housing.slice(housing.indexOf('<table class="savings"'));
+    const headings = table.slice(0, table.indexOf('</thead>')).match(/<th[ >]/g) ?? [];
+
+    for (const row of table.slice(0, table.indexOf('</table>')).match(/<tr[ >][\s\S]*?<\/tr>/g) ??
+      []) {
+      if (!row.includes('<td')) continue;
+      expect(row.match(/<td[ >]/g) ?? []).toHaveLength(headings.length);
+    }
+  });
+
   it('marks an expected delivery date differently from one that is owed', () => {
     // The difference between a plan and a hope has to survive a skim, not just
     // a close read of the word.

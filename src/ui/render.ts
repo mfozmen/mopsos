@@ -767,12 +767,20 @@ function savingsTable(reports: SavingsFinanceReport[]): string {
     // is. The schema keeps `plans: []` because a firm that offers nothing today
     // is not a firm nobody looked at, and only one of those means somebody
     // should go back — dropped from the list the two become one answer.
+    //
+    // One cell per heading rather than a colspan across the empty ones: the
+    // sort script indexes row.cells by the heading's position, and cells counts
+    // DOM nodes, not the columns a colspan covers. A short row would sort by
+    // whatever landed at that index — its date, under the Teslimat heading.
     if (report.plans.length === 0) {
       return [
         `
           <tr class="silent">
             <td>${escape(report.provider)}</td>
-            <td class="terms" colspan="4">Plan yayınlamıyor</td>
+            <td class="terms">Plan yayınlamıyor</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
             <td class="when">${turkishDate(report.captured_on)}</td>
           </tr>`,
       ];
