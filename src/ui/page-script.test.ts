@@ -464,6 +464,61 @@ describe('comparing neighbourhoods', () => {
     expect(warning.length).toBeLessThan(200);
   });
 
+  it('tells two namesakes in different provinces apart when one is dropped', () => {
+    // "Merkez" is the central district of most Turkish provinces, and
+    // "Cumhuriyet" is a neighbourhood in most of those. Keyed on anything less
+    // than the full place, one × removes a bar from another city.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Merkez',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('Cumhuriyet', 'Merkez', 50_000, 20)],
+        },
+        {
+          place: 'Ankara / Merkez',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('Cumhuriyet', 'Merkez', 40_000, 20)],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+    dom.choose('compare-province', 'Ankara');
+    dom.click('#compare-add');
+    expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(2);
+
+    dom.click('#compare-out .bar-drop');
+
+    expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(1);
+  });
+
+  it('says when the readings being compared are from different days', () => {
+    // Districts are researched independently, not on a shared cadence. Two
+    // readings weeks apart shown side by side present themselves as one moment.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('A', 'Menemen', 50_000, 20)],
+        },
+        {
+          place: 'İzmir / Çiğli',
+          dated: '2026-06-15',
+          neighbourhoods: [hood('B', 'Çiğli', 40_000, 20)],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+    dom.choose('compare-district', 'Çiğli');
+    dom.click('#compare-add');
+
+    expect(dom.region('#compare-out')).toContain('15.06.2026');
+    expect(dom.region('#compare-out .caution')).toMatch(/farklı (tarih|gün)/i);
+  });
+
   it('does not let a place name close the data block it sits in', () => {
     // `</script>` is the one sequence that can end a script element early.
     // Unescaped, a place or a note containing it would close the block and put

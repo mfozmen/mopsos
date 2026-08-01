@@ -440,7 +440,9 @@ function compareBlock(reports: ResearchReport[]): string {
         Barlar aynı okumadaki yerleri kıyaslar, zaman içindeki yönü değil. Her barın yanındaki
         ilan sayısına bak: 3 ilanlık bir medyan ile 40 ilanlık bir medyan aynı şey değildir.
         Farklı oda sayısı ya da metrekare bandında ölçülmüş iki mahalle birbirinden çıkarılamaz —
-        bant her satırın kaynağında yazıyor. Aynı yöntemin kendi gürültüsü %4,8 ölçüldü; bundan
+        bant her satırın kaynağında yazıyor. Bu kayıtta aynı kaynağın aynı gün iki örneklemesi
+        arasında <strong>%4,8</strong> fark ölçüldü (Menemen/Ulukent, 29.07.2026 — 29 Ekim
+        mahallesi için 53.450’ye karşı 50.909 ₺/m²); yöntemin kendi gürültüsü bu kadar, ve bundan
         küçük farklar bulgu değildir.
       </p>`
       }
@@ -1867,6 +1869,8 @@ const COMPARE_SCRIPT = `
       return el;
     };
     var money = function (n) { return n.toLocaleString('tr-TR') + ' ₺'; };
+    var id = function (p) { return p.province + ' / ' + p.district + ' / ' + p.name; };
+    var day = function (iso) { return iso.split('-').reverse().join('.'); };
 
     var inProvince = function () {
       return places.filter(function (p) { return p.province === el('compare-province').value; });
@@ -1898,14 +1902,18 @@ const COMPARE_SCRIPT = `
         bar.appendChild(fill_);
 
         var figure = node('span', 'bar-figure', money(p.sale_per_m2));
-        figure.appendChild(node('small', '', p.listing_count + ' ilan'));
+        // The date belongs on the bar. Districts are researched independently,
+        // not on a shared cadence, so two of these can be weeks apart — and
+        // side by side with nothing said they present themselves as one moment.
+        figure.appendChild(node('small', '', p.listing_count + ' ilan · ' + day(p.dated)));
 
         var drop = node('button', 'bar-drop', '×');
         drop.type = 'button';
-        // Keyed with the district. Turkish neighbourhood names collide across
-        // districts constantly — Merkez, Cumhuriyet, Yeni Mahalle — and by name
-        // alone one × removes its namesake somewhere else too.
-        drop.setAttribute('data-place', p.district + ' / ' + p.name);
+        // The whole place, all three names. Turkish place names collide at
+        // every level — "Merkez" is the central district of most provinces and
+        // "Cumhuriyet" is a mahalle in most of those — so anything shorter
+        // removes a bar from another city along with this one.
+        drop.setAttribute('data-place', id(p));
 
         row.appendChild(name);
         row.appendChild(bar);
@@ -1917,6 +1925,18 @@ const COMPARE_SCRIPT = `
       // Said, not quoted. A source line in this record runs to three hundred
       // characters of method, and three of them pasted here bury the bars they
       // are about. Each one is already under its own report.
+      var days = uniq(picked.map(function (p) { return p.dated; }));
+      if (days.length > 1) {
+        out.appendChild(
+          node(
+            'p',
+            'caution',
+            'Bunlar farklı tarihlerde okundu (' + days.map(day).join(', ') + '). Aradaki fark ' +
+              'yerler arasındaki fark değil, geçen zaman da olabilir.',
+          ),
+        );
+      }
+
       if (bands.length > 1) {
         out.appendChild(
           node(
@@ -1957,9 +1977,7 @@ const COMPARE_SCRIPT = `
     document.addEventListener('click', function (event) {
       var drop = event.target.closest && event.target.closest('.bar-drop');
       if (!drop) return;
-      picked = picked.filter(function (p) {
-        return p.district + ' / ' + p.name !== drop.getAttribute('data-place');
-      });
+      picked = picked.filter(function (p) { return id(p) !== drop.getAttribute('data-place'); });
       draw();
     });
   }
