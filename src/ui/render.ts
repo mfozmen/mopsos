@@ -1,6 +1,7 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
+import { movedIn } from '../market/movement.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
 import { byCodePoint } from '../order.js';
@@ -566,6 +567,38 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
  * real rate in the record *today*, and putting last month's prices against this
  * month's rate produces a figure that was never true of any moment.
  */
+/**
+ * What moved in a district since one of its earlier readings.
+ *
+ * Per neighbourhood, never per district: a district median moves when the mix
+ * of neighbourhoods read changes, with no price moving at all, and the unit of
+ * the decision is a mahalle anyway.
+ *
+ * Both listing counts on every line. A change between a 3-listing median and a
+ * 40-listing one is not the same evidence as one between 40 and 40, and shown
+ * without them a move reads as though it were.
+ *
+ * A correction gets none of this. It says the earlier reading was wrong, not
+ * that anything moved.
+ */
+function whatMoved(now: ResearchReport, then: ResearchReport): string {
+  if (then.corrected === true) return '';
+
+  const moves = movedIn(now, then).filter((move) => Math.abs(move.ratio) >= 0.005);
+  if (moves.length === 0) return '';
+
+  return `
+      <ul class="moves">${moves
+        .map(
+          (move) => `
+        <li><strong>${escape(move.name)}</strong> ${percent(Math.abs(move.ratio))} ${
+          move.ratio > 0 ? 'arttı' : 'düştü'
+        } <small>${String(move.counts[0])} ve ${String(move.counts[1])} ilan</small></li>`,
+        )
+        .join('')}
+      </ul>`;
+}
+
 function earlierReadings(report: ResearchReport): string {
   const earlier = report.earlier ?? [];
   if (earlier.length === 0) return '';
@@ -573,7 +606,7 @@ function earlierReadings(report: ResearchReport): string {
   return `
       <details class="earlier-readings">
       <summary>${foldSummary(earlier.map((reading) => ({ corrected: reading.corrected === true })))}</summary>${earlier
-        .map((reading) => reportSection(reading))
+        .map((reading) => whatMoved(report, reading) + reportSection(reading))
         .join('')}
       </details>`;
 }
@@ -1542,6 +1575,10 @@ const STYLE = `
   .earlier-readings { margin: 1rem 0 0; }
   .earlier-readings > summary { font-size: .8rem; color: var(--muted); cursor: pointer; }
   .earlier-readings .report { margin-left: 1rem; }
+  /* Above the reading it is a difference from, because the difference is the
+     question and the reading is the evidence for it. */
+  .moves { margin: .6rem 0 .2rem 1rem; padding-left: 1.1rem; font-size: .85rem; }
+  .moves small { color: var(--muted); }
   /* On the reading, not only in the count above it: opened, it shows figures
      that were wrong, and the table itself does not say so. */
   .was-replaced { margin-left: .6rem; font-size: .75rem; color: var(--muted); }
