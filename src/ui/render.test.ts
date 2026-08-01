@@ -1631,3 +1631,80 @@ describe('putting neighbourhoods side by side', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toMatch(/karşılaştır/i);
   });
 });
+
+describe('what moved in a district since an earlier reading', () => {
+  const hood = (sale: number, count = 40, source = 'İlan, 3+1') => ({
+    name: 'Egekent 2',
+    sale_per_m2: sale,
+    listing_count: count,
+    source,
+  });
+  const reading = (dated: string, sale: number, count?: number, source?: string, extra = {}) => ({
+    place: 'İzmir / Menemen',
+    dated,
+    neighbourhoods: [hood(sale, count, source)],
+    ...extra,
+  });
+
+  it('says which way a neighbourhood went, and by how much', () => {
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_000, 40, undefined, { earlier: [reading('2026-07-20', 50_000)] }),
+      ],
+    });
+
+    expect(panel(page, 'housing')).toMatch(/Egekent 2[\s\S]{0,120}%4/);
+  });
+
+  it('shows both listing counts, since a move is only as good as its thinner side', () => {
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_000, 40, undefined, {
+          earlier: [reading('2026-07-20', 50_000, 3)],
+        }),
+      ],
+    });
+
+    expect(panel(page, 'housing')).toMatch(/3.{0,12}40 ilan/);
+  });
+
+  it('says nothing when the reading being measured from was itself replaced', () => {
+    // A correction is not a movement on either side of the subtraction. Today
+    // the loader gives a nested reading no history of its own, so this cannot
+    // arise from the record — but the rule belongs to the function rather than
+    // to the shape of its current input.
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_000, 40, undefined, {
+          earlier: [
+            {
+              ...reading('2026-07-20', 50_000),
+              corrected: true,
+              earlier: [reading('2026-07-13', 48_000)],
+            },
+          ],
+        }),
+      ],
+    });
+    const pazar = panel(page, 'housing');
+
+    expect(pazar.slice(pazar.indexOf('eski okuma'))).not.toContain('class="moves"');
+  });
+
+  it('says nothing at all when the two readings used different bands', () => {
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_000, 40, 'İlan, 3+1', {
+          earlier: [reading('2026-07-20', 50_000, 40, 'İlan, 2+1')],
+        }),
+      ],
+    });
+    const pazar = panel(page, 'housing');
+
+    expect(pazar.slice(pazar.indexOf('eski okuma'))).not.toMatch(/%4/);
+  });
+});
