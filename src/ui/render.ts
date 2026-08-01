@@ -762,8 +762,23 @@ function savingsTable(reports: SavingsFinanceReport[]): string {
       olmayan şeyler.</p>`;
   }
 
-  const rows = reports.flatMap((report) =>
-    report.plans.map((plan) => {
+  const rows = reports.flatMap((report) => {
+    // Kept in the table on purpose, the same way a bank that publishes no rate
+    // is. The schema keeps `plans: []` because a firm that offers nothing today
+    // is not a firm nobody looked at, and only one of those means somebody
+    // should go back — dropped from the list the two become one answer.
+    if (report.plans.length === 0) {
+      return [
+        `
+          <tr class="silent">
+            <td>${escape(report.provider)}</td>
+            <td class="terms" colspan="4">Plan yayınlamıyor</td>
+            <td class="when">${turkishDate(report.captured_on)}</td>
+          </tr>`,
+      ];
+    }
+
+    return report.plans.map((plan) => {
       const cost = planCost(plan);
       return `
           <tr>
@@ -775,14 +790,14 @@ function savingsTable(reports: SavingsFinanceReport[]): string {
               // column for.
               plan.delivery_basis === 'contractual'
                 ? ' <span class="steady">(sözleşmeli)</span>'
-                : ' <span class="steady">(beklenen)</span>'
+                : ' <span class="caution">(beklenen)</span>'
             }</td>
             <td class="num">${cost.feeRatio === undefined ? '—' : percent(cost.feeRatio)}</td>
             <td class="num">${percent(cost.costRatio)}</td>
             <td class="when">${turkishDate(report.captured_on)}</td>
           </tr>`;
-    }),
-  );
+    });
+  });
 
   return `
       <div class="scroller">
@@ -1433,6 +1448,9 @@ const STYLE = `
   /* Its own list, and it has to look like one: a second table under the first
      rather than more rows of the same thing. */
   table.savings { margin-top: .4rem; }
+  /* Inline in the cell, but keeping the italic and the pending colour: a date
+     the firm does not owe you should read differently at a glance. */
+  .savings .caution { display: inline; margin: 0; font-size: .8rem; }
   /* The answer to the question the two figures raise, so it carries a little
      more weight than the figures themselves. */
   .moved { font-weight: 600; }

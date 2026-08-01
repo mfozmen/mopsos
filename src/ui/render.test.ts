@@ -1510,6 +1510,27 @@ describe('savings finance, which is not a loan', () => {
     expect(panel(renderPage({ ...EMPTY, savings: [firm] }), 'housing')).toMatch(/beklenen|öngörü/i);
   });
 
+  it('keeps a firm that was checked and had nothing on offer', () => {
+    // The schema keeps `plans: []` on purpose — a firm that publishes nothing
+    // today is not a firm nobody looked at, and only one of those means
+    // somebody should go back. Dropped from the table the two become one.
+    const silent = { ...firm, provider: 'Bakıldı Ama Yok', plans: [] };
+    const housing = panel(renderPage({ ...EMPTY, savings: [firm, silent] }), 'housing');
+
+    expect(housing).toContain('Bakıldı Ama Yok');
+  });
+
+  it('marks an expected delivery date differently from one that is owed', () => {
+    // The difference between a plan and a hope has to survive a skim, not just
+    // a close read of the word.
+    const owed = { ...firm, plans: [{ ...plan, delivery_basis: 'contractual' as const }] };
+    const expected = panel(renderPage({ ...EMPTY, savings: [firm] }), 'housing');
+    const promised = panel(renderPage({ ...EMPTY, savings: [owed] }), 'housing');
+
+    expect(expected).toContain('class="caution"');
+    expect(promised).not.toContain('class="caution"');
+  });
+
   it('says nobody has looked yet rather than showing an empty table', () => {
     const housing = panel(renderPage(EMPTY), 'housing');
 
