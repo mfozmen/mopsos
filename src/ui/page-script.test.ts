@@ -464,6 +464,28 @@ describe('comparing neighbourhoods', () => {
     expect(warning.length).toBeLessThan(200);
   });
 
+  it('does not let a place name close the data block it sits in', () => {
+    // `</script>` is the one sequence that can end a script element early.
+    // Unescaped, a place or a note containing it would close the block and put
+    // the rest of the record into the document as markup.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            hood('Bir Yer</script><img src=x>', 'Menemen', 50_000, 20),
+            hood('Öteki Yer', 'Menemen', 40_000, 20),
+          ],
+        },
+      ],
+    });
+
+    expect(dom.window.document.querySelectorAll('img')).toHaveLength(0);
+    expect(dom.window.document.querySelectorAll('#compare-neighbourhood option')).toHaveLength(2);
+  });
+
   it('does not let a place name become markup', () => {
     // The names come from the record, and the record is written by agents
     // reading listing sites. A name is a name, whatever it contains.

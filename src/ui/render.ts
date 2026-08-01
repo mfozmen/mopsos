@@ -1,7 +1,6 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
-import { type ShownMarketReport } from '../market/load.js';
 import { comparable } from '../market/places.js';
 import { byCodePoint } from '../order.js';
 import { gatedOn } from '../rates/eligibility.js';
@@ -419,7 +418,7 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
  * its own note that it is not a direction reading.
  */
 function compareBlock(reports: ResearchReport[]): string {
-  const places = comparable(reports as ShownMarketReport[]);
+  const places = comparable(reports);
 
   return `
       <details class="compare">
@@ -454,12 +453,19 @@ function compareBlock(reports: ResearchReport[]): string {
  * Last in the panel on purpose. It repeats every neighbourhood name, and put
  * above the reports it becomes the first match for any of them — which is how a
  * test looking for a row found the data blob instead.
+ *
+ * Every `<` is written as its JSON escape, which is the one sequence that can
+ * end a script block early: a place or a note containing `</script>` would
+ * otherwise close this tag and put the rest of the record into the document as
+ * markup. The escape has to be a raw string — written as an ordinary literal it
+ * is `<` again, and the replacement swaps the character for itself.
  */
 function placesData(reports: ResearchReport[]): string {
   return `
-      <script type="application/json" id="places">${JSON.stringify(
-        comparable(reports as ShownMarketReport[]),
-      ).replaceAll('<', '\u003c')}</script>`;
+      <script type="application/json" id="places">${JSON.stringify(comparable(reports)).replaceAll(
+        '<',
+        '\\u003c',
+      )}</script>`;
 }
 
 function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
@@ -1896,7 +1902,10 @@ const COMPARE_SCRIPT = `
 
         var drop = node('button', 'bar-drop', '×');
         drop.type = 'button';
-        drop.setAttribute('data-name', p.name);
+        // Keyed with the district. Turkish neighbourhood names collide across
+        // districts constantly — Merkez, Cumhuriyet, Yeni Mahalle — and by name
+        // alone one × removes its namesake somewhere else too.
+        drop.setAttribute('data-place', p.district + ' / ' + p.name);
 
         row.appendChild(name);
         row.appendChild(bar);
@@ -1948,7 +1957,9 @@ const COMPARE_SCRIPT = `
     document.addEventListener('click', function (event) {
       var drop = event.target.closest && event.target.closest('.bar-drop');
       if (!drop) return;
-      picked = picked.filter(function (p) { return p.name !== drop.getAttribute('data-name'); });
+      picked = picked.filter(function (p) {
+        return p.district + ' / ' + p.name !== drop.getAttribute('data-place');
+      });
       draw();
     });
   }

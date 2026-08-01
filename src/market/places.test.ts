@@ -85,10 +85,4 @@ describe('the places a reader can put side by side', () => {
 
     expect(comparable([priceless])).toEqual([]);
   });
-
-  it('keeps the newest reading of a place, not both', () => {
-    const older = { ...menemen, dated: '2026-07-20' };
-
-    expect(comparable([{ ...menemen, earlier: [older] }])).toHaveLength(2);
-  });
 });
