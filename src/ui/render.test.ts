@@ -861,9 +861,13 @@ describe('the row a bank gets', () => {
       ],
     };
     const housing = panel(renderPage({ ...EMPTY, rates: [bank] }), 'housing');
+    // Scoped to the table: the panel also carries the record as searchable
+    // data, where every product name appears by design.
+    const table = housing.slice(housing.indexOf('<table class="rates"'));
+    const rows = table.slice(0, table.indexOf('</table>'));
 
-    expect(housing).toContain('Standart');
-    expect(housing).not.toContain('Kampanya');
+    expect(rows).toContain('Standart');
+    expect(rows).not.toContain('Kampanya');
   });
 
   it('shows the offer that really costs least, not the one called least', () => {
@@ -892,9 +896,11 @@ describe('the row a bank gets', () => {
       ],
     };
     const housing = panel(renderPage({ ...EMPTY, rates: [bank] }), 'housing');
+    const table = housing.slice(housing.indexOf('<table class="rates"'));
+    const rows = table.slice(0, table.indexOf('</table>'));
 
-    expect(housing).toContain('Gerçekte ucuz');
-    expect(housing).not.toContain('Manşeti düşük');
+    expect(rows).toContain('Gerçekte ucuz');
+    expect(rows).not.toContain('Manşeti düşük');
   });
 });
 

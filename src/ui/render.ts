@@ -2,6 +2,7 @@ import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
 import { comparable } from '../market/places.js';
+import { searchable } from '../record/search.js';
 import { byCodePoint } from '../order.js';
 import { gatedOn } from '../rates/eligibility.js';
 import {
@@ -461,6 +462,13 @@ function compareBlock(reports: ResearchReport[]): string {
  * markup. The escape has to be a raw string — written as an ordinary literal it
  * is `<` again, and the replacement swaps the character for itself.
  */
+function recordData(data: PageData): string {
+  return `
+      <script type="application/json" id="record">${JSON.stringify(
+        searchable(data.research, data.rates),
+      ).replaceAll('<', '\\u003c')}</script>`;
+}
+
 function placesData(reports: ResearchReport[]): string {
   return `
       <script type="application/json" id="places">${JSON.stringify(comparable(reports)).replaceAll(
@@ -579,6 +587,24 @@ function earlierReadings(report: ResearchReport): string {
  * visible. The copy says so, because a button that appears to do nothing is
  * worse than no button.
  */
+/**
+ * Finding a reading you remember.
+ *
+ * Twenty-eight readings became forty-three in four days, and the whole point is
+ * that it keeps growing — scrolling stops working long before the record stops
+ * being useful.
+ *
+ * One box across both kinds of report. A reader looking for something
+ * remembered does not first decide whether it was a bank or a district; they
+ * remember a word, and it is usually a word a scout wrote rather than a name.
+ */
+const SEARCH = `
+      <div class="find">
+        <label>Ara<input id="find" type="search" autocomplete="off"
+          placeholder="mahalle, banka, ürün — ya da hatırladığın bir cümle"></label>
+        <div id="found"></div>
+      </div>`;
+
 const DISPATCH = `
       <div class="dispatch">
         <div class="ask">
@@ -1136,9 +1162,11 @@ function panelBody(tab: Tab, data: PageData): string {
       <section role="tabpanel" id="panel-pazar" aria-labelledby="tab-pazar">
         <section class="research">
           ${DISPATCH}
+          ${SEARCH}
           ${compareBlock(data.research)}
           ${research}
           ${placesData(data.research)}
+          ${recordData(data)}
         </section>
       </section>
 
@@ -1533,6 +1561,12 @@ const STYLE = `
   /* Bars compare places at one reading. The count sits on every one of them,
      because at this scale a three-listing median and a forty-listing median
      look identical. */
+  /* Above the comparison and the reports both, because it is how you get to
+     either one once the record stops fitting on a screen. */
+  .find { margin: 1.2rem 0; }
+  .find input { width: 100%; max-width: 34rem; }
+  .hit { margin: .4rem 0; padding: .5rem .7rem; background: var(--surface); border-radius: .2rem; }
+  .hit small { display: block; font-size: .75rem; color: var(--muted); }
   .compare { margin: 1.4rem 0; }
   .compare > summary { cursor: pointer; font-weight: 600; }
   .compare .ask { margin: .8rem 0; }
@@ -1986,11 +2020,57 @@ const COMPARE_SCRIPT = `
   })();
 `;
 
+/**
+ * The search, running on the record already in the page.
+ *
+ * The folding lives in the bundle beside the mortgage arithmetic, so the rule
+ * a test proves is the rule the box applies — Turkish has two i's and a
+ * keyboard that produces the wrong one about half the time, and a search that
+ * keeps them apart fails on the word "İzmir".
+ */
+const FIND_SCRIPT = `
+  (function () {
+    var box = document.getElementById('find');
+    var blob = document.getElementById('record');
+    if (!box || !blob) return;
+
+    var entries = JSON.parse(blob.textContent);
+    var out = document.getElementById('found');
+    var day = function (iso) { return iso.split('-').reverse().join('.'); };
+
+    box.addEventListener('input', function () {
+      out.textContent = '';
+      if (box.value.trim() === '') return;
+
+      var hits = entries.filter(function (entry) { return Mortgage.matches(entry, box.value); });
+      if (hits.length === 0) {
+        var none = document.createElement('p');
+        none.className = 'note';
+        none.textContent = 'Bu kelimelerle bir okuma bulunamadı.';
+        out.appendChild(none);
+        return;
+      }
+
+      hits.forEach(function (entry) {
+        var hit = document.createElement('p');
+        hit.className = 'hit';
+        hit.textContent = entry.title;
+        var when = document.createElement('small');
+        when.textContent = (entry.kind === 'rates' ? 'banka oranı' : 'pazar okuması') +
+          ' · ' + day(entry.dated);
+        hit.appendChild(when);
+        out.appendChild(hit);
+      });
+    });
+  })();
+`;
+
 export const PAGE_SCRIPTS: readonly string[] = [
   SCRIPT,
   FINANCE_SCRIPT,
   SINCE_SCRIPT,
   COMPARE_SCRIPT,
+  FIND_SCRIPT,
 ];
 
 /**
