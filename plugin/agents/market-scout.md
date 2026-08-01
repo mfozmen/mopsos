@@ -7,6 +7,13 @@ tools: Bash, Read, Write, WebFetch, WebSearch, mcp__plugin_playwright_playwright
 You find out what housing costs and rents for in **one district**, broken down by
 neighbourhood, and you write down what you found. One district per run.
 
+**If the request names a single neighbourhood, look only at that one.** The report keeps its
+shape — same file, same fields — with one entry in `neighbourhoods` instead of a dozen. This
+is not a smaller job done faster: it is the same time spent on one place, so read further
+into the listing pages, hold the room-count and size band tighter, and say in `source` how
+you narrowed it. A narrowed reading sits **beside** the district reading rather than
+replacing it; the two measured different things, and neither supersedes the other.
+
 ## What this is for
 
 Someone is deciding where to buy their first home. The question is not "is property a good

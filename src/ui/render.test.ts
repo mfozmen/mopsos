@@ -1555,3 +1555,19 @@ describe('savings finance, which is not a loan', () => {
     expect(housing).toMatch(/bakılmadı/);
   });
 });
+
+describe('asking about one neighbourhood', () => {
+  it('offers a third field, after the two that were already there', () => {
+    // A district-wide run is the right default for a first reading. The second
+    // reading of the same district is mostly wasted when the question is what
+    // happened in one mahalle.
+    const pazar = panel(renderPage(EMPTY), 'housing');
+
+    expect(pazar).toContain('id="neighbourhood"');
+    expect(pazar.indexOf('id="district"')).toBeLessThan(pazar.indexOf('id="neighbourhood"'));
+  });
+
+  it('says empty means the whole district, so the field does not read as required', () => {
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/boş.*(bütün|tüm) ilçe/i);
+  });
+});

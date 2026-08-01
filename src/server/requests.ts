@@ -13,14 +13,35 @@ const MAX_PLACE_LENGTH = 80;
  * words in that agent's mouth, and escaping is the wrong tool for a field that
  * has no legitimate use for any of them.
  */
-const PLACE = /^[\p{L}\p{M}][\p{L}\p{M} '’-]*$/u;
+// Digits and a full stop belong here: four of the forty-five mahalle names in
+// the record are "30 Ağustos", "29 Ekim", "9 Eylül" and "85.yıl Cumhuriyet". A
+// letters-only pattern refuses the exact places this is for. Neither character
+// weakens the guard — what it exists to keep out is a slash, a backslash and
+// anything that could read as an instruction rather than a name.
+const PLACE = /^[\p{L}\p{M}\d][\p{L}\p{M}\d .'’-]*$/u;
 
-export type Request = { kind: 'rates' } | { kind: 'market'; province: string; district: string };
+export type Request =
+  | { kind: 'rates' }
+  | {
+      kind: 'market';
+      province: string;
+      district: string;
+      /**
+       * One mahalle rather than the whole district.
+       *
+       * Absent means the district, which is the right default for a first
+       * reading. It earns its place on the second: narrowing the request
+       * narrows the work — fewer listings to read, a tighter mix to hold
+       * steady, and a scout that can afford to look harder at one place.
+       */
+      neighbourhood?: string;
+    };
 
 export interface QueuedRequest {
   kind: string;
   province?: string;
   district?: string;
+  neighbourhood?: string;
   requested_at: string;
 }
 
@@ -64,15 +85,44 @@ export function parseRequest(body: unknown): Request {
   if (kind === 'rates') return { kind: 'rates' };
 
   if (kind === 'market') {
-    const { province, district } = body as { province?: unknown; district?: unknown };
+    const { province, district, neighbourhood } = body as {
+      province?: unknown;
+      district?: unknown;
+      neighbourhood?: unknown;
+    };
+    // Empty is not a failure here, unlike the two above it: leaving the field
+    // alone is how you ask for the whole district, which is what the form did
+    // before this existed.
+    const named =
+      typeof neighbourhood === 'string' && neighbourhood.trim().length > 0
+        ? { neighbourhood: place(neighbourhood, 'Mahalle') }
+        : {};
+
     return {
       kind: 'market',
       province: place(province, 'İl'),
       district: place(district, 'İlçe'),
+      ...named,
     };
   }
 
   throw new InvalidRequestError(`Bilinmeyen istek türü: ${String(kind)}`);
+}
+
+/**
+ * One queued request, in one line, for whoever is about to run it.
+ *
+ * The neighbourhood belongs here or the narrowing is invisible: a request for
+ * one mahalle that prints as a district run gets a district run, and the whole
+ * point of asking for one place is that the scout can afford to look harder at
+ * it.
+ */
+export function describeRequest(request: QueuedRequest): string {
+  const where = [request.province, request.district, request.neighbourhood].filter(
+    (part) => part !== undefined,
+  );
+
+  return where.length === 0 ? request.kind : `${request.kind} ${where.join('/')}`;
 }
 
 /**
