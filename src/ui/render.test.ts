@@ -1670,6 +1670,30 @@ describe('what moved in a district since an earlier reading', () => {
     expect(panel(page, 'housing')).toMatch(/3.{0,12}40 ilan/);
   });
 
+  it('says nothing when the reading being measured from was itself replaced', () => {
+    // A correction is not a movement on either side of the subtraction. Today
+    // the loader gives a nested reading no history of its own, so this cannot
+    // arise from the record — but the rule belongs to the function rather than
+    // to the shape of its current input.
+    const page = renderPage({
+      ...EMPTY,
+      research: [
+        reading('2026-07-29', 52_000, 40, undefined, {
+          earlier: [
+            {
+              ...reading('2026-07-20', 50_000),
+              corrected: true,
+              earlier: [reading('2026-07-13', 48_000)],
+            },
+          ],
+        }),
+      ],
+    });
+    const pazar = panel(page, 'housing');
+
+    expect(pazar.slice(pazar.indexOf('eski okuma'))).not.toContain('class="moves"');
+  });
+
   it('says nothing at all when the two readings used different bands', () => {
     const page = renderPage({
       ...EMPTY,

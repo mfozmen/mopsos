@@ -566,11 +566,12 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
  * 40-listing one is not the same evidence as one between 40 and 40, and shown
  * without them a move reads as though it were.
  *
- * A correction gets none of this. It says the earlier reading was wrong, not
- * that anything moved.
+ * A correction gets none of this, on either side of the subtraction. It says a
+ * reading was wrong, not that anything moved — and measuring *from* a
+ * known-wrong figure is the same lie told backwards.
  */
 function whatMoved(now: ResearchReport, then: ResearchReport): string {
-  if (then.corrected === true) return '';
+  if (now.corrected === true || then.corrected === true) return '';
 
   const moves = movedIn(now, then).filter((move) => Math.abs(move.ratio) >= 0.005);
   if (moves.length === 0) return '';
