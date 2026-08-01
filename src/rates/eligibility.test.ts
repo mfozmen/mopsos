@@ -37,15 +37,18 @@ describe('who an offer is actually open to', () => {
     ]);
   });
 
-  it.each(['evlenmemiş olması', 'evlenmeden önce başvurmuş olmak', 'evlenmeyen'])(
-    'does not read the opposite condition as a marriage gate: %s',
-    (conditions) => {
-      // A product for people who are NOT married reads through the same root.
-      // Flagged, it would be dimmed for exactly the readers it is meant for —
-      // hiding a rate they could have had, which is the worse direction.
-      expect(gatedOn({ product: 'Genç Konut Kredisi', monthly_rate: 2.6, conditions })).toEqual([]);
-    },
-  );
+  it.each([
+    'evlenmemiş olması',
+    'evlenmeden önce başvurmuş olmak',
+    'evlenmeyen',
+    'evlilik şartı aranmaz',
+    'evlilik durumuna bakılmaksızın başvurulabilir',
+  ])('does not read the opposite condition as a marriage gate: %s', (conditions) => {
+    // A product for people who are NOT married reads through the same root.
+    // Flagged, it would be dimmed for exactly the readers it is meant for —
+    // hiding a rate they could have had, which is the worse direction.
+    expect(gatedOn({ product: 'Genç Konut Kredisi', monthly_rate: 2.6, conditions })).toEqual([]);
+  });
 
   it('leaves an ordinary offer open to everyone', () => {
     expect(gatedOn({ product: 'Konut Kredisi', monthly_rate: 2.89 })).toEqual([]);
