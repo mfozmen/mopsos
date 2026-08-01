@@ -1,11 +1,4 @@
-/** What a movement needs from a neighbourhood on either side of it. */
-interface Measured {
-  name: string;
-  sale_per_m2?: number;
-  listing_count: number;
-  /** The band, verbatim. Two readings of different mixes are not comparable. */
-  source: string;
-}
+import { type ReadNeighbourhood } from './places.js';
 
 export interface Move {
   name: string;
@@ -36,8 +29,8 @@ export interface Move {
  * rather than about the place.
  */
 export function movedIn(
-  now: { neighbourhoods: Measured[] },
-  then: { neighbourhoods: Measured[] },
+  now: { neighbourhoods: ReadNeighbourhood[] },
+  then: { neighbourhoods: ReadNeighbourhood[] },
 ): Move[] {
   return now.neighbourhoods.flatMap((current) => {
     const before = then.neighbourhoods.find((other) => other.name === current.name);
