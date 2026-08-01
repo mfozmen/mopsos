@@ -49,6 +49,7 @@ const DATA: PageData = {
   research: [],
   instruments: [],
   records: [],
+  savings: [],
   rates: [
     {
       schema_version: 1,
