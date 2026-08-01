@@ -19,6 +19,7 @@ const EMPTY: PageData = {
   instruments: [],
   records: [],
   rates: [],
+  savings: [],
   // The real pinned rules: the instalment column applies them to real money, and
   // a stub bracket table would let this pass while the page shows nonsense.
   finance: { bundle: 'var Mortgage = {};', rules: loadMortgageRules() },
@@ -1462,5 +1463,95 @@ describe('an offer only some people can take', () => {
     expect(panel(renderPage({ ...EMPTY, rates: [newlywed] }), 'housing')).toContain(
       'resmi nikâh tarihi',
     );
+  });
+});
+
+describe('savings finance, which is not a loan', () => {
+  const plan = {
+    product: 'Konut Finansman Planı',
+    amount_financed: 2_000_000,
+    total_payable: 2_180_000,
+    organisation_fee_rate: 9,
+    down_payment_ratio: 20,
+    term_months: 120,
+    delivery_after_months: 36,
+    delivery_basis: 'indicative' as const,
+  };
+  const firm = {
+    schema_version: 1 as const,
+    provider: 'Bir Tasarruf Şirketi',
+    captured_on: '2026-08-01',
+    source_url: 'https://example.test',
+    plans: [plan],
+  };
+
+  it('keeps it out of the bank rates table', () => {
+    // There is no rate to put in the Söylenen column and no example to compute
+    // a Gerçek from. In that table it is a row of blanks, which reads as data
+    // somebody failed to collect rather than as a different instrument.
+    const housing = panel(renderPage({ ...EMPTY, savings: [firm] }), 'housing');
+    const rates = housing.slice(housing.indexOf('<table class="rates"'));
+
+    expect(rates.slice(0, rates.indexOf('</table>'))).not.toContain('Bir Tasarruf Şirketi');
+  });
+
+  it('gives it the columns that actually decide it', () => {
+    const housing = panel(renderPage({ ...EMPTY, savings: [firm] }), 'housing');
+
+    expect(housing).toContain('Teslimat');
+    expect(housing).toContain('Organizasyon');
+    expect(housing).toContain('36 ay');
+  });
+
+  it('says whether the delivery date is owed or merely expected', () => {
+    // The whole product is a queue. A date the firm does not owe you is the
+    // difference between a plan and a hope, and it is the one thing a rate
+    // table has no column for.
+    expect(panel(renderPage({ ...EMPTY, savings: [firm] }), 'housing')).toMatch(/beklenen|öngörü/i);
+  });
+
+  it('keeps a firm that was checked and had nothing on offer', () => {
+    // The schema keeps `plans: []` on purpose — a firm that publishes nothing
+    // today is not a firm nobody looked at, and only one of those means
+    // somebody should go back. Dropped from the table the two become one.
+    const silent = { ...firm, provider: 'Bakıldı Ama Yok', plans: [] };
+    const housing = panel(renderPage({ ...EMPTY, savings: [firm, silent] }), 'housing');
+
+    expect(housing).toContain('Bakıldı Ama Yok');
+  });
+
+  it('gives every row one cell per heading, which is what the sort reads by', () => {
+    // The sort script indexes row.cells by the heading's position, and cells
+    // counts DOM nodes rather than the columns a colspan covers. A short row
+    // sorts by whatever happens to sit at that index — the date under the
+    // Teslimat heading — or by nothing at all.
+    const silent = { ...firm, provider: 'Bakıldı Ama Yok', plans: [] };
+    const housing = panel(renderPage({ ...EMPTY, savings: [firm, silent] }), 'housing');
+    const table = housing.slice(housing.indexOf('<table class="savings"'));
+    const headings = table.slice(0, table.indexOf('</thead>')).match(/<th[ >]/g) ?? [];
+
+    for (const row of table.slice(0, table.indexOf('</table>')).match(/<tr[ >][\s\S]*?<\/tr>/g) ??
+      []) {
+      if (!row.includes('<td')) continue;
+      expect(row.match(/<td[ >]/g) ?? []).toHaveLength(headings.length);
+    }
+  });
+
+  it('marks an expected delivery date differently from one that is owed', () => {
+    // The difference between a plan and a hope has to survive a skim, not just
+    // a close read of the word.
+    const owed = { ...firm, plans: [{ ...plan, delivery_basis: 'contractual' as const }] };
+    const expected = panel(renderPage({ ...EMPTY, savings: [firm] }), 'housing');
+    const promised = panel(renderPage({ ...EMPTY, savings: [owed] }), 'housing');
+
+    expect(expected).toContain('class="caution"');
+    expect(promised).not.toContain('class="caution"');
+  });
+
+  it('says nobody has looked yet rather than showing an empty table', () => {
+    const housing = panel(renderPage(EMPTY), 'housing');
+
+    expect(housing).toContain('Tasarruf finansmanı');
+    expect(housing).toMatch(/bakılmadı/);
   });
 });

@@ -12,6 +12,8 @@ import {
   trueMonthlyRate,
 } from '../rates/load.js';
 import { type Movement, moved } from '../rates/movement.js';
+import { planCost } from '../savings/compare.js';
+import { type SavingsFinanceReport } from '../savings/load.js';
 
 export interface Tab {
   id: string;
@@ -166,6 +168,7 @@ export interface PageData {
   instruments: InstrumentReturn[];
   records: SeerRecord[];
   rates: ShownRateReport[];
+  savings: SavingsFinanceReport[];
   finance: FinanceBundle;
 }
 
@@ -736,6 +739,101 @@ function rateRow(report: RateReport): string {
           </tr>`;
 }
 
+/**
+ * Savings finance, in a list of its own.
+ *
+ * Not a loan and not comparable as one: there is no rate, the money arrives
+ * when a queue reaches you rather than at signing, and what decides whether it
+ * is a good deal is the organisation fee and the wait. In the rates table it is
+ * a row of blanks, which reads as data somebody failed to collect rather than
+ * as a different instrument altogether.
+ *
+ * The comparison a buyer actually makes is between the two lists — thirty-six
+ * months of waiting and no interest, against borrowing today at %2,97 real — so
+ * both are on the page, one under the other, without either being forced into
+ * the other's columns.
+ */
+function savingsTable(reports: SavingsFinanceReport[]): string {
+  if (reports.length === 0) {
+    return `
+      <p class="note">Tasarruf finansmanına <strong>henüz bakılmadı</strong>. Faizsizdir ve
+      oranı yoktur; parayı sıra sana geldiğinde verirler. Pahalı mı ucuz mu olduğunu
+      organizasyon ücreti ile teslimat süresi belirler — ikisi de yukarıdaki tabloda
+      olmayan şeyler.</p>`;
+  }
+
+  const rows = reports.flatMap((report) => {
+    // Kept in the table on purpose, the same way a bank that publishes no rate
+    // is. The schema keeps `plans: []` because a firm that offers nothing today
+    // is not a firm nobody looked at, and only one of those means somebody
+    // should go back — dropped from the list the two become one answer.
+    //
+    // One cell per heading rather than a colspan across the empty ones: the
+    // sort script indexes row.cells by the heading's position, and cells counts
+    // DOM nodes, not the columns a colspan covers. A short row would sort by
+    // whatever landed at that index — its date, under the Teslimat heading.
+    if (report.plans.length === 0) {
+      return [
+        `
+          <tr class="silent">
+            <td>${escape(report.provider)}</td>
+            <td class="terms">Plan yayınlamıyor</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="when">${turkishDate(report.captured_on)}</td>
+          </tr>`,
+      ];
+    }
+
+    return report.plans.map((plan) => {
+      const cost = planCost(plan);
+      return `
+          <tr>
+            <td>${escape(report.provider)}</td>
+            <td class="terms">${escape(plan.product)}</td>
+            <td class="num">${String(plan.delivery_after_months)} ay${
+              // A date the firm does not owe you is the difference between a
+              // plan and a hope, and it is the one thing a rate table has no
+              // column for.
+              plan.delivery_basis === 'contractual'
+                ? ' <span class="steady">(sözleşmeli)</span>'
+                : ' <span class="caution">(beklenen)</span>'
+            }</td>
+            <td class="num">${cost.feeRatio === undefined ? '—' : percent(cost.feeRatio)}</td>
+            <td class="num">${percent(cost.costRatio)}</td>
+            <td class="when">${turkishDate(report.captured_on)}</td>
+          </tr>`;
+    });
+  });
+
+  return `
+      <div class="scroller">
+      <table class="savings">
+        <thead>
+          <tr>
+            ${th(`Şirket`)}${th(`Plan`)}${th(`Teslimat`, 'num')}${th(`Organizasyon`, 'num')}${th(
+              `Toplam maliyet${hint(
+                'Firmanın kendi “toplam ödenecek tutar”ından çıkarılıyor: aldığın paranın üstüne ödediğinin oranı. ' +
+                  'Bankadaki faizle aynı şey değil — bu bir yıllık oran değil, bütün planın toplamı. ' +
+                  'Karşılaştırmak için banka tarafında da toplam faize bakman gerekir, aylık orana değil.',
+              )}`,
+              'num',
+            )}${th(`Okundu`, 'when')}
+          </tr>
+        </thead>
+        <tbody>${rows.join('')}
+        </tbody>
+      </table>
+      </div>
+      <p class="caveat">
+        Bunlar kredi değil. Faiz yok, ama <strong>parayı imzada değil sıra sana geldiğinde</strong>
+        alırsın — teslimat süresi ürünün kendisidir. “Beklenen” yazan bir tarih firmanın sana borçlu
+        olduğu bir tarih değildir. Toplam maliyet oranı bütün planın toplamıdır; yukarıdaki aylık
+        oranlarla doğrudan kıyaslanmaz.
+      </p>`;
+}
+
 function ratesTable(reports: ShownRateReport[]): string {
   if (reports.length === 0) return `<p class="empty">${RATES_EMPTY}</p>`;
 
@@ -982,6 +1080,8 @@ function panelBody(tab: Tab, data: PageData): string {
           <section class="evidence">
             <h3 class="section">Banka oranları</h3>
             ${ratesTable(data.rates)}
+            <h3 class="section">Tasarruf finansmanı</h3>
+            ${savingsTable(data.savings)}
           </section>
 
           <section class="money">
@@ -1353,6 +1453,12 @@ const STYLE = `
   /* Dimmed rather than removed: the reader should see that a cheaper rate
      exists and why it is not theirs. */
   .shut { opacity: .45; }
+  /* Its own list, and it has to look like one: a second table under the first
+     rather than more rows of the same thing. */
+  table.savings { margin-top: .4rem; }
+  /* Inline in the cell, but keeping the italic and the pending colour: a date
+     the firm does not owe you should read differently at a glance. */
+  .savings .caution { display: inline; margin: 0; font-size: .8rem; }
   /* The answer to the question the two figures raise, so it carries a little
      more weight than the figures themselves. */
   .moved { font-weight: 600; }

@@ -17,6 +17,7 @@ import { loadModules } from '../modules/registry.js';
 import { loadMortgageRules } from '../finance/rules.js';
 import { loadMarketReports } from '../market/load.js';
 import { loadRateReports } from '../rates/load.js';
+import { loadSavingsFinanceReports } from '../savings/load.js';
 import { renderPage, type PageData } from '../ui/render.js';
 
 /**
@@ -58,6 +59,7 @@ const data: PageData = {
   instruments: [],
   records: [],
   rates: dataDir === undefined ? [] : loadRateReports(dataDir),
+  savings: dataDir === undefined ? [] : loadSavingsFinanceReports(dataDir),
   finance: {
     bundle: compiled.outputFiles[0]?.text ?? '',
     // Validated rather than cast: the page applies these to real money, and a
