@@ -1,6 +1,7 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
+import { comparable } from '../market/places.js';
 import { byCodePoint } from '../order.js';
 import { gatedOn } from '../rates/eligibility.js';
 import {
@@ -402,6 +403,72 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
  * of dates is a filing cabinet and nobody opens one of those to decide
  * something.
  */
+/**
+ * Neighbourhoods from different districts, side by side.
+ *
+ * The record keeps each district in its own report, so the comparison the
+ * reader actually makes — the one they live in against the one they are
+ * considering — takes two scrolls and a memory. Places are chosen from what has
+ * been read rather than typed: a district nobody has looked at has nothing to
+ * compare, and offering it would be offering an empty answer.
+ *
+ * Bars, not a line. Comparing places at one reading is legitimate with any
+ * number of them; drawing a line through readings over time is not, and nothing
+ * here does that — two of this record's readings are hours apart and one says in
+ * its own note that it is not a direction reading.
+ */
+function compareBlock(reports: ResearchReport[]): string {
+  const places = comparable(reports);
+
+  return `
+      <details class="compare">
+      <summary>Mahalleleri karşılaştır</summary>${
+        places.length < 2
+          ? `
+      <p class="note">Karşılaştırmak için en az iki mahalle okuması gerekiyor; kayıtta ${String(
+        places.length,
+      )} tane var. Yukarıdan bir ilçe araştırt.</p>`
+          : `
+      <div class="ask">
+        <label>İl<select id="compare-province"></select></label>
+        <label>İlçe<select id="compare-district"></select></label>
+        <label>Mahalle<select id="compare-neighbourhood"></select></label>
+        <button type="button" id="compare-add">Ekle</button>
+      </div>
+      <div id="compare-out"></div>
+      <p class="caveat">
+        Barlar aynı okumadaki yerleri kıyaslar, zaman içindeki yönü değil. Her barın yanındaki
+        ilan sayısına bak: 3 ilanlık bir medyan ile 40 ilanlık bir medyan aynı şey değildir.
+        Farklı oda sayısı ya da metrekare bandında ölçülmüş iki mahalle birbirinden çıkarılamaz —
+        bant her satırın kaynağında yazıyor. Küçük farklar bulgu değildir: aynı kaynağın aynı
+        gün iki kez örneklenmesi bile medyanı oynatabiliyor, ve ne kadar oynattığı okumadan
+        okumaya değişir — hangi okumanın ne kadar duyarlı olduğu o okumanın kendi notunda yazar.
+      </p>`
+      }
+      </details>`;
+}
+
+/**
+ * The figures the comparison runs on, handed to the page rather than fetched.
+ *
+ * Last in the panel on purpose. It repeats every neighbourhood name, and put
+ * above the reports it becomes the first match for any of them — which is how a
+ * test looking for a row found the data blob instead.
+ *
+ * Every `<` is written as its JSON escape, which is the one sequence that can
+ * end a script block early: a place or a note containing `</script>` would
+ * otherwise close this tag and put the rest of the record into the document as
+ * markup. The escape has to be a raw string — written as an ordinary literal it
+ * is `<` again, and the replacement swaps the character for itself.
+ */
+function placesData(reports: ResearchReport[]): string {
+  return `
+      <script type="application/json" id="places">${JSON.stringify(comparable(reports)).replaceAll(
+        '<',
+        '\\u003c',
+      )}</script>`;
+}
+
 function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
   const owning = cost?.byName ?? new Map<string, number>();
   const heading = cost === undefined ? '' : th('Taksit/Kira', 'num');
@@ -1069,7 +1136,9 @@ function panelBody(tab: Tab, data: PageData): string {
       <section role="tabpanel" id="panel-pazar" aria-labelledby="tab-pazar">
         <section class="research">
           ${DISPATCH}
+          ${compareBlock(data.research)}
           ${research}
+          ${placesData(data.research)}
         </section>
       </section>
 
@@ -1461,6 +1530,19 @@ const STYLE = `
   /* Its own list, and it has to look like one: a second table under the first
      rather than more rows of the same thing. */
   table.savings { margin-top: .4rem; }
+  /* Bars compare places at one reading. The count sits on every one of them,
+     because at this scale a three-listing median and a forty-listing median
+     look identical. */
+  .compare { margin: 1.4rem 0; }
+  .compare > summary { cursor: pointer; font-weight: 600; }
+  .compare .ask { margin: .8rem 0; }
+  .bar-row { display: grid; grid-template-columns: minmax(7rem, 1fr) 3fr auto auto;
+    gap: .6rem; align-items: center; padding: .35rem 0; }
+  .bar-name small, .bar-figure small { display: block; font-size: .7rem; color: var(--muted); }
+  .bar-figure { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { background: var(--line); height: .6rem; border-radius: .3rem; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--measured); }
+  .bar-drop { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 1rem; }
   /* Inline in the cell, but keeping the italic and the pending colour: a date
      the firm does not owe you should read differently at a glance. */
   .savings .caution { display: inline; margin: 0; font-size: .8rem; }
@@ -1744,7 +1826,172 @@ const SINCE_SCRIPT = `
   });
 `;
 
-export const PAGE_SCRIPTS: readonly string[] = [SCRIPT, FINANCE_SCRIPT, SINCE_SCRIPT];
+/**
+ * Choosing places and drawing them side by side.
+ *
+ * Wrapped in a function of its own. Every inline script on this page shares one
+ * global scope, and \`money\` was already taken by the calculator — a redeclared
+ * binding is a SyntaxError, and a SyntaxError in one script is a dead feature
+ * with nothing on screen to say so.
+ *
+ * Everything it needs is already in the page, so it never asks for anything:
+ * the figures come out of the JSON block the record wrote, and the bars are
+ * divs. Nothing is fetched, nothing is stored, and closing the page forgets the
+ * comparison — which is right, because a comparison is a question being asked
+ * rather than a finding to keep.
+ */
+const COMPARE_SCRIPT = `
+  (function () {
+  var blob = document.getElementById('places');
+  var picked = [];
+  var places = blob ? JSON.parse(blob.textContent) : [];
+
+  if (document.getElementById('compare-province')) {
+    var el = function (id) { return document.getElementById(id); };
+    var uniq = function (values) {
+      var seen = [];
+      values.forEach(function (v) { if (seen.indexOf(v) < 0) seen.push(v); });
+      return seen;
+    };
+    // Nodes, never markup built from a value. These names come out of the
+    // record and the record is written by agents reading listing sites, so a
+    // name is whatever a listing page called a place — and concatenated into
+    // HTML, one containing a quote or a tag stops being a name.
+    var fill = function (select, values) {
+      select.textContent = '';
+      values.forEach(function (v) { select.appendChild(new Option(v)); });
+    };
+    var node = function (tag, className, text) {
+      var el = document.createElement(tag);
+      if (className) el.className = className;
+      if (text !== undefined) el.textContent = text;
+      return el;
+    };
+    var money = function (n) { return n.toLocaleString('tr-TR') + ' ₺'; };
+    var id = function (p) { return p.province + ' / ' + p.district + ' / ' + p.name; };
+    var day = function (iso) { return iso.split('-').reverse().join('.'); };
+
+    var inProvince = function () {
+      return places.filter(function (p) { return p.province === el('compare-province').value; });
+    };
+    var inDistrict = function () {
+      return inProvince().filter(function (p) { return p.district === el('compare-district').value; });
+    };
+
+    var draw = function () {
+      if (picked.length === 0) { el('compare-out').textContent = ''; return; }
+
+      var most = Math.max.apply(null, picked.map(function (p) { return p.sale_per_m2; }));
+      // Bands recorded in \`source\`. Two readings taken on different room counts
+      // are not comparable, and subtracting them anyway is the mistake the field
+      // exists to prevent.
+      var bands = uniq(picked.map(function (p) { return p.source; }));
+
+      var out = el('compare-out');
+      out.textContent = '';
+
+      picked.forEach(function (p) {
+        var row = node('div', 'bar-row');
+        var name = node('span', 'bar-name', p.name);
+        name.appendChild(node('small', '', p.district));
+
+        var bar = node('span', 'bar');
+        var fill_ = node('span');
+        fill_.style.width = Math.round((p.sale_per_m2 / most) * 100) + '%';
+        bar.appendChild(fill_);
+
+        var figure = node('span', 'bar-figure', money(p.sale_per_m2));
+        // The date belongs on the bar. Districts are researched independently,
+        // not on a shared cadence, so two of these can be weeks apart — and
+        // side by side with nothing said they present themselves as one moment.
+        figure.appendChild(node('small', '', p.listing_count + ' ilan · ' + day(p.dated)));
+
+        var drop = node('button', 'bar-drop', '×');
+        drop.type = 'button';
+        // Every bar carries the same ×. Unlabelled, a screen reader gets a row
+        // of identical buttons and no way to tell which one it is on.
+        drop.setAttribute('aria-label', 'Kaldır: ' + p.name + ', ' + p.district);
+        // The whole place, all three names. Turkish place names collide at
+        // every level — "Merkez" is the central district of most provinces and
+        // "Cumhuriyet" is a mahalle in most of those — so anything shorter
+        // removes a bar from another city along with this one.
+        drop.setAttribute('data-place', id(p));
+
+        row.appendChild(name);
+        row.appendChild(bar);
+        row.appendChild(figure);
+        row.appendChild(drop);
+        out.appendChild(row);
+      });
+
+      // Said, not quoted. A source line in this record runs to three hundred
+      // characters of method, and three of them pasted here bury the bars they
+      // are about. Each one is already under its own report.
+      var days = uniq(picked.map(function (p) { return p.dated; }));
+      if (days.length > 1) {
+        out.appendChild(
+          node(
+            'p',
+            'caution',
+            'Bunlar farklı tarihlerde okundu (' + days.map(day).join(', ') + '). Aradaki fark ' +
+              'yerler arasındaki fark değil, geçen zaman da olabilir.',
+          ),
+        );
+      }
+
+      if (bands.length > 1) {
+        out.appendChild(
+          node(
+            'p',
+            'caution',
+            'Seçtiklerin ' + bands.length + ' farklı bantta ölçülmüş. Farklı oda sayısı ya da ' +
+              'metrekare bandındaki iki medyan birbirinden çıkarılamaz — her birinin bandı kendi ' +
+              'raporunda yazıyor.',
+          ),
+        );
+      }
+    };
+
+    var refreshDistricts = function () {
+      fill(el('compare-district'), uniq(inProvince().map(function (p) { return p.district; })));
+      refreshNeighbourhoods();
+    };
+    var refreshNeighbourhoods = function () {
+      fill(el('compare-neighbourhood'), inDistrict().map(function (p) { return p.name; }));
+    };
+
+    fill(el('compare-province'), uniq(places.map(function (p) { return p.province; })));
+    refreshDistricts();
+
+    el('compare-province').addEventListener('change', refreshDistricts);
+    el('compare-district').addEventListener('change', refreshNeighbourhoods);
+
+    el('compare-add').addEventListener('click', function () {
+      var chosen = inDistrict().filter(function (p) {
+        return p.name === el('compare-neighbourhood').value;
+      })[0];
+      // Once, however many times it is chosen: the same place twice is not a
+      // comparison, it is one bar drawn on top of itself.
+      if (chosen && picked.indexOf(chosen) < 0) picked.push(chosen);
+      draw();
+    });
+
+    document.addEventListener('click', function (event) {
+      var drop = event.target.closest && event.target.closest('.bar-drop');
+      if (!drop) return;
+      picked = picked.filter(function (p) { return id(p) !== drop.getAttribute('data-place'); });
+      draw();
+    });
+  }
+  })();
+`;
+
+export const PAGE_SCRIPTS: readonly string[] = [
+  SCRIPT,
+  FINANCE_SCRIPT,
+  SINCE_SCRIPT,
+  COMPARE_SCRIPT,
+];
 
 /**
  * The whole page, as one self-contained document.

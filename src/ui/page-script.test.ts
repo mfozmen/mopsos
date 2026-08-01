@@ -373,3 +373,212 @@ describe('an offer the reader cannot take', () => {
     expect(ordinary?.classList.contains('shut')).toBe(false);
   });
 });
+
+describe('comparing neighbourhoods', () => {
+  const hood = (name: string, district: string, sale: number, count: number) => ({
+    name,
+    sale_per_m2: sale,
+    rent_per_m2: 280,
+    listing_count: count,
+    source: 'İlan, 3+1',
+  });
+
+  const withPlaces = (): ReturnType<typeof open> =>
+    open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('30 Ağustos', 'Menemen', 52_857, 40)],
+        },
+        {
+          place: 'İzmir / Çiğli',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('Küçük Çiğli', 'Çiğli', 48_000, 3)],
+        },
+      ],
+    });
+
+  it('narrows the district list to the province that is chosen', () => {
+    const dom = withPlaces();
+    const districts = dom.window.document.querySelectorAll('#compare-district option');
+
+    expect([...districts].map((o) => o.textContent)).toEqual(['Menemen', 'Çiğli']);
+  });
+
+  it('narrows the neighbourhood list to the district that is chosen', () => {
+    const dom = withPlaces();
+    dom.choose('compare-district', 'Çiğli');
+    const hoods = dom.window.document.querySelectorAll('#compare-neighbourhood option');
+
+    expect([...hoods].map((o) => o.textContent)).toEqual(['Küçük Çiğli']);
+  });
+
+  it('puts two places from different districts on one comparison', () => {
+    // Two scrolls and a memory, until now.
+    const dom = withPlaces();
+    dom.click('#compare-add');
+    dom.choose('compare-district', 'Çiğli');
+    dom.click('#compare-add');
+
+    const out = dom.region('#compare-out');
+    expect(out).toContain('30 Ağustos');
+    expect(out).toContain('Küçük Çiğli');
+  });
+
+  it('shows the listing count beside every bar', () => {
+    // At chart scale a 3-listing median and a 40-listing median look identical.
+    const dom = withPlaces();
+    dom.click('#compare-add');
+    dom.choose('compare-district', 'Çiğli');
+    dom.click('#compare-add');
+
+    expect(dom.region('#compare-out')).toMatch(/3 ilan/);
+    expect(dom.region('#compare-out')).toMatch(/40 ilan/);
+  });
+
+  it('warns that two bands differ without reprinting them', () => {
+    // A source line in this record runs to three hundred characters of method.
+    // Pasted into the warning, three of them bury the bars they are about.
+    const long = 'emlakjet, ' + 'ilan havuzu okunup mahalleye göre ayrıldı, bant sabit. '.repeat(6);
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            { ...hood('A', 'Menemen', 50_000, 20), source: long + '3+1' },
+            { ...hood('B', 'Menemen', 40_000, 20), source: long + '2+1' },
+          ],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+    dom.choose('compare-neighbourhood', 'B');
+    dom.click('#compare-add');
+
+    const warning = dom.region('#compare-out .caution');
+    expect(warning).toMatch(/bant/i);
+    expect(warning.length).toBeLessThan(200);
+  });
+
+  it('tells two namesakes in different provinces apart when one is dropped', () => {
+    // "Merkez" is the central district of most Turkish provinces, and
+    // "Cumhuriyet" is a neighbourhood in most of those. Keyed on anything less
+    // than the full place, one × removes a bar from another city.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Merkez',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('Cumhuriyet', 'Merkez', 50_000, 20)],
+        },
+        {
+          place: 'Ankara / Merkez',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('Cumhuriyet', 'Merkez', 40_000, 20)],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+    dom.choose('compare-province', 'Ankara');
+    dom.click('#compare-add');
+    expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(2);
+
+    dom.click('#compare-out .bar-drop');
+
+    expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(1);
+  });
+
+  it('says when the readings being compared are from different days', () => {
+    // Districts are researched independently, not on a shared cadence. Two
+    // readings weeks apart shown side by side present themselves as one moment.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('A', 'Menemen', 50_000, 20)],
+        },
+        {
+          place: 'İzmir / Çiğli',
+          dated: '2026-06-15',
+          neighbourhoods: [hood('B', 'Çiğli', 40_000, 20)],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+    dom.choose('compare-district', 'Çiğli');
+    dom.click('#compare-add');
+
+    expect(dom.region('#compare-out')).toContain('15.06.2026');
+    expect(dom.region('#compare-out .caution')).toMatch(/farklı (tarih|gün)/i);
+  });
+
+  it('names the place each remove button removes', () => {
+    // Every bar carries the same × and nothing else. Unlabelled, a screen
+    // reader gets a row of identical buttons and no way to tell them apart.
+    const dom = withPlaces();
+    dom.click('#compare-add');
+
+    const drop = dom.window.document.querySelector('#compare-out .bar-drop');
+    expect(drop?.getAttribute('aria-label')).toContain('30 Ağustos');
+  });
+
+  it('does not let a place name close the data block it sits in', () => {
+    // `</script>` is the one sequence that can end a script element early.
+    // Unescaped, a place or a note containing it would close the block and put
+    // the rest of the record into the document as markup.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            hood('Bir Yer</script><img src=x>', 'Menemen', 50_000, 20),
+            hood('Öteki Yer', 'Menemen', 40_000, 20),
+          ],
+        },
+      ],
+    });
+
+    expect(dom.window.document.querySelectorAll('img')).toHaveLength(0);
+    expect(dom.window.document.querySelectorAll('#compare-neighbourhood option')).toHaveLength(2);
+  });
+
+  it('does not let a place name become markup', () => {
+    // The names come from the record, and the record is written by agents
+    // reading listing sites. A name is a name, whatever it contains.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            hood('<img src=x onerror=alert(1)>', 'Menemen', 50_000, 20),
+            hood('Öteki Yer', 'Menemen', 40_000, 20),
+          ],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+
+    const out = dom.window.document.querySelector('#compare-out');
+    expect(out?.querySelectorAll('img')).toHaveLength(0);
+    expect(out?.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('adds a place once, however many times it is chosen', () => {
+    const dom = withPlaces();
+    dom.click('#compare-add');
+    dom.click('#compare-add');
+
+    expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(1);
+  });
+});
