@@ -9,7 +9,12 @@
  *   npm run queue -- claim <at>   — take one, by its requested_at
  */
 import { resolveDataDir } from '../config/data-dir.js';
-import { claimRequest, pendingRequests, rejectedRequests } from '../server/requests.js';
+import {
+  claimRequest,
+  describeRequest,
+  pendingRequests,
+  rejectedRequests,
+} from '../server/requests.js';
 
 const dataDir = resolveDataDir(process.cwd(), process.env);
 const [action, requestedAt] = process.argv.slice(2);
@@ -39,9 +44,7 @@ if (action === 'claim') {
   } else {
     console.log(`${String(pending.length)} pending:`);
     for (const request of pending) {
-      const where =
-        request.province === undefined ? '' : ` ${request.province}/${String(request.district)}`;
-      console.log(`  ${request.requested_at}  ${request.kind}${where}`);
+      console.log(`  ${request.requested_at}  ${describeRequest(request)}`);
     }
   }
 }

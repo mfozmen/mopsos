@@ -517,7 +517,10 @@ const DISPATCH = `
         <div class="ask">
           <label>İl<input id="province" type="text" value="İzmir" autocomplete="off"></label>
           <label>İlçe<input id="district" type="text" value="Çiğli" autocomplete="off"></label>
-          <button type="button" id="ask-market">Bu ilçeyi araştır</button>
+          <label>Mahalle${hint(
+            'Boş bırakırsan bütün ilçe araştırılır — ilk okuma için doğrusu budur. Bir mahalle yazarsan agent yalnızca oraya bakar: daha az ilan, daha dar bir karışım, ve tek yere daha uzun bakabilen bir okuma. İkinci okumada işe yarar, çünkü soru artık “bu ilçe ne durumda” değil “oturduğum mahalle ne oldu”.',
+          )}<input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
+          <button type="button" id="ask-market">Araştır</button>
         </div>
         <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
         <p class="note" id="ask-status">Açık olan Claude Code oturumu isteği alır ve agent’ı çalıştırır — ne yaptığını orada görürsün.</p>
@@ -1389,8 +1392,10 @@ const FINANCE_SCRIPT = `
 
   $('ask-rates').addEventListener('click', () => ask({ kind: 'rates' }, 'Banka oranları'));
   $('ask-market').addEventListener('click', () =>
-    ask({ kind: 'market', province: $('province').value, district: $('district').value },
-      $('province').value + ' / ' + $('district').value));
+    ask({ kind: 'market', province: $('province').value, district: $('district').value,
+        neighbourhood: $('neighbourhood').value },
+      $('province').value + ' / ' + $('district').value +
+        ($('neighbourhood').value.trim() ? ' / ' + $('neighbourhood').value.trim() : '')));
 `;
 
 const STYLE = `

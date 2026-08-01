@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendRequest,
   claimRequest,
+  describeRequest,
   InvalidRequestError,
   parseRequest,
   pendingRequests,
@@ -238,5 +239,80 @@ describe('a request already in the queue', () => {
     claimRequest(root, '2026-07-28T09:00:00.000Z', 'session-a');
 
     expect(rejectedRequests(root)).toEqual([]);
+  });
+});
+
+describe('asking about one neighbourhood', () => {
+  const market = { kind: 'market', province: 'İzmir', district: 'Menemen' };
+
+  it('carries the neighbourhood when the request names one', () => {
+    const request = parseRequest({ ...market, neighbourhood: '30 Ağustos' });
+
+    expect(request).toEqual({ ...market, neighbourhood: '30 Ağustos' });
+  });
+
+  it('leaves it out when the field is empty, which means the whole district', () => {
+    // Empty is not a validation failure. A district-wide run is the right
+    // default for a first reading and stays exactly what it was.
+    expect(parseRequest({ ...market, neighbourhood: '   ' })).toEqual(market);
+  });
+
+  it('leaves it out when the field is absent', () => {
+    expect(parseRequest(market)).toEqual(market);
+  });
+
+  it.each(['30 Ağustos', '29 Ekim', '9 Eylül', '85.yıl Cumhuriyet'])(
+    'accepts a real Turkish neighbourhood name: %s',
+    (neighbourhood) => {
+      // Four of the forty-five mahalle names in the record start with a digit or
+      // carry a full stop. A pattern that only allows letters refuses the exact
+      // place this feature was asked for.
+      expect(parseRequest({ ...market, neighbourhood })).toEqual({ ...market, neighbourhood });
+    },
+  );
+
+  it('holds it to the same allowlist as the other two', () => {
+    // It is read back out and handed to an agent as part of its instructions,
+    // so it is a place name or it is nothing.
+    expect(() => parseRequest({ ...market, neighbourhood: '../../etc' })).toThrow(
+      InvalidRequestError,
+    );
+  });
+
+  it('refuses one that is far too long to be a place', () => {
+    expect(() => parseRequest({ ...market, neighbourhood: 'A'.repeat(200) })).toThrow(
+      InvalidRequestError,
+    );
+  });
+});
+
+describe('describing a queued request', () => {
+  it('names the place a market run is for', () => {
+    expect(
+      describeRequest({
+        kind: 'market',
+        province: 'İzmir',
+        district: 'Menemen',
+        requested_at: 'x',
+      }),
+    ).toBe('market İzmir/Menemen');
+  });
+
+  it('names the neighbourhood too, or the narrowing is invisible to whoever runs it', () => {
+    // The queue line is what the person dispatching the agent reads. A request
+    // for one mahalle that prints as a district run gets a district run.
+    expect(
+      describeRequest({
+        kind: 'market',
+        province: 'İzmir',
+        district: 'Menemen',
+        neighbourhood: '30 Ağustos',
+        requested_at: 'x',
+      }),
+    ).toBe('market İzmir/Menemen/30 Ağustos');
+  });
+
+  it('says just the kind when a request names no place', () => {
+    expect(describeRequest({ kind: 'rates', requested_at: 'x' })).toBe('rates');
   });
 });
