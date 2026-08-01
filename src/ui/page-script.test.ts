@@ -333,3 +333,42 @@ describe('sorting a table that has readings folded under its rows', () => {
     expect(order(dom)).toEqual(['Zzz Bank', 'history', 'Aaa Bank', 'history']);
   });
 });
+
+describe('an offer the reader cannot take', () => {
+  const gated = {
+    ...DATA.rates[0]!,
+    bank: 'Halkbank',
+    offers: [
+      {
+        product: 'Yeni Evlilere Özel Konut Kredisi',
+        monthly_rate: 2.6,
+        conditions: 'resmi nikâh tarihi üzerinden 3 yıldan fazla geçmemiş olması',
+      },
+    ],
+  };
+
+  const open2 = (): ReturnType<typeof open> => open({ ...DATA, rates: [gated, DATA.rates[0]!] });
+
+  const dimmed = (dom: ReturnType<typeof open>): boolean =>
+    dom.window.document.querySelector('tr[data-gate]')?.classList.contains('shut') ?? false;
+
+  it('dims it while the reader says the condition is not theirs', () => {
+    // Not hidden: a rate that exists and is out of reach is worth knowing
+    // about, and hiding it would make the record look smaller than it is.
+    expect(dimmed(open2())).toBe(true);
+  });
+
+  it('brings it back the moment they say it is', () => {
+    const dom = open2();
+    dom.choose('newlywed', 'yes');
+
+    expect(dimmed(dom)).toBe(false);
+  });
+
+  it('leaves an offer with no condition alone either way', () => {
+    const dom = open2();
+    const ordinary = dom.window.document.querySelectorAll('table.rates tbody tr')[1];
+
+    expect(ordinary?.classList.contains('shut')).toBe(false);
+  });
+});

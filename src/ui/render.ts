@@ -2,6 +2,7 @@ import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
 import { byCodePoint } from '../order.js';
+import { gatedOn } from '../rates/eligibility.js';
 import {
   bestOffer,
   headlineMisleads,
@@ -705,8 +706,10 @@ function rateRow(report: RateReport): string {
           </tr>`;
   }
 
+  const gates = gatedOn(cheapest);
+
   return `
-          <tr>
+          <tr${gates.length === 0 ? '' : ` data-gate="${gates.join(' ')}"`}>
             ${bankCell(report)}
             <td class="num"><button type="button" class="use-rate"
               data-rate="${cheapest.monthly_rate}">${ratePercent(cheapest.monthly_rate)}</button></td>
@@ -769,6 +772,12 @@ const HOUSEHOLD = `
         <label><span class="q">Sen, eşin veya 18 yaş altı çocuğun üzerine kayıtlı konut${hint('Bankaların hepsi “ilk ev”i hane olarak tanımlıyor: kendisi, eşi veya 18 yaşından küçük çocukları. Varsa üç şey birden değişir — “İlk Evim” oranlarının hiçbirini alamazsın, taksitlere %15 BSMV eklenir (konut kredisi muafiyeti kalkar) ve kullanabileceğin kredi oranı %75 azalır (BDDK 10656). Bu, kurallardaki tek en büyük etki.')}</span><select id="ownsHome">
           <option value="no" selected>Yok</option>
           <option value="yes">Var</option>
+        </select></label>
+        <label><span class="q">Yeni evli misin${hint(
+          'Kayıttaki en ucuz gerçek maliyet yeni evlilere özel bir üründe — Halkbank’ın “Yeni Evlilere Özel Konut Kredisi”, söylenen %2,60, gerçekte %2,72. Koşulu bankanın kendi cümlesiyle tabloda duruyor; evlilik tarihi sorulmuyor ve hiçbir yere yazılmıyor, çünkü uygunluğu banka değerlendirir, bu sayfa değil. “Evet” dersen bu ürünler tabloda solmaz; “Hayır” dersen alamayacağın bir oran listenin başında oturmaz.',
+        )}</span><select id="newlywed">
+          <option value="no" selected>Hayır</option>
+          <option value="yes">Evet — 3 yıldan az evli, eşlerden biri 36’dan küçük</option>
         </select></label>
         <label><span class="q">Hanede maaşı kim alıyor${hint('Bu bir filtre değil, bir hatırlatma. Ziraat, Halkbank ve VakıfBank’ın üçünde de kamu/maaş koşullu konut oranı ARANDI ve hiçbiri yayınlamıyor — ama üçünün de kendi belgeleri böyle bir oranın var olduğunu söylüyor. Ziraat’in broşürü: “kurumunuz ile Bankamız arasında imzalanan maaş protokolüne göre değişiklik gösterebilir… şubemiz ile irtibata geçiniz.” Ziraat’in kendi hesaplama servisinde maaşlı/maaşsız oran alanı var, konut için ikisi de sıfır dönüyor. VakıfBank’ın OYAK ve TSK üyelerine özel konut kampanyaları canlı ama oran yazmıyor. Yani aşağıdaki tablo herkese açık oranlar; protokol oranı sormadan öğrenilmiyor.')}</span><select id="salary">
           <option value="private" selected>Özel sektör / serbest</option>
@@ -1202,6 +1211,19 @@ const FINANCE_SCRIPT = `
   $('household').addEventListener('change', showSalaryAdvice);
   showSalaryAdvice();
 
+  // Dimmed, never hidden. A rate that exists and is out of reach is worth
+  // knowing about — it is the difference between "there is nothing cheaper"
+  // and "the cheapest thing is not for you" — and removing the row would make
+  // the record look smaller than it is.
+  const showWhatIsOpen = () => {
+    const newlywed = $('newlywed').value === 'yes';
+    for (const row of document.querySelectorAll('tr[data-gate]')) {
+      row.classList.toggle('shut', row.getAttribute('data-gate') === 'newlywed' && !newlywed);
+    }
+  };
+  $('household').addEventListener('change', showWhatIsOpen);
+  showWhatIsOpen();
+
   // The household answers feed the same calculation, so they trigger it too.
   $('household').addEventListener('input', run);
   $('household').addEventListener('change', run);
@@ -1311,6 +1333,9 @@ const STYLE = `
   .history ul { margin: .4rem 0 .2rem; padding-left: 1.1rem; font-size: .85rem; }
   .history li { margin: .15rem 0; }
   .history .corrected { color: var(--muted); }
+  /* Dimmed rather than removed: the reader should see that a cheaper rate
+     exists and why it is not theirs. */
+  .shut { opacity: .45; }
   /* The answer to the question the two figures raise, so it carries a little
      more weight than the figures themselves. */
   .moved { font-weight: 600; }

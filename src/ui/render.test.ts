@@ -1373,3 +1373,41 @@ describe('the readings behind a district', () => {
     expect(panel(page, 'housing')).not.toContain('eski okuma');
   });
 });
+
+describe('an offer only some people can take', () => {
+  const newlywed = {
+    ...ZIRAAT,
+    bank: 'Halkbank',
+    offers: [
+      {
+        product: 'Yeni Evlilere Özel Konut Kredisi',
+        monthly_rate: 2.6,
+        conditions: 'resmi nikâh tarihi üzerinden 3 yıldan fazla geçmemiş olması',
+      },
+    ],
+  };
+
+  it('asks whether the reader is one of them, before the table', () => {
+    // The cheapest real cost in the whole record is a newlywed product, and
+    // nothing asked. A reader who qualifies had no way to know it was theirs;
+    // one who does not had a rate they cannot reach sitting at the top.
+    expect(renderPage(EMPTY)).toContain('id="newlywed"');
+  });
+
+  it('marks the offer as gated, whatever the reader answered', () => {
+    // The condition is a fact about the offer, not about the reader.
+    expect(panel(renderPage({ ...EMPTY, rates: [newlywed] }), 'housing')).toContain(
+      'data-gate="newlywed"',
+    );
+  });
+
+  it('leaves an ordinary offer unmarked', () => {
+    expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).not.toContain('data-gate');
+  });
+
+  it('puts the bank own words where the reader can check them', () => {
+    expect(panel(renderPage({ ...EMPTY, rates: [newlywed] }), 'housing')).toContain(
+      'resmi nikâh tarihi',
+    );
+  });
+});
