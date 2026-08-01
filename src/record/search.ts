@@ -1,3 +1,5 @@
+import { byCodePoint } from '../order.js';
+
 /** One thing in the record a reader might be looking for again. */
 export interface Searchable {
   kind: 'market' | 'rates';
@@ -97,5 +99,9 @@ export function searchable(places: ReadPlace[], banks: ReadBank[]): Searchable[]
     ].join(' '),
   }));
 
-  return [...fromPlaces, ...fromBanks].sort((a, b) => (a.dated < b.dated ? 1 : -1));
+  // Reversed rather than negated, and through the shared comparator: equal
+  // dates have to fall through to zero or the order among them is unspecified,
+  // and ties are the common case here — an import run dates a whole batch the
+  // same day.
+  return [...fromPlaces, ...fromBanks].sort((a, b) => byCodePoint(b.dated, a.dated));
 }

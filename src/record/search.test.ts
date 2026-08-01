@@ -98,6 +98,23 @@ describe('what the record offers up to be searched', () => {
     expect(searchable([], [rate])[0]?.dated).toBe('2026-08-01');
   });
 
+  it('leaves same-day readings in the order they came, rather than an arbitrary one', () => {
+    // Ties are the common case here, not the edge: an import run gives every
+    // reading in a batch the same date. A comparator that answers -1 to both
+    // (a, b) and (b, a) leaves their order unspecified.
+    const sameDay = [
+      { ...market, place: 'İzmir / Bir' },
+      { ...market, place: 'İzmir / İki' },
+      { ...market, place: 'İzmir / Üç' },
+    ];
+
+    expect(searchable(sameDay, []).map((entry) => entry.title)).toEqual([
+      'İzmir / Bir',
+      'İzmir / İki',
+      'İzmir / Üç',
+    ]);
+  });
+
   it('puts the newest reading first, whichever kind it is', () => {
     // A hit with no date is a hit you cannot use, and an old one above a new
     // one is the same problem one step later.
