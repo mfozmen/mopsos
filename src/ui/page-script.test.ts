@@ -582,3 +582,52 @@ describe('comparing neighbourhoods', () => {
     expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(1);
   });
 });
+
+describe('finding a reading again', () => {
+  const dom = (): ReturnType<typeof open> =>
+    open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Çiğli',
+          dated: '2026-07-29',
+          note: 'sahibinden satılık listesini 14. sayfadan sonra vermedi',
+          neighbourhoods: [
+            { name: 'Küçük Çiğli', sale_per_m2: 48_000, listing_count: 22, source: 'İlan, 3+1' },
+          ],
+        },
+      ],
+    });
+
+  it('finds a place typed without its Turkish letters', () => {
+    const page = dom();
+    page.type('find', 'cigli');
+
+    expect(page.region('#found')).toContain('İzmir / Çiğli');
+  });
+
+  it('finds a reading by a word from its note', () => {
+    const page = dom();
+    page.type('find', 'sahibinden');
+
+    expect(page.region('#found')).toContain('İzmir / Çiğli');
+  });
+
+  it('dates every hit, because one without a date cannot be used', () => {
+    const page = dom();
+    page.type('find', 'cigli');
+
+    expect(page.region('#found')).toContain('29.07.2026');
+  });
+
+  it('says so rather than showing an empty list when nothing matches', () => {
+    const page = dom();
+    page.type('find', 'ankara');
+
+    expect(page.region('#found')).toMatch(/bulunamadı|yok/i);
+  });
+
+  it('shows nothing at all until something is typed', () => {
+    expect(dom().region('#found')).toBe('');
+  });
+});
