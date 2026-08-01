@@ -441,8 +441,8 @@ function compareBlock(reports: ResearchReport[]): string {
         ilan sayısına bak: 3 ilanlık bir medyan ile 40 ilanlık bir medyan aynı şey değildir.
         Farklı oda sayısı ya da metrekare bandında ölçülmüş iki mahalle birbirinden çıkarılamaz —
         bant her satırın kaynağında yazıyor. Bu kayıtta aynı kaynağın aynı gün iki örneklemesi
-        arasında <strong>%4,8</strong> fark ölçüldü (Menemen/Ulukent, 29.07.2026 — 29 Ekim
-        mahallesi için 53.450’ye karşı 50.909 ₺/m²); yöntemin kendi gürültüsü bu kadar, ve bundan
+        arasında <strong>%4,8</strong> fark ölçüldü (Menemen/Ulukent, 29.07.2026 —
+        53.450’ye karşı 50.909 ₺/m²); yöntemin kendi gürültüsü bu kadar, ve bundan
         küçük farklar bulgu değildir.
       </p>`
       }
