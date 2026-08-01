@@ -23,6 +23,20 @@ describe('who an offer is actually open to', () => {
     ]);
   });
 
+  it.each([
+    'evlilik süresi 3 yılı geçmemiş olmalı',
+    'evlenme tarihi üzerinden 3 yıl geçmemiş',
+    'evlendikten sonraki ilk 3 yıl içinde başvuru',
+    'nikah tarihinden itibaren 36 ay',
+  ])('catches the same gate written another way: %s', (conditions) => {
+    // One bank's phrasing is not the vocabulary. A gate missed here does not
+    // merely leave the offer showing — it shows it as open to everyone, which
+    // is a claim the record never made.
+    expect(gatedOn({ product: 'Konut Kredisi', monthly_rate: 2.6, conditions })).toEqual([
+      'newlywed',
+    ]);
+  });
+
   it('leaves an ordinary offer open to everyone', () => {
     expect(gatedOn({ product: 'Konut Kredisi', monthly_rate: 2.89 })).toEqual([]);
   });
