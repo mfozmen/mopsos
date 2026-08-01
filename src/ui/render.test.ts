@@ -342,10 +342,13 @@ describe('bank rates', () => {
 
   it('says nothing about conditions when the bank published none', () => {
     // An empty disclosure triangle invites a click that reveals nothing.
+    // Scoped to the row: the page has disclosures of its own, and asking the
+    // whole panel would fail the day any of them appeared.
     const bare = { ...ZIRAAT, offers: [{ product: 'Konut Kredisi', monthly_rate: 2.79 }] };
     const housing = panel(renderPage({ ...EMPTY, rates: [bare] }), 'housing');
+    const table = housing.slice(housing.indexOf('<table class="rates"'));
 
-    expect(housing).not.toContain('<details');
+    expect(table.slice(0, table.indexOf('</table>'))).not.toContain('<details');
   });
 
   it('links the bank to the page the figures were read from', () => {
@@ -1569,5 +1572,56 @@ describe('asking about one neighbourhood', () => {
 
   it('says empty means the whole district, so the field does not read as required', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toMatch(/boş.*(bütün|tüm) ilçe/i);
+  });
+});
+
+describe('putting neighbourhoods side by side', () => {
+  const report = {
+    place: 'İzmir / Menemen',
+    dated: '2026-07-29',
+    neighbourhoods: [
+      {
+        name: '30 Ağustos',
+        sale_per_m2: 52_857,
+        rent_per_m2: 288,
+        listing_count: 40,
+        source: 'İlan, 3+1',
+      },
+      {
+        name: 'Ulukent',
+        sale_per_m2: 45_000,
+        rent_per_m2: 260,
+        listing_count: 12,
+        source: 'İlan, 3+1',
+      },
+    ],
+  };
+
+  it('offers the record own places to choose from, not a typed name', () => {
+    const pazar = panel(renderPage({ ...EMPTY, research: [report] }), 'housing');
+
+    expect(pazar).toContain('id="compare-province"');
+    expect(pazar).toContain('id="compare-district"');
+    expect(pazar).toContain('id="compare-neighbourhood"');
+  });
+
+  it('hands the figures to the page, so the comparison needs no second source', () => {
+    const pazar = panel(renderPage({ ...EMPTY, research: [report] }), 'housing');
+
+    expect(pazar).toContain('id="places"');
+    expect(pazar).toContain('30 Ağustos');
+  });
+
+  it('carries the listing count and the band into that data', () => {
+    // A comparison that drops them turns a 3-listing guess into a measurement.
+    const pazar = panel(renderPage({ ...EMPTY, research: [report] }), 'housing');
+    const blob = pazar.slice(pazar.indexOf('id="places"'));
+
+    expect(blob.slice(0, blob.indexOf('</script>'))).toContain('listing_count');
+    expect(blob.slice(0, blob.indexOf('</script>'))).toContain('3+1');
+  });
+
+  it('says there is nothing to compare when only one place has been read', () => {
+    expect(panel(renderPage(EMPTY), 'housing')).toMatch(/karşılaştır/i);
   });
 });

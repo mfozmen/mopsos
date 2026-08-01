@@ -373,3 +373,103 @@ describe('an offer the reader cannot take', () => {
     expect(ordinary?.classList.contains('shut')).toBe(false);
   });
 });
+
+describe('comparing neighbourhoods', () => {
+  const hood = (name: string, district: string, sale: number, count: number) => ({
+    name,
+    sale_per_m2: sale,
+    rent_per_m2: 280,
+    listing_count: count,
+    source: 'İlan, 3+1',
+  });
+
+  const withPlaces = (): ReturnType<typeof open> =>
+    open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('30 Ağustos', 'Menemen', 52_857, 40)],
+        },
+        {
+          place: 'İzmir / Çiğli',
+          dated: '2026-07-29',
+          neighbourhoods: [hood('Küçük Çiğli', 'Çiğli', 48_000, 3)],
+        },
+      ],
+    });
+
+  it('narrows the district list to the province that is chosen', () => {
+    const dom = withPlaces();
+    const districts = dom.window.document.querySelectorAll('#compare-district option');
+
+    expect([...districts].map((o) => o.textContent)).toEqual(['Menemen', 'Çiğli']);
+  });
+
+  it('narrows the neighbourhood list to the district that is chosen', () => {
+    const dom = withPlaces();
+    dom.choose('compare-district', 'Çiğli');
+    const hoods = dom.window.document.querySelectorAll('#compare-neighbourhood option');
+
+    expect([...hoods].map((o) => o.textContent)).toEqual(['Küçük Çiğli']);
+  });
+
+  it('puts two places from different districts on one comparison', () => {
+    // Two scrolls and a memory, until now.
+    const dom = withPlaces();
+    dom.click('#compare-add');
+    dom.choose('compare-district', 'Çiğli');
+    dom.click('#compare-add');
+
+    const out = dom.region('#compare-out');
+    expect(out).toContain('30 Ağustos');
+    expect(out).toContain('Küçük Çiğli');
+  });
+
+  it('shows the listing count beside every bar', () => {
+    // At chart scale a 3-listing median and a 40-listing median look identical.
+    const dom = withPlaces();
+    dom.click('#compare-add');
+    dom.choose('compare-district', 'Çiğli');
+    dom.click('#compare-add');
+
+    expect(dom.region('#compare-out')).toMatch(/3 ilan/);
+    expect(dom.region('#compare-out')).toMatch(/40 ilan/);
+  });
+
+  it('warns that two bands differ without reprinting them', () => {
+    // A source line in this record runs to three hundred characters of method.
+    // Pasted into the warning, three of them bury the bars they are about.
+    const long =
+      'emlakjet, ' + 'İzmir/Menemen satılık daire listesinin 18 sayfası okunup. '.repeat(6);
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            { ...hood('A', 'Menemen', 50_000, 20), source: long + '3+1' },
+            { ...hood('B', 'Menemen', 40_000, 20), source: long + '2+1' },
+          ],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+    dom.choose('compare-neighbourhood', 'B');
+    dom.click('#compare-add');
+
+    const warning = dom.region('#compare-out .caution');
+    expect(warning).toMatch(/bant/i);
+    expect(warning.length).toBeLessThan(200);
+  });
+
+  it('adds a place once, however many times it is chosen', () => {
+    const dom = withPlaces();
+    dom.click('#compare-add');
+    dom.click('#compare-add');
+
+    expect(dom.window.document.querySelectorAll('#compare-out .bar-row')).toHaveLength(1);
+  });
+});
