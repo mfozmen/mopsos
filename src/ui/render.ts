@@ -1846,10 +1846,19 @@ const COMPARE_SCRIPT = `
       values.forEach(function (v) { if (seen.indexOf(v) < 0) seen.push(v); });
       return seen;
     };
+    // Nodes, never markup built from a value. These names come out of the
+    // record and the record is written by agents reading listing sites, so a
+    // name is whatever a listing page called a place — and concatenated into
+    // HTML, one containing a quote or a tag stops being a name.
     var fill = function (select, values) {
-      select.innerHTML = values
-        .map(function (v) { return '<option>' + v + '</option>'; })
-        .join('');
+      select.textContent = '';
+      values.forEach(function (v) { select.appendChild(new Option(v)); });
+    };
+    var node = function (tag, className, text) {
+      var el = document.createElement(tag);
+      if (className) el.className = className;
+      if (text !== undefined) el.textContent = text;
+      return el;
     };
     var money = function (n) { return n.toLocaleString('tr-TR') + ' ₺'; };
 
@@ -1861,7 +1870,7 @@ const COMPARE_SCRIPT = `
     };
 
     var draw = function () {
-      if (picked.length === 0) { el('compare-out').innerHTML = ''; return; }
+      if (picked.length === 0) { el('compare-out').textContent = ''; return; }
 
       var most = Math.max.apply(null, picked.map(function (p) { return p.sale_per_m2; }));
       // Bands recorded in \`source\`. Two readings taken on different room counts
@@ -1869,28 +1878,47 @@ const COMPARE_SCRIPT = `
       // exists to prevent.
       var bands = uniq(picked.map(function (p) { return p.source; }));
 
-      el('compare-out').innerHTML =
-        picked
-          .map(function (p) {
-            var width = Math.round((p.sale_per_m2 / most) * 100);
-            return (
-              '<div class="bar-row"><span class="bar-name">' + p.name +
-              '<small>' + p.district + '</small></span>' +
-              '<span class="bar"><span style="width:' + width + '%"></span></span>' +
-              '<span class="bar-figure">' + money(p.sale_per_m2) +
-              '<small>' + p.listing_count + ' ilan</small></span>' +
-              '<button type="button" class="bar-drop" data-name="' + p.name + '">×</button></div>'
-            );
-          })
-          .join('') +
-        // Said, not quoted. A source line in this record runs to three hundred
-        // characters of method, and three of them pasted here bury the bars
-        // they are about. Each one is already under its own report.
-        (bands.length > 1
-          ? '<p class="caution">Seçtiklerin ' + bands.length +
-            ' farklı bantta ölçülmüş. Farklı oda sayısı ya da metrekare bandındaki iki medyan ' +
-            'birbirinden çıkarılamaz — her birinin bandı kendi raporunda yazıyor.</p>'
-          : '');
+      var out = el('compare-out');
+      out.textContent = '';
+
+      picked.forEach(function (p) {
+        var row = node('div', 'bar-row');
+        var name = node('span', 'bar-name', p.name);
+        name.appendChild(node('small', '', p.district));
+
+        var bar = node('span', 'bar');
+        var fill_ = node('span');
+        fill_.style.width = Math.round((p.sale_per_m2 / most) * 100) + '%';
+        bar.appendChild(fill_);
+
+        var figure = node('span', 'bar-figure', money(p.sale_per_m2));
+        figure.appendChild(node('small', '', p.listing_count + ' ilan'));
+
+        var drop = node('button', 'bar-drop', '×');
+        drop.type = 'button';
+        drop.setAttribute('data-name', p.name);
+
+        row.appendChild(name);
+        row.appendChild(bar);
+        row.appendChild(figure);
+        row.appendChild(drop);
+        out.appendChild(row);
+      });
+
+      // Said, not quoted. A source line in this record runs to three hundred
+      // characters of method, and three of them pasted here bury the bars they
+      // are about. Each one is already under its own report.
+      if (bands.length > 1) {
+        out.appendChild(
+          node(
+            'p',
+            'caution',
+            'Seçtiklerin ' + bands.length + ' farklı bantta ölçülmüş. Farklı oda sayısı ya da ' +
+              'metrekare bandındaki iki medyan birbirinden çıkarılamaz — her birinin bandı kendi ' +
+              'raporunda yazıyor.',
+          ),
+        );
+      }
     };
 
     var refreshDistricts = function () {

@@ -441,8 +441,7 @@ describe('comparing neighbourhoods', () => {
   it('warns that two bands differ without reprinting them', () => {
     // A source line in this record runs to three hundred characters of method.
     // Pasted into the warning, three of them bury the bars they are about.
-    const long =
-      'emlakjet, ' + 'İzmir/Menemen satılık daire listesinin 18 sayfası okunup. '.repeat(6);
+    const long = 'emlakjet, ' + 'ilan havuzu okunup mahalleye göre ayrıldı, bant sabit. '.repeat(6);
     const dom = open({
       ...DATA,
       research: [
@@ -463,6 +462,29 @@ describe('comparing neighbourhoods', () => {
     const warning = dom.region('#compare-out .caution');
     expect(warning).toMatch(/bant/i);
     expect(warning.length).toBeLessThan(200);
+  });
+
+  it('does not let a place name become markup', () => {
+    // The names come from the record, and the record is written by agents
+    // reading listing sites. A name is a name, whatever it contains.
+    const dom = open({
+      ...DATA,
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            hood('<img src=x onerror=alert(1)>', 'Menemen', 50_000, 20),
+            hood('Öteki Yer', 'Menemen', 40_000, 20),
+          ],
+        },
+      ],
+    });
+    dom.click('#compare-add');
+
+    const out = dom.window.document.querySelector('#compare-out');
+    expect(out?.querySelectorAll('img')).toHaveLength(0);
+    expect(out?.textContent).toContain('<img src=x onerror=alert(1)>');
   });
 
   it('adds a place once, however many times it is chosen', () => {
