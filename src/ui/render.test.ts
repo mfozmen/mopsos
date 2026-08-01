@@ -1373,3 +1373,94 @@ describe('the readings behind a district', () => {
     expect(panel(page, 'housing')).not.toContain('eski okuma');
   });
 });
+
+describe('an offer only some people can take', () => {
+  const newlywed = {
+    ...ZIRAAT,
+    bank: 'Halkbank',
+    offers: [
+      {
+        product: 'Yeni Evlilere Özel Konut Kredisi',
+        monthly_rate: 2.6,
+        conditions: 'resmi nikâh tarihi üzerinden 3 yıldan fazla geçmemiş olması',
+      },
+    ],
+  };
+
+  it('asks whether the reader is one of them, before the table', () => {
+    // The cheapest real cost in the whole record is a newlywed product, and
+    // nothing asked. A reader who qualifies had no way to know it was theirs;
+    // one who does not had a rate they cannot reach sitting at the top.
+    expect(renderPage(EMPTY)).toContain('id="newlywed"');
+  });
+
+  it('marks the offer as gated, whatever the reader answered', () => {
+    // The condition is a fact about the offer, not about the reader.
+    expect(panel(renderPage({ ...EMPTY, rates: [newlywed] }), 'housing')).toContain(
+      'data-gate="newlywed"',
+    );
+  });
+
+  it('keeps a gated rate out of the figure every neighbourhood is measured against', () => {
+    // The Taksit/Kira column is built at page-generation time from the cheapest
+    // real rate in the record, so it cannot react to what the reader answers.
+    // Built on a rate most readers cannot take, it overstates what owning costs
+    // across every neighbourhood at once — the same fault as a row they cannot
+    // reach, in a worse place.
+    const cheapGated = {
+      ...ZIRAAT,
+      bank: 'Halkbank',
+      offers: [
+        {
+          product: 'Yeni Evlilere Özel Konut Kredisi',
+          monthly_rate: 2.6,
+          conditions: 'resmi nikâh tarihi',
+          example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+        },
+      ],
+    };
+    const openToAll = {
+      ...ZIRAAT,
+      offers: [
+        {
+          product: 'Konut Kredisi',
+          monthly_rate: 2.89,
+          example: { amount: 1_000_000, months: 120, instalment: 28_500, fees: 36_802 },
+        },
+      ],
+    };
+    const page = renderPage({
+      ...EMPTY,
+      rates: [cheapGated, openToAll],
+      research: [
+        {
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [
+            {
+              name: 'Egekent 2',
+              sale_per_m2: 52_857,
+              rent_per_m2: 288,
+              listing_count: 40,
+              source: 'İlan',
+            },
+          ],
+        },
+      ],
+    });
+
+    // The note beside the column names the bank the ratio was built on.
+    expect(panel(page, 'housing')).toContain('(Ziraat Bankası, aylık');
+    expect(panel(page, 'housing')).not.toContain('(Halkbank, aylık');
+  });
+
+  it('leaves an ordinary offer unmarked', () => {
+    expect(panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing')).not.toContain('data-gate');
+  });
+
+  it('puts the bank own words where the reader can check them', () => {
+    expect(panel(renderPage({ ...EMPTY, rates: [newlywed] }), 'housing')).toContain(
+      'resmi nikâh tarihi',
+    );
+  });
+});
