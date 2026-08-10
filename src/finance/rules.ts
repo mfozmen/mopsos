@@ -40,7 +40,7 @@ export function parseMortgageRules(data: unknown): MortgageRules {
     }
 
     for (const energyClass of ENERGY_CLASSES) {
-      const ratio = (bracket.ratios ?? {})[energyClass];
+      const ratio = bracket.ratios?.[energyClass];
       // Strictly below 1. At exactly 1 the buyer never needs a down payment and
       // the affordability limit it implies is infinite, so the calculator would
       // have to carry a special case for a rule BDDK has never written.
