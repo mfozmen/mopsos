@@ -233,14 +233,28 @@ describe('sending the agent out', () => {
     page.click('#ask-rates');
 
     expect(page.disabled('#ask-rates')).toBe(true);
-    expect(page.text('ask-status')).toContain('isteniyor');
+    // The rates box's own line, on the panel the button lives on. The market
+    // form's line is on the other panel and saying it there says it to nobody.
+    expect(page.text('ask-rates-status')).toContain('isteniyor');
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Still disabled after the POST returns: the agent run has barely started,
     // and a button that looks idle gets pressed again.
-    expect(page.text('ask-status')).toContain('sıraya alındı');
+    expect(page.text('ask-rates-status')).toContain('sıraya alındı');
     expect(page.disabled('#ask-rates')).toBe(true);
+  });
+
+  it('answers the market request on the market panel', async () => {
+    const page = open();
+    page.window.fetch = (() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({}) })) as unknown as typeof fetch;
+
+    page.click('#ask-market');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(page.text('ask-status')).toContain('sıraya alındı');
+    expect(page.text('ask-rates-status')).not.toContain('sıraya alındı');
   });
 });
 

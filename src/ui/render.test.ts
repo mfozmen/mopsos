@@ -210,8 +210,39 @@ describe('the finance calculator', () => {
 });
 
 describe('sending the agent from the page', () => {
+  const halves = (): { pazar: string; finansman: string } => {
+    const page = panel(renderPage(EMPTY), 'housing');
+    const border = page.indexOf('id="panel-finansman"');
+
+    return {
+      pazar: page.slice(page.indexOf('id="panel-pazar"'), border),
+      finansman: page.slice(border),
+    };
+  };
+
   it('offers to refresh the bank rates', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toContain('id="ask-rates"');
+  });
+
+  it('keeps each request with the work it feeds', () => {
+    // These are different agents doing different jobs, and the button belongs
+    // beside what it changes. The rates button sat under the market heading,
+    // where a reader comparing neighbourhood prices has no use for it.
+    const { pazar, finansman } = halves();
+
+    expect(pazar).toContain('id="ask-market"');
+    expect(pazar).not.toContain('id="ask-rates"');
+    expect(finansman).toContain('id="ask-rates"');
+    expect(finansman).not.toContain('id="ask-market"');
+  });
+
+  it('answers each request where that request was made', () => {
+    // One status line for two boxes on two panels means half the answers are
+    // written where nobody is looking.
+    const { pazar, finansman } = halves();
+
+    expect(pazar).toContain('id="ask-status"');
+    expect(finansman).toContain('id="ask-rates-status"');
   });
 
   it('asks for a place before researching a market', () => {

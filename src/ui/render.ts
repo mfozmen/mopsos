@@ -639,7 +639,11 @@ const SEARCH = `
         <div id="found"></div>
       </div>`;
 
-const DISPATCH = `
+/** Said once per box, because a request answered on the other panel is unanswered. */
+const WHERE_IT_RUNS =
+  'Açık olan Claude Code oturumu isteği alır ve agent’ı çalıştırır — ne yaptığını orada görürsün.';
+
+const ASK_MARKET = `
       <div class="dispatch">
         <div class="ask">
           <label>İl<input id="province" type="text" value="İzmir" autocomplete="off"></label>
@@ -649,8 +653,23 @@ const DISPATCH = `
           )}<input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
           <button type="button" id="ask-market">Araştır</button>
         </div>
+        <p class="note" id="ask-status">${WHERE_IT_RUNS}</p>
+      </div>`;
+
+/**
+ * The rates request, under the rates.
+ *
+ * It used to sit under the market heading, next to the district form, because
+ * both were "send an agent". They are not the same job: one reads listings in a
+ * mahalle and one reads what banks charge, they are different agents, and this
+ * button changes the table directly above it. A reader comparing neighbourhood
+ * prices has no use for it there, and a reader looking at the bank table could
+ * not find it at all.
+ */
+const ASK_RATES = `
+      <div class="dispatch">
         <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
-        <p class="note" id="ask-status">Açık olan Claude Code oturumu isteği alır ve agent’ı çalıştırır — ne yaptığını orada görürsün.</p>
+        <p class="note" id="ask-rates-status">${WHERE_IT_RUNS}</p>
       </div>`;
 
 const RATES_EMPTY =
@@ -1195,7 +1214,7 @@ function panelBody(tab: Tab, data: PageData): string {
 
       <section role="tabpanel" id="panel-pazar" aria-labelledby="tab-pazar">
         <section class="research">
-          ${DISPATCH}
+          ${ASK_MARKET}
           ${SEARCH}
           ${compareBlock(data.research)}
           ${research}
@@ -1214,6 +1233,7 @@ function panelBody(tab: Tab, data: PageData): string {
           <section class="evidence">
             <h3 class="section">Banka oranları</h3>
             ${ratesTable(data.rates)}
+            ${ASK_RATES}
             <h3 class="section">Tasarruf finansmanı</h3>
             ${savingsTable(data.savings)}
           </section>
@@ -1489,8 +1509,8 @@ const FINANCE_SCRIPT = `
   // minutes, so a state that clears itself after the POST returns would say
   // "done" while the work has barely started — and a button that looks idle
   // gets pressed again, which is how six scouts once went out for one job.
-  const ask = async (payload, label) => {
-    const status = $('ask-status');
+  const ask = async (payload, label, statusId) => {
+    const status = $(statusId);
     status.className = 'note working';
     status.textContent = label + ' isteniyor…';
     for (const button of buttons) button.disabled = true;
@@ -1521,12 +1541,14 @@ const FINANCE_SCRIPT = `
     for (const button of buttons) button.disabled = false;
   };
 
-  $('ask-rates').addEventListener('click', () => ask({ kind: 'rates' }, 'Banka oranları'));
+  $('ask-rates').addEventListener('click', () =>
+    ask({ kind: 'rates' }, 'Banka oranları', 'ask-rates-status'));
   $('ask-market').addEventListener('click', () =>
     ask({ kind: 'market', province: $('province').value, district: $('district').value,
         neighbourhood: $('neighbourhood').value },
       $('province').value + ' / ' + $('district').value +
-        ($('neighbourhood').value.trim() ? ' / ' + $('neighbourhood').value.trim() : '')));
+        ($('neighbourhood').value.trim() ? ' / ' + $('neighbourhood').value.trim() : ''),
+      'ask-status'));
 `;
 
 const STYLE = `
@@ -1602,7 +1624,15 @@ const STYLE = `
   /* Above the comparison and the reports both, because it is how you get to
      either one once the record stops fitting on a screen. */
   .find { margin: 1.2rem 0; }
-  .find input { width: 100%; max-width: 34rem; }
+  /* The label above its box, not glued to its left edge. Same treatment the
+     district form's labels get — a caption over the field rather than a word
+     the input starts immediately after. */
+  .find label { display: grid; gap: .3rem; max-width: 34rem; font-size: .7rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .find input { font: inherit; font-family: var(--serif); font-size: 1rem; text-transform: none;
+    letter-spacing: 0; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 2px; padding: .4rem .6rem;
+    width: 100%; max-width: 34rem; }
   .hit { margin: .4rem 0; padding: .5rem .7rem; background: var(--surface); border-radius: .2rem; }
   .hit small { display: block; font-size: .75rem; color: var(--muted); }
   .compare { margin: 1.4rem 0; }
