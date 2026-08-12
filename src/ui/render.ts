@@ -665,7 +665,12 @@ const ASK_MARKET = `
  */
 const ASK_RATES = `
       <div class="dispatch">
-        <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
+        <div class="ask">
+          <label>Banka${hint(
+            'Boş bırakırsan bütün bankalar okunur — düzenli tazeleme böyle yapılır. Bir banka yazarsan yalnızca ona bir scout gider. Tek bir banka oranını değiştirdiğinde ya da son okuması boş döndüğünde on beş okuma yapmak, taramanın maliyetinin çoğunu ödeyip faydasının hiçbirini almaktır.',
+          )}<input id="bank" type="text" placeholder="boş = bütün bankalar" autocomplete="off"></label>
+          <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
+        </div>
         <p class="note" id="ask-rates-status">${WHERE_IT_RUNS}</p>
       </div>`;
 
@@ -1539,7 +1544,9 @@ const FINANCE_SCRIPT = `
   };
 
   $('ask-rates').addEventListener('click', () =>
-    ask({ kind: 'rates' }, 'Banka oranları', 'ask-rates-status'));
+    ask({ kind: 'rates', bank: $('bank').value },
+      $('bank').value.trim() ? $('bank').value.trim() + ' oranları' : 'Banka oranları',
+      'ask-rates-status'));
   $('ask-market').addEventListener('click', () =>
     ask({ kind: 'market', province: $('province').value, district: $('district').value,
         neighbourhood: $('neighbourhood').value },

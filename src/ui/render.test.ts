@@ -236,6 +236,15 @@ describe('sending the agent from the page', () => {
     expect(finansman).not.toContain('id="ask-market"');
   });
 
+  it('lets the rates request name one bank, and says what leaving it empty means', () => {
+    // A refresh that always means every bank is most of the cost of a sweep for
+    // none of its point when one bank is what moved.
+    const { finansman } = halves();
+
+    expect(finansman).toContain('id="bank"');
+    expect(finansman).toMatch(/boş\s*=\s*bütün bankalar/);
+  });
+
   it('answers each request where that request was made', () => {
     // One status line for two boxes on two panels means half the answers are
     // written where nobody is looking.

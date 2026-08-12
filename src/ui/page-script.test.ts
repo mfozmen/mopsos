@@ -245,6 +245,30 @@ describe('sending the agent out', () => {
     expect(page.disabled('#ask-rates')).toBe(true);
   });
 
+  // A fresh page per press: the button stays disabled after a successful
+  // request, on purpose, so one page cannot send two.
+  const asked = (bank?: string): unknown => {
+    const page = open();
+    const sent: unknown[] = [];
+    page.window.fetch = ((_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }) as unknown as typeof fetch;
+
+    if (bank !== undefined) page.type('bank', bank);
+    page.click('#ask-rates');
+
+    return sent[0];
+  };
+
+  it('sends the bank that was typed', () => {
+    expect(asked('Akbank')).toEqual({ kind: 'rates', bank: 'Akbank' });
+  });
+
+  it('sends no bank when the field was left alone, which is every bank', () => {
+    expect(asked()).toEqual({ kind: 'rates', bank: '' });
+  });
+
   it('answers the market request on the market panel', async () => {
     const page = open();
     page.window.fetch = (() =>
