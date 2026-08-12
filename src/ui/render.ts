@@ -235,7 +235,7 @@ function freshness(data: PageData): string {
   ].sort(byCodePoint);
 
   const oldest = dates[0];
-  const newest = dates[dates.length - 1];
+  const newest = dates.at(-1);
   if (oldest === undefined || newest === undefined) return '';
 
   // "Sayfadaki", not "kayıttaki". The loaders keep the newest reading per bank
@@ -337,7 +337,7 @@ function cheapestRealRate(reports: RateReport[]): { rate: number; bank: string }
     }),
   );
 
-  return rates.sort((a, b) => a.rate - b.rate)[0];
+  return rates.toSorted((a, b) => a.rate - b.rate)[0];
 }
 
 /**
@@ -363,14 +363,11 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
   // rate can be computed, a dash when the column exists but this row has no
   // rent to compare against, and a figure otherwise. Emitting nothing in the
   // middle case would shift every cell after it one column left.
-  const owning =
-    timesRent === undefined
-      ? ''
-      : `<td class="num times-rent">${
-          timesRent === null
-            ? '—'
-            : `${timesRent.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`
-        }</td>`;
+  const shown =
+    timesRent === null || timesRent === undefined
+      ? '—'
+      : `${timesRent.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
+  const owning = timesRent === undefined ? '' : `<td class="num times-rent">${shown}</td>`;
 
   return `
           <tr>
@@ -467,14 +464,14 @@ function recordData(data: PageData): string {
   return `
       <script type="application/json" id="record">${JSON.stringify(
         searchable(data.research, data.rates),
-      ).replaceAll('<', '\\u003c')}</script>`;
+      ).replaceAll('<', String.raw`\u003c`)}</script>`;
 }
 
 function placesData(reports: ResearchReport[]): string {
   return `
       <script type="application/json" id="places">${JSON.stringify(comparable(reports)).replaceAll(
         '<',
-        '\\u003c',
+        String.raw`\u003c`,
       )}</script>`;
 }
 

@@ -613,25 +613,18 @@ describe('finding a reading again', () => {
       ],
     });
 
-  it('finds a place typed without its Turkish letters', () => {
+  // One shape, three reasons to keep it working: the Turkish letters a keyboard
+  // skips, a word from the note rather than from the place, and the date without
+  // which a hit cannot be used at all.
+  it.each([
+    ['a place typed without its Turkish letters', 'cigli', 'İzmir / Çiğli'],
+    ['a reading by a word from its note', 'sahibinden', 'İzmir / Çiğli'],
+    ['the date of a hit', 'cigli', '29.07.2026'],
+  ])('finds %s', (_reason, typed, shown) => {
     const page = dom();
-    page.type('find', 'cigli');
+    page.type('find', typed);
 
-    expect(page.region('#found')).toContain('İzmir / Çiğli');
-  });
-
-  it('finds a reading by a word from its note', () => {
-    const page = dom();
-    page.type('find', 'sahibinden');
-
-    expect(page.region('#found')).toContain('İzmir / Çiğli');
-  });
-
-  it('dates every hit, because one without a date cannot be used', () => {
-    const page = dom();
-    page.type('find', 'cigli');
-
-    expect(page.region('#found')).toContain('29.07.2026');
+    expect(page.region('#found')).toContain(shown);
   });
 
   it('says so rather than showing an empty list when nothing matches', () => {

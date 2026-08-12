@@ -15,9 +15,10 @@ export class PdfReadError extends Error {
 
 export class OutsideAllowedRootError extends Error {
   constructor(target: string, roots: string[]) {
+    const allowed = roots.map((root) => `  ${root}`).join('\n');
     super(
       `"${target}" is outside every directory this tool may read.\n\n` +
-        `Allowed:\n${roots.map((root) => `  ${root}`).join('\n')}\n\n` +
+        `Allowed:\n${allowed}\n\n` +
         `Move the file into one of them, or pass a URL.`,
     );
     this.name = 'OutsideAllowedRootError';
