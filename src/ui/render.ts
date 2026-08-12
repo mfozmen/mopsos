@@ -645,9 +645,9 @@ const ASK_MARKET = `
         <div class="ask">
           <label>İl<input id="province" type="text" value="İzmir" autocomplete="off"></label>
           <label>İlçe<input id="district" type="text" value="Çiğli" autocomplete="off"></label>
-          <label>Mahalle${hint(
+          <label><span>Mahalle${hint(
             'Boş bırakırsan bütün ilçe araştırılır — ilk okuma için doğrusu budur. Bir mahalle yazarsan agent yalnızca oraya bakar: daha az ilan, daha dar bir karışım, ve tek yere daha uzun bakabilen bir okuma. İkinci okumada işe yarar, çünkü soru artık “bu ilçe ne durumda” değil “oturduğum mahalle ne oldu”.',
-          )}<input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
+          )}</span><input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
           <button type="button" id="ask-market">Araştır</button>
         </div>
         <p class="note" id="ask-status">${WHERE_IT_RUNS}</p>
@@ -665,7 +665,12 @@ const ASK_MARKET = `
  */
 const ASK_RATES = `
       <div class="dispatch">
-        <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
+        <div class="ask">
+          <label><span>Banka${hint(
+            'Boş bırakırsan bütün bankalar okunur — düzenli tazeleme böyle yapılır. Bir banka yazarsan yalnızca ona bir scout gider. Tek bir banka oranını değiştirdiğinde ya da son okuması boş döndüğünde on beş okuma yapmak, taramanın maliyetinin çoğunu ödeyip faydasının hiçbirini almaktır.',
+          )}</span><input id="bank" type="text" placeholder="boş = bütün bankalar" autocomplete="off"></label>
+          <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
+        </div>
         <p class="note" id="ask-rates-status">${WHERE_IT_RUNS}</p>
       </div>`;
 
@@ -1539,7 +1544,9 @@ const FINANCE_SCRIPT = `
   };
 
   $('ask-rates').addEventListener('click', () =>
-    ask({ kind: 'rates' }, 'Banka oranları', 'ask-rates-status'));
+    ask({ kind: 'rates', bank: $('bank').value },
+      $('bank').value.trim() ? $('bank').value.trim() + ' oranları' : 'Banka oranları',
+      'ask-rates-status'));
   $('ask-market').addEventListener('click', () =>
     ask({ kind: 'market', province: $('province').value, district: $('district').value,
         neighbourhood: $('neighbourhood').value },
@@ -1719,6 +1726,11 @@ const STYLE = `
     padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
   .dispatch { margin-bottom: 2.5rem; }
   .ask { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem; }
+  /* The caption and its ? are one row, the field is the next. Without the span
+     around them the grid gives the button a row of its own, and the label of a
+     field that has an explanation sits a line higher than the ones that do
+     not. */
+  .ask label > span { display: block; }
   .ask label { display: grid; gap: .3rem; font-size: .7rem; letter-spacing: .1em;
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
   .ask input { font: inherit; font-family: var(--serif); font-size: 1rem; text-transform: none;

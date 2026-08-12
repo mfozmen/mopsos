@@ -18,10 +18,26 @@ const MAX_PLACE_LENGTH = 80;
 // letters-only pattern refuses the exact places this is for. Neither character
 // weakens the guard — what it exists to keep out is a slash, a backslash and
 // anything that could read as an instruction rather than a name.
-const PLACE = /^[\p{L}\p{M}\d][\p{L}\p{M}\d .'’-]*$/u;
+//
+// Bank names go through the same gate for the same reason, and the set fits
+// them without loosening: "Ziraat Katılım", "İş Bankası", "TEB".
+const NAME = /^[\p{L}\p{M}\d][\p{L}\p{M}\d .'’-]*$/u;
 
 export type Request =
-  | { kind: 'rates' }
+  | {
+      kind: 'rates';
+      /**
+       * One bank rather than all of them.
+       *
+       * Absent means the whole market, which is what the button meant before
+       * this existed and is still the right default for a periodic refresh.
+       * Naming one is for the other case: a bank that changed its rates, or one
+       * whose last reading came back empty and is worth another look. Fifteen
+       * scouts for a job that wanted one is most of the cost of a sweep for
+       * none of its point.
+       */
+      bank?: string;
+    }
   | {
       kind: 'market';
       province: string;
@@ -39,6 +55,7 @@ export type Request =
 
 export interface QueuedRequest {
   kind: string;
+  bank?: string;
   province?: string;
   district?: string;
   neighbourhood?: string;
@@ -52,17 +69,17 @@ export class InvalidRequestError extends Error {
   }
 }
 
-function place(value: unknown, field: string): string {
+function safeName(value: unknown, field: string, noun = 'yer adı'): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new InvalidRequestError(`${field} boş olamaz`);
   }
   if (value.length > MAX_PLACE_LENGTH) {
-    throw new InvalidRequestError(`${field} bir yer adı için fazla uzun`);
+    throw new InvalidRequestError(`${field} bir ${noun} için fazla uzun`);
   }
 
   const trimmed = value.trim();
-  if (!PLACE.test(trimmed)) {
-    throw new InvalidRequestError(`${field} bir yer adı gibi görünmüyor`);
+  if (!NAME.test(trimmed)) {
+    throw new InvalidRequestError(`${field} bir ${noun} gibi görünmüyor`);
   }
 
   return trimmed;
@@ -82,7 +99,14 @@ export function parseRequest(body: unknown): Request {
 
   const { kind } = body as { kind?: unknown };
 
-  if (kind === 'rates') return { kind: 'rates' };
+  if (kind === 'rates') {
+    const { bank } = body as { bank?: unknown };
+    // Empty is not a failure: leaving the field alone is how you ask for the
+    // whole market, which is what the button did before this existed.
+    return typeof bank === 'string' && bank.trim().length > 0
+      ? { kind: 'rates', bank: safeName(bank, 'Banka', 'banka adı') }
+      : { kind: 'rates' };
+  }
 
   if (kind === 'market') {
     const { province, district, neighbourhood } = body as {
@@ -95,13 +119,13 @@ export function parseRequest(body: unknown): Request {
     // before this existed.
     const named =
       typeof neighbourhood === 'string' && neighbourhood.trim().length > 0
-        ? { neighbourhood: place(neighbourhood, 'Mahalle') }
+        ? { neighbourhood: safeName(neighbourhood, 'Mahalle') }
         : {};
 
     return {
       kind: 'market',
-      province: place(province, 'İl'),
-      district: place(district, 'İlçe'),
+      province: safeName(province, 'İl'),
+      district: safeName(district, 'İlçe'),
       ...named,
     };
   }
@@ -115,14 +139,17 @@ export function parseRequest(body: unknown): Request {
  * The neighbourhood belongs here or the narrowing is invisible: a request for
  * one mahalle that prints as a district run gets a district run, and the whole
  * point of asking for one place is that the scout can afford to look harder at
- * it.
+ * it. The bank is here for the same reason, and the waste is larger: a request
+ * for one bank that prints as `rates` sends fifteen scouts.
  */
 export function describeRequest(request: QueuedRequest): string {
   const where = [request.province, request.district, request.neighbourhood].filter(
     (part) => part !== undefined,
   );
 
-  return where.length === 0 ? request.kind : `${request.kind} ${where.join('/')}`;
+  const target = where.length === 0 ? request.bank : where.join('/');
+
+  return target === undefined ? request.kind : `${request.kind} ${target}`;
 }
 
 /**
