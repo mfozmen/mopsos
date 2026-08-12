@@ -261,6 +261,21 @@ describe('sending the agent out', () => {
     return sent[0];
   };
 
+  it('sends a savings request with the firm that was typed', () => {
+    const page = open();
+    const sent: unknown[] = [];
+    page.window.fetch = ((_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }) as unknown as typeof fetch;
+
+    page.type('provider', 'Birevim');
+    page.click('#ask-savings');
+
+    expect(sent[0]).toEqual({ kind: 'savings', provider: 'Birevim' });
+    expect(page.text('ask-savings-status')).toContain('isteniyor');
+  });
+
   it('sends the bank that was typed', () => {
     expect(asked('Akbank')).toEqual({ kind: 'rates', bank: 'Akbank' });
   });
