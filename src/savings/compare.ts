@@ -80,12 +80,10 @@ export function planCost(plan: SavingsPlan): PlanCost {
   // stating the price of the product, while a lira fee is that percentage
   // already applied to one particular amount_financed. Where both are recorded
   // they agree, and where they do not the percentage is the one the firm sells.
+  const feeFromAmount =
+    plan.organisation_fee === undefined ? undefined : plan.organisation_fee / plan.amount_financed;
   const feeRatio =
-    plan.organisation_fee_rate === undefined
-      ? plan.organisation_fee === undefined
-        ? undefined
-        : plan.organisation_fee / plan.amount_financed
-      : plan.organisation_fee_rate / 100;
+    plan.organisation_fee_rate === undefined ? feeFromAmount : plan.organisation_fee_rate / 100;
 
   return {
     product: plan.product,

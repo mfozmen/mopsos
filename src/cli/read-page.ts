@@ -175,7 +175,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   if (error instanceof BadPageRequestError) {
     console.error(error.message);
     process.exit(2);
@@ -188,4 +190,4 @@ main().catch((error: unknown) => {
   }
 
   throw error;
-});
+}
