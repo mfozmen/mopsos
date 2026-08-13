@@ -460,19 +460,28 @@ function compareBlock(reports: ResearchReport[]): string {
  * markup. The escape has to be a raw string — written as an ordinary literal it
  * is `<` again, and the replacement swaps the character for itself.
  */
+/**
+ * What every `<` in a data blob is written as.
+ *
+ * Raw on purpose: these six characters go into the JSON as text. Written as an
+ * ordinary literal the escape is processed here instead, the constant holds the
+ * character itself, and the replacement swaps it for itself — which is the
+ * failure this exists to prevent, and it is a silent one.
+ */
+const SCRIPT_ESCAPE = String.raw`\u003c`;
+
 function recordData(data: PageData): string {
+  const blob = JSON.stringify(searchable(data.research, data.rates)).replaceAll('<', SCRIPT_ESCAPE);
+
   return `
-      <script type="application/json" id="record">${JSON.stringify(
-        searchable(data.research, data.rates),
-      ).replaceAll('<', String.raw`\u003c`)}</script>`;
+      <script type="application/json" id="record">${blob}</script>`;
 }
 
 function placesData(reports: ResearchReport[]): string {
+  const blob = JSON.stringify(comparable(reports)).replaceAll('<', SCRIPT_ESCAPE);
+
   return `
-      <script type="application/json" id="places">${JSON.stringify(comparable(reports)).replaceAll(
-        '<',
-        String.raw`\u003c`,
-      )}</script>`;
+      <script type="application/json" id="places">${blob}</script>`;
 }
 
 function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
