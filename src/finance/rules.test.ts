@@ -119,14 +119,18 @@ describe('parseMortgageRules', () => {
   // already refuses NaN. It is here because `ratio <= 0` does not, and that is
   // the shape a readability rewrite reaches for.
   it('rejects a ratio that is not a finite number', () => {
-    expect(() =>
-      parseMortgageRules({
-        loan_to_value: {
-          brackets: [{ value_up_to: null, ratios: { A_B: Number.NaN, C: 0.8, OTHER: 0.7 } }],
-        },
-        term: { conventional_max_months: 120 },
-      }),
-    ).toThrow(/energy class A_B/);
+    expect(
+      () =>
+        parseMortgageRules({
+          loan_to_value: {
+            brackets: [{ value_up_to: null, ratios: { A_B: Number.NaN, C: 0.8, OTHER: 0.7 } }],
+          },
+          term: { conventional_max_months: 120 },
+        }),
+      // Not "got null", which is what JSON.stringify makes of NaN — JSON has no
+      // way to write it. That message sends the reader looking for a missing
+      // value in a file that has a broken one.
+    ).toThrow(/energy class A_B.*got NaN/s);
   });
 
   it('rejects a table with no open-ended bracket, leaving top values uncovered', () => {

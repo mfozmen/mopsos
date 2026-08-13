@@ -51,7 +51,11 @@ export function parseMortgageRules(data: unknown): MortgageRules {
       if (!Number.isFinite(ratio) || (ratio as number) <= 0 || (ratio as number) >= 1) {
         problems.push(
           `bracket ${index}: ratio for energy class ${energyClass} must be above 0 and ` +
-            `below 1 (got ${JSON.stringify(ratio)})`,
+            // Quoted for a string so "0.8" is distinguishable from 0.8, but not
+            // through JSON for a number: JSON has no way to write NaN and turns
+            // it into null, which sends the reader looking for a missing value
+            // in a file that has a broken one.
+            `below 1 (got ${typeof ratio === 'number' ? String(ratio) : JSON.stringify(ratio)})`,
         );
       }
     }
