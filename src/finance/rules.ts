@@ -44,7 +44,11 @@ export function parseMortgageRules(data: unknown): MortgageRules {
       // Strictly below 1. At exactly 1 the buyer never needs a down payment and
       // the affordability limit it implies is infinite, so the calculator would
       // have to carry a special case for a rule BDDK has never written.
-      if (typeof ratio !== 'number' || !(ratio > 0) || ratio >= 1) {
+      //
+      // `Number.isFinite` rather than a bare `ratio <= 0`, for the reason given
+      // in `checkLoan`: NaN passes both halves of a range test, and a NaN ratio
+      // is what a half-finished edit to the pinned file leaves behind.
+      if (!Number.isFinite(ratio) || (ratio as number) <= 0 || (ratio as number) >= 1) {
         problems.push(
           `bracket ${index}: ratio for energy class ${energyClass} must be above 0 and ` +
             `below 1 (got ${JSON.stringify(ratio)})`,
@@ -65,8 +69,15 @@ export function parseMortgageRules(data: unknown): MortgageRules {
   // Lookup takes the first bracket whose bound covers the value, so the order is
   // the rule itself, not presentation.
   for (let index = 1; index < bounds.length - 1; index += 1) {
-    if (!((bounds[index - 1] as number) < (bounds[index] as number))) {
-      problems.push(`brackets are not in ascending order at index ${index}`);
+    const previous = bounds[index - 1] as number;
+    const bound = bounds[index] as number;
+
+    // Finite as well as ascending: an open-ended bracket is written as null, so
+    // a bound of Infinity is a mis-edit — and one that compares as ascending,
+    // which leaves every bracket below it in force and every bracket above it
+    // unreachable with nothing to show that anything is wrong.
+    if (!Number.isFinite(previous) || !Number.isFinite(bound) || previous >= bound) {
+      problems.push(`brackets must be finite and in ascending order (index ${index})`);
     }
   }
 
