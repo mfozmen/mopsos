@@ -448,20 +448,11 @@ function compareBlock(reports: ResearchReport[]): string {
 }
 
 /**
- * The figures the comparison runs on, handed to the page rather than fetched.
+ * What every `<` in a data blob is written as: its JSON escape.
  *
- * Last in the panel on purpose. It repeats every neighbourhood name, and put
- * above the reports it becomes the first match for any of them — which is how a
- * test looking for a row found the data blob instead.
- *
- * Every `<` is written as its JSON escape, which is the one sequence that can
- * end a script block early: a place or a note containing `</script>` would
- * otherwise close this tag and put the rest of the record into the document as
- * markup. The escape has to be a raw string — written as an ordinary literal it
- * is `<` again, and the replacement swaps the character for itself.
- */
-/**
- * What every `<` in a data blob is written as.
+ * `<` is the one character that can end a script block early — a place or a
+ * note containing `</script>` would otherwise close the tag and put the rest of
+ * the record into the document as markup.
  *
  * Raw on purpose: these six characters go into the JSON as text. Written as an
  * ordinary literal the escape is processed here instead, the constant holds the
@@ -470,6 +461,13 @@ function compareBlock(reports: ResearchReport[]): string {
  */
 const SCRIPT_ESCAPE = String.raw`\u003c`;
 
+/**
+ * The figures the comparison runs on, handed to the page rather than fetched.
+ *
+ * Last in the panel on purpose. It repeats every neighbourhood name, and put
+ * above the reports it becomes the first match for any of them — which is how a
+ * test looking for a row found the data blob instead.
+ */
 function recordData(data: PageData): string {
   const blob = JSON.stringify(searchable(data.research, data.rates)).replaceAll('<', SCRIPT_ESCAPE);
 
