@@ -674,6 +674,25 @@ const ASK_RATES = `
         <p class="note" id="ask-rates-status">${WHERE_IT_RUNS}</p>
       </div>`;
 
+/**
+ * The savings finance request, which did not exist.
+ *
+ * The scout was written and the table was written, and nothing on the page could
+ * send the scout out — so the section had one thing to say, "henüz bakılmadı",
+ * and no way to stop saying it. A half of the record you cannot ask for is a
+ * half of the record that never fills.
+ */
+const ASK_SAVINGS = `
+      <div class="dispatch">
+        <div class="ask">
+          <label><span>Firma${hint(
+            'Boş bırakırsan brief’teki firmaların hepsi okunur. Bir firma yazarsan yalnızca ona bir scout gider — bu piyasada değişen genelde tek bir firmanın şartlarıdır, hepsininki değil.',
+          )}</span><input id="provider" type="text" placeholder="boş = bütün firmalar" autocomplete="off"></label>
+          <button type="button" id="ask-savings">Tasarruf finansmanına bak</button>
+        </div>
+        <p class="note" id="ask-savings-status">${WHERE_IT_RUNS}</p>
+      </div>`;
+
 const RATES_EMPTY =
   'Henüz banka oranı yok. rate-scout agent’ını gönderip bankaları araştırdığında güncel konut kredisi oranları buraya gelir ve tıklayınca hesaba aktarılır.';
 
@@ -1238,6 +1257,7 @@ function panelBody(tab: Tab, data: PageData): string {
             ${ASK_RATES}
             <h3 class="section">Tasarruf finansmanı</h3>
             ${savingsTable(data.savings)}
+            ${ASK_SAVINGS}
           </section>
 
           <section class="money">
@@ -1504,7 +1524,7 @@ const FINANCE_SCRIPT = `
 
   // Only the place is ever sent. The calculator's amounts are personal data and
   // stay in this page.
-  const buttons = [$('ask-rates'), $('ask-market')];
+  const buttons = [$('ask-rates'), $('ask-market'), $('ask-savings')];
 
   // The button disables itself while the request is in flight, and the status
   // line keeps the spinner until the page is reloaded. An agent run takes
@@ -1547,6 +1567,10 @@ const FINANCE_SCRIPT = `
     ask({ kind: 'rates', bank: $('bank').value },
       $('bank').value.trim() ? $('bank').value.trim() + ' oranları' : 'Banka oranları',
       'ask-rates-status'));
+  $('ask-savings').addEventListener('click', () =>
+    ask({ kind: 'savings', provider: $('provider').value },
+      $('provider').value.trim() || 'Tasarruf finansmanı',
+      'ask-savings-status'));
   $('ask-market').addEventListener('click', () =>
     ask({ kind: 'market', province: $('province').value, district: $('district').value,
         neighbourhood: $('neighbourhood').value },
@@ -1724,7 +1748,9 @@ const STYLE = `
   .note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
   .breakdown { display: grid; grid-template-columns: 1fr auto; gap: .55rem 2rem; margin: 2.5rem 0 0;
     padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
-  .dispatch { margin-bottom: 2.5rem; }
+  /* Top margin too: under a table it would otherwise start on the last line of
+     the note above it. */
+  .dispatch { margin: 1.5rem 0 2.5rem; }
   .ask { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem; }
   /* The caption and its ? are one row, the field is the next. Without the span
      around them the grid gives the button a row of its own, and the label of a
@@ -1741,8 +1767,14 @@ const STYLE = `
     padding: .5rem 1rem; }
   .dispatch button:hover { background: var(--ink); }
   .dispatch button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  #ask-rates { background: none; color: var(--measured); border: 1px solid var(--line); }
-  #ask-rates:hover { background: var(--surface); color: var(--ink); }
+  /* Secondary, both of them: they refresh the table they sit under rather than
+     answering the question the panel is asking. "Araştır" is the primary one. */
+  #ask-rates, #ask-savings { background: none; color: var(--measured);
+    border: 1px solid var(--line); }
+  #ask-rates:hover, #ask-savings:hover { background: var(--surface); color: var(--ink); }
+  /* Wide enough for their own placeholder. Truncated to "boş = bütün firmal",
+     the one line that says what leaving the field alone does says nothing. */
+  #bank, #provider { width: 13rem; }
   .use-rate { font: inherit; font-family: var(--serif); font-size: 1rem; background: none;
     border: 0; border-bottom: 1px dashed var(--measured); color: var(--measured);
     cursor: pointer; padding: 0; font-variant-numeric: tabular-nums; }

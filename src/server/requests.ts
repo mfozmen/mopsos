@@ -51,11 +51,23 @@ export type Request =
        * steady, and a scout that can afford to look harder at one place.
        */
       neighbourhood?: string;
+    }
+  | {
+      kind: 'savings';
+      /**
+       * One tasarruf finansmanı firm rather than the sector.
+       *
+       * The same narrowing the bank gets, on a market that needs it more: these
+       * firms publish a fee and a queue rather than a rate, and what changes is
+       * usually one firm's terms rather than everybody's at once.
+       */
+      provider?: string;
     };
 
 export interface QueuedRequest {
   kind: string;
   bank?: string;
+  provider?: string;
   province?: string;
   district?: string;
   neighbourhood?: string;
@@ -108,6 +120,13 @@ export function parseRequest(body: unknown): Request {
       : { kind: 'rates' };
   }
 
+  if (kind === 'savings') {
+    const { provider } = body as { provider?: unknown };
+    return typeof provider === 'string' && provider.trim().length > 0
+      ? { kind: 'savings', provider: safeName(provider, 'Firma', 'firma adı') }
+      : { kind: 'savings' };
+  }
+
   if (kind === 'market') {
     const { province, district, neighbourhood } = body as {
       province?: unknown;
@@ -147,7 +166,7 @@ export function describeRequest(request: QueuedRequest): string {
     (part) => part !== undefined,
   );
 
-  const target = where.length === 0 ? request.bank : where.join('/');
+  const target = where.length === 0 ? (request.bank ?? request.provider) : where.join('/');
 
   return target === undefined ? request.kind : `${request.kind} ${target}`;
 }

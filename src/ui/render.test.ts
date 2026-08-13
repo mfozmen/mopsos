@@ -245,6 +245,17 @@ describe('sending the agent from the page', () => {
     expect(finansman).toMatch(/boş\s*=\s*bütün bankalar/);
   });
 
+  it('offers to look at savings finance, which had no button at all', () => {
+    // The scout existed and the table existed; nothing on the page could send
+    // it out, so the section could only ever say "henüz bakılmadı".
+    const { finansman } = halves();
+    const heading = finansman.indexOf('Tasarruf finansmanı');
+
+    expect(finansman).toContain('id="ask-savings"');
+    expect(finansman).toContain('id="provider"');
+    expect(finansman.indexOf('id="ask-savings"')).toBeGreaterThan(heading);
+  });
+
   it('answers each request where that request was made', () => {
     // One status line for two boxes on two panels means half the answers are
     // written where nobody is looking.
