@@ -1,9 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { byCodePoint } from '../order.js';
 import { readAt } from '../record/read-at.js';
-import { assertValid } from '../schema/validate.js';
+import { readReports } from '../record/read-directory.js';
 
 /** Whether the teslimat date is owed or merely expected. */
 export type DeliveryBasis = 'contractual' | 'indicative';
@@ -57,9 +54,6 @@ export interface SavingsFinanceReport {
  * only one of those means somebody should go and look again.
  */
 export function loadSavingsFinanceReports(root: string): SavingsFinanceReport[] {
-  const directory = join(root, 'savings');
-  if (!existsSync(directory)) return [];
-
   const newest = new Map<string, { report: SavingsFinanceReport; file: string }>();
   const readAtByFile = new Map<string, number>();
   const claims: { supersedes: string; at: number }[] = [];
@@ -68,21 +62,11 @@ export function loadSavingsFinanceReports(root: string): SavingsFinanceReport[] 
   // Read first, then decide. A correction says which file it replaces, and that
   // is the only thing that reliably identifies it: newest-per-firm keys on the
   // firm's name, and one firm trades under more spellings than it has names.
-  for (const file of readdirSync(directory)
-    .filter((name) => name.endsWith('.json'))
-    .sort(byCodePoint)) {
-    const path = join(directory, file);
-    const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
-
-    try {
-      assertValid('savings-finance-report', data);
-    } catch (error) {
-      throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-      });
-    }
-
-    const report = data as SavingsFinanceReport;
+  for (const { report, file } of readReports<SavingsFinanceReport>(
+    root,
+    'savings',
+    'savings-finance-report',
+  )) {
     const at = readAt(report);
     readAtByFile.set(file, at);
     if (report.supersedes !== undefined) claims.push({ supersedes: report.supersedes, at });

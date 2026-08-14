@@ -1,8 +1,5 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { byCodePoint } from '../order.js';
-import { assertValid } from '../schema/validate.js';
+import { readReports } from '../record/read-directory.js';
 
 export interface MarketNeighbourhood {
   name: string;
@@ -104,9 +101,6 @@ function readAt(report: MarketReport): string {
  * one of those means somebody should go and look.
  */
 export function loadMarketReports(root: string): ShownMarketReport[] {
-  const directory = join(root, 'market');
-  if (!existsSync(directory)) return [];
-
   const newest = new Map<string, MarketReport>();
   const byPlace = new Map<string, { report: MarketReport; file: string }[]>();
   const readAtByFile = new Map<string, string>();
@@ -114,21 +108,7 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   const claims: { supersedes: string; at: string; place: string }[] = [];
   const replaced = new Set<string>();
 
-  for (const file of readdirSync(directory)
-    .filter((name) => name.endsWith('.json'))
-    .sort(byCodePoint)) {
-    const path = join(directory, file);
-    const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
-
-    try {
-      assertValid('market-report', data);
-    } catch (error) {
-      throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-      });
-    }
-
-    const report = data as MarketReport;
+  for (const { report, file } of readReports<MarketReport>(root, 'market', 'market-report')) {
     const place = `${report.province} / ${report.district}`;
     byPlace.set(place, [...(byPlace.get(place) ?? []), { report, file }]);
     readAtByFile.set(file, readAt(report));
