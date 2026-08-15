@@ -55,7 +55,7 @@ const RELIABILITY: Record<Level, Reliability> = {
 
 /** A place, named from the outside in: province, then district, then mahalle. */
 export function at(...names: string[]): Place {
-  const name = names[names.length - 1];
+  const name = names.at(-1);
   const level = LEVELS[names.length - 1];
   if (name === undefined || level === undefined) {
     throw new Error(`a place is one to three names, got ${String(names.length)}`);

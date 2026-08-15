@@ -1,18 +1,24 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { byCodePoint } from '../order.js';
-import { assertValid } from '../schema/validate.js';
+import { readReports } from '../record/read-directory.js';
 
 export interface MarketNeighbourhood {
   name: string;
+  /**
+   * Optional, because "nothing usable was found here" is a finding rather than a
+   * failure — and one worth showing, since it says where to look next.
+   */
   sale_per_m2?: number;
   rent_per_m2?: number;
+  /** How many listings the figures rest on. A median over three of them is noise. */
   listing_count: number;
+  /** Whether the figures were measured, published, or a mix of the two. */
   basis: 'listing_median' | 'official' | 'mixed';
+  /** How far the scout trusts its own figure. */
   confidence: 'high' | 'medium' | 'low';
+  /** Where the figures came from. A figure with no source does not get shown. */
   source: string;
   source_url?: string;
+  /** What qualifies the figure — thin data, a mix that would not hold still. */
   note?: string;
 }
 
@@ -20,9 +26,12 @@ export interface MarketReport {
   schema_version: 1;
   province: string;
   district: string;
+  /** ISO date the research was done. */
   captured_on: string;
   captured_at?: string;
+  /** The file this reading replaces, when it is a correction. */
   supersedes?: string;
+  /** What the run could not do — a site that refused it, a source it fell back to. */
   note?: string;
   /** What the scout makes of its own figures. Opinion, kept apart from the data. */
   reading?: string;
@@ -104,9 +113,6 @@ function readAt(report: MarketReport): string {
  * one of those means somebody should go and look.
  */
 export function loadMarketReports(root: string): ShownMarketReport[] {
-  const directory = join(root, 'market');
-  if (!existsSync(directory)) return [];
-
   const newest = new Map<string, MarketReport>();
   const byPlace = new Map<string, { report: MarketReport; file: string }[]>();
   const readAtByFile = new Map<string, string>();
@@ -114,21 +120,7 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   const claims: { supersedes: string; at: string; place: string }[] = [];
   const replaced = new Set<string>();
 
-  for (const file of readdirSync(directory)
-    .filter((name) => name.endsWith('.json'))
-    .sort(byCodePoint)) {
-    const path = join(directory, file);
-    const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
-
-    try {
-      assertValid('market-report', data);
-    } catch (error) {
-      throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-      });
-    }
-
-    const report = data as MarketReport;
+  for (const { report, file } of readReports<MarketReport>(root, 'market', 'market-report')) {
     const place = `${report.province} / ${report.district}`;
     byPlace.set(place, [...(byPlace.get(place) ?? []), { report, file }]);
     readAtByFile.set(file, readAt(report));

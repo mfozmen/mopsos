@@ -1,6 +1,7 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
+import { type ShownMarketReport, type ShownNeighbourhood } from '../market/load.js';
 import { movedIn } from '../market/movement.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
@@ -95,48 +96,6 @@ export function buildTabs(modules: TabModule[]): Tab[] {
   return [...modules.map(moduleTab), SICIL];
 }
 
-export interface Neighbourhood {
-  name: string;
-  /**
-   * Optional, because "nothing usable was found here" is a finding rather than a
-   * failure — and one worth showing, since it says where to look next.
-   */
-  sale_per_m2?: number;
-  rent_per_m2?: number;
-  /** Annual gross rental yield, as a fraction. Derived from the two above. */
-  gross_yield?: number;
-  /** How many listings the figures rest on. A median over three of them is noise. */
-  listing_count: number;
-  /** Where the figures came from. A figure with no source does not get shown. */
-  source: string;
-  /** What qualifies the figure — thin data, a mix that would not hold still. */
-  note?: string;
-  /** How far the scout trusts its own figure. */
-  confidence?: 'high' | 'medium' | 'low';
-}
-
-export interface ResearchReport {
-  place: string;
-  /** ISO date the research was done. */
-  dated: string;
-  /**
-   * To the minute, where the reading recorded it. Mirrors `ShownMarketReport.at`.
-   *
-   * Two readings of one district on one date are in this record already, hours
-   * apart. By date alone they are the same reading printed twice.
-   */
-  at?: string;
-  /** Earlier readings of the same district, newest first. */
-  earlier?: ResearchReport[];
-  /** True when a later reading replaced this one because it was wrong. */
-  corrected?: boolean;
-  neighbourhoods: Neighbourhood[];
-  /** What the run could not do — a site that refused it, a source it fell back to. */
-  note?: string;
-  /** What the scout makes of its own figures. Opinion, and shown as opinion. */
-  reading?: string;
-}
-
 export interface InstrumentReturn {
   /** Module id the figure belongs to. */
   module: string;
@@ -156,7 +115,13 @@ export interface SeerRecord {
 // The record's own shapes rather than a second declaration of them. Two
 // definitions of one report is how the page came to sort offers by headline
 // while the list around it sorted by real cost.
+//
+// The market pair was the looser copy: `basis` missing and `confidence`
+// optional, on a field only `loadMarketReports` ever fills. The shapes agreed
+// at runtime and the type checker had no way to know it, which is the state
+// every one of those bugs started in.
 export type { RateOffer, RateReport, ShownRateReport } from '../rates/load.js';
+export type { ShownMarketReport, ShownNeighbourhood };
 
 export interface FinanceBundle {
   /** The compiled mortgage module, so the page and the tests share one implementation. */
@@ -167,7 +132,7 @@ export interface FinanceBundle {
 
 export interface PageData {
   modules: TabModule[];
-  research: ResearchReport[];
+  research: ShownMarketReport[];
   instruments: InstrumentReturn[];
   records: SeerRecord[];
   rates: ShownRateReport[];
@@ -235,7 +200,7 @@ function freshness(data: PageData): string {
   ].sort(byCodePoint);
 
   const oldest = dates[0];
-  const newest = dates[dates.length - 1];
+  const newest = dates.at(-1);
   if (oldest === undefined || newest === undefined) return '';
 
   // "Sayfadaki", not "kayıttaki". The loaders keep the newest reading per bank
@@ -337,7 +302,7 @@ function cheapestRealRate(reports: RateReport[]): { rate: number; bank: string }
     }),
   );
 
-  return rates.sort((a, b) => a.rate - b.rate)[0];
+  return rates.toSorted((a, b) => a.rate - b.rate)[0];
 }
 
 /**
@@ -358,19 +323,16 @@ function th(content: string, className?: string): string {
   return `<th class="${classes}" aria-sort="none" tabindex="0">${content}</th>`;
 }
 
-function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | null): string {
+function neighbourhoodRow(neighbourhood: ShownNeighbourhood, timesRent?: number | null): string {
   // Three states, and the middle one matters: no column at all when no bank
   // rate can be computed, a dash when the column exists but this row has no
   // rent to compare against, and a figure otherwise. Emitting nothing in the
   // middle case would shift every cell after it one column left.
-  const owning =
-    timesRent === undefined
-      ? ''
-      : `<td class="num times-rent">${
-          timesRent === null
-            ? '—'
-            : `${timesRent.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`
-        }</td>`;
+  const shown =
+    timesRent === null || timesRent === undefined
+      ? '—'
+      : `${timesRent.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
+  const owning = timesRent === undefined ? '' : `<td class="num times-rent">${shown}</td>`;
 
   return `
           <tr>
@@ -419,7 +381,7 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
  * here does that — two of this record's readings are hours apart and one says in
  * its own note that it is not a direction reading.
  */
-function compareBlock(reports: ResearchReport[]): string {
+function compareBlock(reports: ShownMarketReport[]): string {
   const places = comparable(reports);
 
   return `
@@ -451,34 +413,41 @@ function compareBlock(reports: ResearchReport[]): string {
 }
 
 /**
+ * What every `<` in a data blob is written as: its JSON escape.
+ *
+ * `<` is the one character that can end a script block early — a place or a
+ * note containing `</script>` would otherwise close the tag and put the rest of
+ * the record into the document as markup.
+ *
+ * Raw on purpose: these six characters go into the JSON as text. Written as an
+ * ordinary literal the escape is processed here instead, the constant holds the
+ * character itself, and the replacement swaps it for itself — which is the
+ * failure this exists to prevent, and it is a silent one.
+ */
+const SCRIPT_ESCAPE = String.raw`\u003c`;
+
+/**
  * The figures the comparison runs on, handed to the page rather than fetched.
  *
  * Last in the panel on purpose. It repeats every neighbourhood name, and put
  * above the reports it becomes the first match for any of them — which is how a
  * test looking for a row found the data blob instead.
- *
- * Every `<` is written as its JSON escape, which is the one sequence that can
- * end a script block early: a place or a note containing `</script>` would
- * otherwise close this tag and put the rest of the record into the document as
- * markup. The escape has to be a raw string — written as an ordinary literal it
- * is `<` again, and the replacement swaps the character for itself.
  */
 function recordData(data: PageData): string {
+  const blob = JSON.stringify(searchable(data.research, data.rates)).replaceAll('<', SCRIPT_ESCAPE);
+
   return `
-      <script type="application/json" id="record">${JSON.stringify(
-        searchable(data.research, data.rates),
-      ).replaceAll('<', '\\u003c')}</script>`;
+      <script type="application/json" id="record">${blob}</script>`;
 }
 
-function placesData(reports: ResearchReport[]): string {
+function placesData(reports: ShownMarketReport[]): string {
+  const blob = JSON.stringify(comparable(reports)).replaceAll('<', SCRIPT_ESCAPE);
+
   return `
-      <script type="application/json" id="places">${JSON.stringify(comparable(reports)).replaceAll(
-        '<',
-        '\\u003c',
-      )}</script>`;
+      <script type="application/json" id="places">${blob}</script>`;
 }
 
-function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
+function reportSection(report: ShownMarketReport, cost?: Affordability, open = false): string {
   const owning = cost?.byName ?? new Map<string, number>();
   const heading = cost === undefined ? '' : th('Taksit/Kira', 'num');
   const count = report.neighbourhoods.length;
@@ -570,8 +539,8 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
  * reading was wrong, not that anything moved — and measuring *from* a
  * known-wrong figure is the same lie told backwards.
  */
-function whatMoved(now: ResearchReport, then: ResearchReport): string {
-  if (now.corrected === true || then.corrected === true) return '';
+function whatMoved(now: ShownMarketReport, then: ShownMarketReport): string {
+  if (now.corrected || then.corrected) return '';
 
   const moves = movedIn(now, then).filter((move) => Math.abs(move.ratio) >= 0.005);
   if (moves.length === 0) return '';
@@ -600,13 +569,13 @@ function whatMoved(now: ResearchReport, then: ResearchReport): string {
  * real rate in the record *today*, and putting last month's prices against this
  * month's rate produces a figure that was never true of any moment.
  */
-function earlierReadings(report: ResearchReport): string {
-  const earlier = report.earlier ?? [];
+function earlierReadings(report: ShownMarketReport): string {
+  const earlier = report.earlier;
   if (earlier.length === 0) return '';
 
   return `
       <details class="earlier-readings">
-      <summary>${foldSummary(earlier.map((reading) => ({ corrected: reading.corrected === true })))}</summary>${earlier
+      <summary>${foldSummary(earlier.map((reading) => ({ corrected: reading.corrected })))}</summary>${earlier
         .map((reading) => whatMoved(report, reading) + reportSection(reading))
         .join('')}
       </details>`;
@@ -639,18 +608,61 @@ const SEARCH = `
         <div id="found"></div>
       </div>`;
 
-const DISPATCH = `
+/** Said once per box, because a request answered on the other panel is unanswered. */
+const WHERE_IT_RUNS =
+  'Açık olan Claude Code oturumu isteği alır ve agent’ı çalıştırır — ne yaptığını orada görürsün.';
+
+const ASK_MARKET = `
       <div class="dispatch">
         <div class="ask">
           <label>İl<input id="province" type="text" value="İzmir" autocomplete="off"></label>
           <label>İlçe<input id="district" type="text" value="Çiğli" autocomplete="off"></label>
-          <label>Mahalle${hint(
+          <label><span>Mahalle${hint(
             'Boş bırakırsan bütün ilçe araştırılır — ilk okuma için doğrusu budur. Bir mahalle yazarsan agent yalnızca oraya bakar: daha az ilan, daha dar bir karışım, ve tek yere daha uzun bakabilen bir okuma. İkinci okumada işe yarar, çünkü soru artık “bu ilçe ne durumda” değil “oturduğum mahalle ne oldu”.',
-          )}<input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
+          )}</span><input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
           <button type="button" id="ask-market">Araştır</button>
         </div>
-        <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
-        <p class="note" id="ask-status">Açık olan Claude Code oturumu isteği alır ve agent’ı çalıştırır — ne yaptığını orada görürsün.</p>
+        <p class="note" id="ask-status">${WHERE_IT_RUNS}</p>
+      </div>`;
+
+/**
+ * The rates request, under the rates.
+ *
+ * It used to sit under the market heading, next to the district form, because
+ * both were "send an agent". They are not the same job: one reads listings in a
+ * mahalle and one reads what banks charge, they are different agents, and this
+ * button changes the table directly above it. A reader comparing neighbourhood
+ * prices has no use for it there, and a reader looking at the bank table could
+ * not find it at all.
+ */
+const ASK_RATES = `
+      <div class="dispatch">
+        <div class="ask">
+          <label><span>Banka${hint(
+            'Boş bırakırsan bütün bankalar okunur — düzenli tazeleme böyle yapılır. Bir banka yazarsan yalnızca ona bir scout gider. Tek bir banka oranını değiştirdiğinde ya da son okuması boş döndüğünde on beş okuma yapmak, taramanın maliyetinin çoğunu ödeyip faydasının hiçbirini almaktır.',
+          )}</span><input id="bank" type="text" placeholder="boş = bütün bankalar" autocomplete="off"></label>
+          <button type="button" id="ask-rates">Banka oranlarını güncelle</button>
+        </div>
+        <p class="note" id="ask-rates-status">${WHERE_IT_RUNS}</p>
+      </div>`;
+
+/**
+ * The savings finance request, which did not exist.
+ *
+ * The scout was written and the table was written, and nothing on the page could
+ * send the scout out — so the section had one thing to say, "henüz bakılmadı",
+ * and no way to stop saying it. A half of the record you cannot ask for is a
+ * half of the record that never fills.
+ */
+const ASK_SAVINGS = `
+      <div class="dispatch">
+        <div class="ask">
+          <label><span>Firma${hint(
+            'Boş bırakırsan brief’teki firmaların hepsi okunur. Bir firma yazarsan yalnızca ona bir scout gider — bu piyasada değişen genelde tek bir firmanın şartlarıdır, hepsininki değil.',
+          )}</span><input id="provider" type="text" placeholder="boş = bütün firmalar" autocomplete="off"></label>
+          <button type="button" id="ask-savings">Tasarruf finansmanına bak</button>
+        </div>
+        <p class="note" id="ask-savings-status">${WHERE_IT_RUNS}</p>
       </div>`;
 
 const RATES_EMPTY =
@@ -1195,7 +1207,7 @@ function panelBody(tab: Tab, data: PageData): string {
 
       <section role="tabpanel" id="panel-pazar" aria-labelledby="tab-pazar">
         <section class="research">
-          ${DISPATCH}
+          ${ASK_MARKET}
           ${SEARCH}
           ${compareBlock(data.research)}
           ${research}
@@ -1214,8 +1226,10 @@ function panelBody(tab: Tab, data: PageData): string {
           <section class="evidence">
             <h3 class="section">Banka oranları</h3>
             ${ratesTable(data.rates)}
+            ${ASK_RATES}
             <h3 class="section">Tasarruf finansmanı</h3>
             ${savingsTable(data.savings)}
+            ${ASK_SAVINGS}
           </section>
 
           <section class="money">
@@ -1482,15 +1496,15 @@ const FINANCE_SCRIPT = `
 
   // Only the place is ever sent. The calculator's amounts are personal data and
   // stay in this page.
-  const buttons = [$('ask-rates'), $('ask-market')];
+  const buttons = [$('ask-rates'), $('ask-market'), $('ask-savings')];
 
   // The button disables itself while the request is in flight, and the status
   // line keeps the spinner until the page is reloaded. An agent run takes
   // minutes, so a state that clears itself after the POST returns would say
   // "done" while the work has barely started — and a button that looks idle
   // gets pressed again, which is how six scouts once went out for one job.
-  const ask = async (payload, label) => {
-    const status = $('ask-status');
+  const ask = async (payload, label, statusId) => {
+    const status = $(statusId);
     status.className = 'note working';
     status.textContent = label + ' isteniyor…';
     for (const button of buttons) button.disabled = true;
@@ -1521,12 +1535,20 @@ const FINANCE_SCRIPT = `
     for (const button of buttons) button.disabled = false;
   };
 
-  $('ask-rates').addEventListener('click', () => ask({ kind: 'rates' }, 'Banka oranları'));
+  $('ask-rates').addEventListener('click', () =>
+    ask({ kind: 'rates', bank: $('bank').value },
+      $('bank').value.trim() ? $('bank').value.trim() + ' oranları' : 'Banka oranları',
+      'ask-rates-status'));
+  $('ask-savings').addEventListener('click', () =>
+    ask({ kind: 'savings', provider: $('provider').value },
+      $('provider').value.trim() || 'Tasarruf finansmanı',
+      'ask-savings-status'));
   $('ask-market').addEventListener('click', () =>
     ask({ kind: 'market', province: $('province').value, district: $('district').value,
         neighbourhood: $('neighbourhood').value },
       $('province').value + ' / ' + $('district').value +
-        ($('neighbourhood').value.trim() ? ' / ' + $('neighbourhood').value.trim() : '')));
+        ($('neighbourhood').value.trim() ? ' / ' + $('neighbourhood').value.trim() : ''),
+      'ask-status'));
 `;
 
 const STYLE = `
@@ -1602,7 +1624,15 @@ const STYLE = `
   /* Above the comparison and the reports both, because it is how you get to
      either one once the record stops fitting on a screen. */
   .find { margin: 1.2rem 0; }
-  .find input { width: 100%; max-width: 34rem; }
+  /* The label above its box, not glued to its left edge. Same treatment the
+     district form's labels get — a caption over the field rather than a word
+     the input starts immediately after. */
+  .find label { display: grid; gap: .3rem; max-width: 34rem; font-size: .7rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .find input { font: inherit; font-family: var(--serif); font-size: 1rem; text-transform: none;
+    letter-spacing: 0; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 2px; padding: .4rem .6rem;
+    width: 100%; max-width: 34rem; }
   .hit { margin: .4rem 0; padding: .5rem .7rem; background: var(--surface); border-radius: .2rem; }
   .hit small { display: block; font-size: .75rem; color: var(--muted); }
   .compare { margin: 1.4rem 0; }
@@ -1690,8 +1720,15 @@ const STYLE = `
   .note { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; }
   .breakdown { display: grid; grid-template-columns: 1fr auto; gap: .55rem 2rem; margin: 2.5rem 0 0;
     padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .9rem; }
-  .dispatch { margin-bottom: 2.5rem; }
+  /* Top margin too: under a table it would otherwise start on the last line of
+     the note above it. */
+  .dispatch { margin: 1.5rem 0 2.5rem; }
   .ask { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem; }
+  /* The caption and its ? are one row, the field is the next. Without the span
+     around them the grid gives the button a row of its own, and the label of a
+     field that has an explanation sits a line higher than the ones that do
+     not. */
+  .ask label > span { display: block; }
   .ask label { display: grid; gap: .3rem; font-size: .7rem; letter-spacing: .1em;
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
   .ask input { font: inherit; font-family: var(--serif); font-size: 1rem; text-transform: none;
@@ -1702,8 +1739,14 @@ const STYLE = `
     padding: .5rem 1rem; }
   .dispatch button:hover { background: var(--ink); }
   .dispatch button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  #ask-rates { background: none; color: var(--measured); border: 1px solid var(--line); }
-  #ask-rates:hover { background: var(--surface); color: var(--ink); }
+  /* Secondary, both of them: they refresh the table they sit under rather than
+     answering the question the panel is asking. "Araştır" is the primary one. */
+  #ask-rates, #ask-savings { background: none; color: var(--measured);
+    border: 1px solid var(--line); }
+  #ask-rates:hover, #ask-savings:hover { background: var(--surface); color: var(--ink); }
+  /* Wide enough for their own placeholder. Truncated to "boş = bütün firmal",
+     the one line that says what leaving the field alone does says nothing. */
+  #bank, #provider { width: 13rem; }
   .use-rate { font: inherit; font-family: var(--serif); font-size: 1rem; background: none;
     border: 0; border-bottom: 1px dashed var(--measured); color: var(--measured);
     cursor: pointer; padding: 0; font-variant-numeric: tabular-nums; }
