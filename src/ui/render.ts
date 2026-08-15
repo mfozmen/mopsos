@@ -1,6 +1,7 @@
 import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
+import { type ShownMarketReport, type ShownNeighbourhood } from '../market/load.js';
 import { movedIn } from '../market/movement.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
@@ -95,48 +96,6 @@ export function buildTabs(modules: TabModule[]): Tab[] {
   return [...modules.map(moduleTab), SICIL];
 }
 
-export interface Neighbourhood {
-  name: string;
-  /**
-   * Optional, because "nothing usable was found here" is a finding rather than a
-   * failure — and one worth showing, since it says where to look next.
-   */
-  sale_per_m2?: number;
-  rent_per_m2?: number;
-  /** Annual gross rental yield, as a fraction. Derived from the two above. */
-  gross_yield?: number;
-  /** How many listings the figures rest on. A median over three of them is noise. */
-  listing_count: number;
-  /** Where the figures came from. A figure with no source does not get shown. */
-  source: string;
-  /** What qualifies the figure — thin data, a mix that would not hold still. */
-  note?: string;
-  /** How far the scout trusts its own figure. */
-  confidence?: 'high' | 'medium' | 'low';
-}
-
-export interface ResearchReport {
-  place: string;
-  /** ISO date the research was done. */
-  dated: string;
-  /**
-   * To the minute, where the reading recorded it. Mirrors `ShownMarketReport.at`.
-   *
-   * Two readings of one district on one date are in this record already, hours
-   * apart. By date alone they are the same reading printed twice.
-   */
-  at?: string;
-  /** Earlier readings of the same district, newest first. */
-  earlier?: ResearchReport[];
-  /** True when a later reading replaced this one because it was wrong. */
-  corrected?: boolean;
-  neighbourhoods: Neighbourhood[];
-  /** What the run could not do — a site that refused it, a source it fell back to. */
-  note?: string;
-  /** What the scout makes of its own figures. Opinion, and shown as opinion. */
-  reading?: string;
-}
-
 export interface InstrumentReturn {
   /** Module id the figure belongs to. */
   module: string;
@@ -156,7 +115,13 @@ export interface SeerRecord {
 // The record's own shapes rather than a second declaration of them. Two
 // definitions of one report is how the page came to sort offers by headline
 // while the list around it sorted by real cost.
+//
+// The market pair was the looser copy: `basis` missing and `confidence`
+// optional, on a field only `loadMarketReports` ever fills. The shapes agreed
+// at runtime and the type checker had no way to know it, which is the state
+// every one of those bugs started in.
 export type { RateOffer, RateReport, ShownRateReport } from '../rates/load.js';
+export type { ShownMarketReport, ShownNeighbourhood };
 
 export interface FinanceBundle {
   /** The compiled mortgage module, so the page and the tests share one implementation. */
@@ -167,7 +132,7 @@ export interface FinanceBundle {
 
 export interface PageData {
   modules: TabModule[];
-  research: ResearchReport[];
+  research: ShownMarketReport[];
   instruments: InstrumentReturn[];
   records: SeerRecord[];
   rates: ShownRateReport[];
@@ -358,7 +323,7 @@ function th(content: string, className?: string): string {
   return `<th class="${classes}" aria-sort="none" tabindex="0">${content}</th>`;
 }
 
-function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | null): string {
+function neighbourhoodRow(neighbourhood: ShownNeighbourhood, timesRent?: number | null): string {
   // Three states, and the middle one matters: no column at all when no bank
   // rate can be computed, a dash when the column exists but this row has no
   // rent to compare against, and a figure otherwise. Emitting nothing in the
@@ -416,7 +381,7 @@ function neighbourhoodRow(neighbourhood: Neighbourhood, timesRent?: number | nul
  * here does that — two of this record's readings are hours apart and one says in
  * its own note that it is not a direction reading.
  */
-function compareBlock(reports: ResearchReport[]): string {
+function compareBlock(reports: ShownMarketReport[]): string {
   const places = comparable(reports);
 
   return `
@@ -475,14 +440,14 @@ function recordData(data: PageData): string {
       <script type="application/json" id="record">${blob}</script>`;
 }
 
-function placesData(reports: ResearchReport[]): string {
+function placesData(reports: ShownMarketReport[]): string {
   const blob = JSON.stringify(comparable(reports)).replaceAll('<', SCRIPT_ESCAPE);
 
   return `
       <script type="application/json" id="places">${blob}</script>`;
 }
 
-function reportSection(report: ResearchReport, cost?: Affordability, open = false): string {
+function reportSection(report: ShownMarketReport, cost?: Affordability, open = false): string {
   const owning = cost?.byName ?? new Map<string, number>();
   const heading = cost === undefined ? '' : th('Taksit/Kira', 'num');
   const count = report.neighbourhoods.length;
@@ -574,8 +539,8 @@ function reportSection(report: ResearchReport, cost?: Affordability, open = fals
  * reading was wrong, not that anything moved — and measuring *from* a
  * known-wrong figure is the same lie told backwards.
  */
-function whatMoved(now: ResearchReport, then: ResearchReport): string {
-  if (now.corrected === true || then.corrected === true) return '';
+function whatMoved(now: ShownMarketReport, then: ShownMarketReport): string {
+  if (now.corrected || then.corrected) return '';
 
   const moves = movedIn(now, then).filter((move) => Math.abs(move.ratio) >= 0.005);
   if (moves.length === 0) return '';
@@ -604,13 +569,13 @@ function whatMoved(now: ResearchReport, then: ResearchReport): string {
  * real rate in the record *today*, and putting last month's prices against this
  * month's rate produces a figure that was never true of any moment.
  */
-function earlierReadings(report: ResearchReport): string {
-  const earlier = report.earlier ?? [];
+function earlierReadings(report: ShownMarketReport): string {
+  const earlier = report.earlier;
   if (earlier.length === 0) return '';
 
   return `
       <details class="earlier-readings">
-      <summary>${foldSummary(earlier.map((reading) => ({ corrected: reading.corrected === true })))}</summary>${earlier
+      <summary>${foldSummary(earlier.map((reading) => ({ corrected: reading.corrected })))}</summary>${earlier
         .map((reading) => whatMoved(report, reading) + reportSection(reading))
         .join('')}
       </details>`;
