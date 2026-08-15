@@ -250,6 +250,24 @@ describe('a home directory names the person who owns it', () => {
   });
 });
 
+describe('a long line does not stall the scan', () => {
+  // A .json written without indentation is one line, and this scanner reads
+  // .json. Every amount rule began `\d[\d.,]*`, which starts at each digit of a
+  // run and rescans the rest of it: 16k digits took 0.2s, 32k took four times
+  // that for twice the length. At the size a real one-line file reaches, the
+  // scan stops finishing — and a leak detector that times out is one that gets
+  // taken out of CI.
+  it.each([
+    ['a run of digits', '1'.repeat(60_000)],
+    ['a street keyword and a run of digits', `sokak ${'1'.repeat(60_000)}`],
+  ])('scans %s in well under a second', (_shape, line) => {
+    const start = performance.now();
+    findPersonalData(line);
+
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+});
+
 describe('a size is not a house number', () => {
   it('does not read the 2 in m2 as a door number', () => {
     // "mahalle,m2,fiyat" is a CSV header. The pattern wants a street keyword

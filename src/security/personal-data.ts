@@ -42,6 +42,34 @@ interface Rule {
   accept?: (match: string) => boolean;
 }
 
+/**
+ * An amount with its currency: `2.4M TL`, `2,400,000 TRY`, `45000₺`.
+ *
+ * One fragment for all three ownership rules, which each wrote it out in full.
+ * Adding a currency meant editing three patterns, and forgetting one of them
+ * narrowed the scanner without changing anything a test could see.
+ *
+ * `(?<!\d)` so a match starts at the beginning of a number rather than inside
+ * one. Without it every digit of a long run is a fresh starting point that
+ * rescans the rest of the run, and a .json written on one line — which this
+ * scanner reads — takes quadratic time to get through.
+ *
+ * It refuses nothing the longer form found: a start sitting inside a number can
+ * only match where the digit before it matches too, and that one is tried first.
+ */
+const AMOUNT = String.raw`(?<!\d)\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)`;
+
+/**
+ * Room for the words between the ownership word and the amount, on one line.
+ *
+ * Bounded, and stopping at a full stop: across a sentence break the two are no
+ * longer about each other, and "my" in one sentence with a market figure in the
+ * next is the false positive that gets a scanner switched off.
+ */
+function within(characters: number): string {
+  return String.raw`[^.\n]{0,${String(characters)}}?`;
+}
+
 const RULES: Rule[] = [
   {
     kind: 'national_id',
@@ -66,21 +94,29 @@ const RULES: Rule[] = [
   // to match on before the amount. Both orderings are covered.
   {
     kind: 'personal_amount',
-    pattern:
-      /\b(?:i have|my|benim|our)\b[^.\n]{0,60}?\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)/gi,
+    pattern: new RegExp(String.raw`\b(?:i have|my|benim|our)\b${within(60)}${AMOUNT}`, 'gi'),
   },
   {
     kind: 'personal_amount',
     // The `\w*` sits inside each alternative, not after the group: Turkish stems
     // take suffixes ("birikimim"), while "param" must not also match "parameter".
-    pattern:
-      /\b(?:savings|birikim\w*|portfolio|portföy\w*|tasarruf\w*|param|down payment|net worth)\b[^.\n]{0,60}?\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)/gi,
+    pattern: new RegExp(
+      String.raw`\b(?:savings|birikim\w*|portfolio|portföy\w*|tasarruf\w*|param|down payment|net worth)\b` +
+        within(60) +
+        AMOUNT,
+      'gi',
+    ),
   },
   {
     // Amount first, ownership word after: "2.4M TL birikimim".  scan-ignore: example
     kind: 'personal_amount',
-    pattern:
-      /\d[\d.,]* ?(?:m|k|bin|milyon)? ?(?:TRY|TL|₺|USD|EUR)\b[^.\n]{0,40}?\b(?:savings|birikim|tasarruf|portfolio|portföy|param|paran|net worth)\w*/gi,
+    pattern: new RegExp(
+      AMOUNT +
+        String.raw`\b` +
+        within(40) +
+        String.raw`\b(?:savings|birikim|tasarruf|portfolio|portföy|param|paran|net worth)\w*`,
+      'gi',
+    ),
   },
   {
     /**
@@ -127,22 +163,34 @@ const RULES: Rule[] = [
     ),
   },
   {
-    // The `No:` label is optional: Turkish addresses are as often written
-    // "Gül Sokak 14/3" without one.  scan-ignore: example
-    // The street keyword carries the signal; a district name on its own — the
-    // intended content of this repository — has none.
-    //
-    // A digit glued to a letter is a unit, not a door number: `m2` in a CSV
-    // header would otherwise read as a street plus a number, and a check that cries wolf
-    // over column names is one that gets waved through. Nothing else is
-    // loosened — this repository is public and the thing it must never carry is
-    // where the person lives.
-    //
-    // `[a-z]` and not `[A-Za-z]` in that lookbehind: the pattern carries `i`, so
-    // the upper-case half excluded nothing the lower-case half did not.
+    /**
+     * A street keyword and a door number, which together say where someone lives.
+     *
+     * Nothing here is loosened beyond what the comments name. This repository is
+     * public, and where the person lives is the thing it must never carry.
+     */
     kind: 'address',
-    pattern:
-      /\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b[^.\n]{0,40}?(?:\bno[:.\s]*)?(?<![a-z])\d+(?:\/\d+)?/gi,
+    pattern: new RegExp(
+      [
+        // The street keyword carries the signal. A district name on its own —
+        // the intended content of this repository — has none.
+        String.raw`\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b`,
+        within(40),
+        // Optional: Turkish addresses are as often written without the label,
+        // "Gül Sokak 14/3".  scan-ignore: example
+        String.raw`(?:\bno[:.\s]*)?`,
+        // A digit glued to a letter is a unit, not a door number: `m2` in a CSV
+        // header would otherwise read as a street plus a number, and a check
+        // that cries wolf over column names is one that gets waved through.
+        //
+        // `[a-z]` and not `[A-Za-z]`: the pattern carries `i`, so the upper-case
+        // half excluded nothing the lower-case half did not. `\d` is in there
+        // for the reason `AMOUNT` gives — a door number starts at the front of a
+        // number, and starting inside one rescans it.
+        String.raw`(?<![a-z\d])\d+(?:\/\d+)?`,
+      ].join(''),
+      'gi',
+    ),
   },
 ];
 
