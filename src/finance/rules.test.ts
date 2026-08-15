@@ -97,6 +97,42 @@ describe('parseMortgageRules', () => {
     ).toThrow(/ascending/i);
   });
 
+  // The open-ended bracket is written as null, so a bound of Infinity is a
+  // mis-edit — and one that reads as ascending, which puts every bracket after
+  // it out of reach with nothing to show for it.
+  it('rejects a bracket bound that is not a finite number', () => {
+    expect(() =>
+      parseMortgageRules({
+        loan_to_value: {
+          brackets: [
+            { value_up_to: 5_000_000, ratios: { A_B: 0.8, C: 0.7, OTHER: 0.6 } },
+            { value_up_to: Number.POSITIVE_INFINITY, ratios: { A_B: 0.6, C: 0.5, OTHER: 0.4 } },
+            { value_up_to: null, ratios: { A_B: 0.4, C: 0.3, OTHER: 0.2 } },
+          ],
+        },
+        term: { conventional_max_months: 120 },
+      }),
+    ).toThrow(/ascending/i);
+  });
+
+  // Passes before the guard is written the way it is written: `!(ratio > 0)`
+  // already refuses NaN. It is here because `ratio <= 0` does not, and that is
+  // the shape a readability rewrite reaches for.
+  it('rejects a ratio that is not a finite number', () => {
+    expect(
+      () =>
+        parseMortgageRules({
+          loan_to_value: {
+            brackets: [{ value_up_to: null, ratios: { A_B: Number.NaN, C: 0.8, OTHER: 0.7 } }],
+          },
+          term: { conventional_max_months: 120 },
+        }),
+      // Not "got null", which is what JSON.stringify makes of NaN — JSON has no
+      // way to write it. That message sends the reader looking for a missing
+      // value in a file that has a broken one.
+    ).toThrow(/energy class A_B.*got NaN/s);
+  });
+
   it('rejects a table with no open-ended bracket, leaving top values uncovered', () => {
     expect(() =>
       parseMortgageRules({

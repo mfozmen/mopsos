@@ -36,6 +36,14 @@ const ZIRAAT = {
 };
 
 /**
+ * The fields the record puts on every reading and every neighbourhood, and that
+ * none of these tests are about. Spread into a fixture so what is written out
+ * is only what the test is checking.
+ */
+const RECORDED = { earlier: [], corrected: false };
+const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
+
+/**
  * One panel's markup. Bounded by the next panel or the footer rather than the
  * next `<section>`, because panels contain sections of their own.
  */
@@ -210,8 +218,59 @@ describe('the finance calculator', () => {
 });
 
 describe('sending the agent from the page', () => {
+  const halves = (): { pazar: string; finansman: string } => {
+    const page = panel(renderPage(EMPTY), 'housing');
+    const border = page.indexOf('id="panel-finansman"');
+
+    return {
+      pazar: page.slice(page.indexOf('id="panel-pazar"'), border),
+      finansman: page.slice(border),
+    };
+  };
+
   it('offers to refresh the bank rates', () => {
     expect(panel(renderPage(EMPTY), 'housing')).toContain('id="ask-rates"');
+  });
+
+  it('keeps each request with the work it feeds', () => {
+    // These are different agents doing different jobs, and the button belongs
+    // beside what it changes. The rates button sat under the market heading,
+    // where a reader comparing neighbourhood prices has no use for it.
+    const { pazar, finansman } = halves();
+
+    expect(pazar).toContain('id="ask-market"');
+    expect(pazar).not.toContain('id="ask-rates"');
+    expect(finansman).toContain('id="ask-rates"');
+    expect(finansman).not.toContain('id="ask-market"');
+  });
+
+  it('lets the rates request name one bank, and says what leaving it empty means', () => {
+    // A refresh that always means every bank is most of the cost of a sweep for
+    // none of its point when one bank is what moved.
+    const { finansman } = halves();
+
+    expect(finansman).toContain('id="bank"');
+    expect(finansman).toMatch(/boş\s*=\s*bütün bankalar/);
+  });
+
+  it('offers to look at savings finance, which had no button at all', () => {
+    // The scout existed and the table existed; nothing on the page could send
+    // it out, so the section could only ever say "henüz bakılmadı".
+    const { finansman } = halves();
+    const heading = finansman.indexOf('Tasarruf finansmanı');
+
+    expect(finansman).toContain('id="ask-savings"');
+    expect(finansman).toContain('id="provider"');
+    expect(finansman.indexOf('id="ask-savings"')).toBeGreaterThan(heading);
+  });
+
+  it('answers each request where that request was made', () => {
+    // One status line for two boxes on two panels means half the answers are
+    // written where nobody is looking.
+    const { pazar, finansman } = halves();
+
+    expect(pazar).toContain('id="ask-status"');
+    expect(finansman).toContain('id="ask-rates-status"');
   });
 
   it('asks for a place before researching a market', () => {
@@ -507,10 +566,12 @@ describe('research findings', () => {
     ...EMPTY,
     research: [
       {
+        ...RECORDED,
         place: 'İzmir · Çiğli',
         dated: '2026-07-27',
         neighbourhoods: [
           {
+            ...MEASURED,
             name: 'Egekent 2',
             sale_per_m2: 48500,
             rent_per_m2: 180,
@@ -545,7 +606,14 @@ describe('safety', () => {
   it('escapes content instead of letting it become markup', () => {
     const data: PageData = {
       ...EMPTY,
-      research: [{ place: '<script>alert(1)</script>', dated: '2026-07-27', neighbourhoods: [] }],
+      research: [
+        {
+          ...RECORDED,
+          place: '<script>alert(1)</script>',
+          dated: '2026-07-27',
+          neighbourhoods: [],
+        },
+      ],
     };
 
     expect(renderPage(data)).not.toContain('<script>alert(1)</script>');
@@ -562,6 +630,7 @@ describe('safety', () => {
 
 describe('market research', () => {
   const report = (neighbourhood: Record<string, unknown>) => ({
+    ...RECORDED,
     place: 'İzmir / Çiğli',
     dated: '2026-07-28',
     neighbourhoods: [
@@ -597,6 +666,7 @@ describe('market research', () => {
         ...EMPTY,
         research: [
           {
+            ...RECORDED,
             ...report({ note: 'Sadece 4 ilan; medyan güvenilir değil.' }),
             note: 'Sahibinden bu ilçede robots.txt ile kapalı, hepsiemlak kullanıldı.',
           },
@@ -618,6 +688,7 @@ describe('market research', () => {
         ...EMPTY,
         research: [
           {
+            ...RECORDED,
             ...report({ sale_per_m2: 42_590, rent_per_m2: 309 }),
             reading:
               'Gazi Mustafa Kemal hem en yüksek getiriyi hem en düşük taksit/kira oranını veriyor.',
@@ -946,10 +1017,12 @@ describe('sortable tables', () => {
 
 describe('several reports on one page', () => {
   const reading = (place: string, dated: string, salePerM2: number) => ({
+    ...RECORDED,
     place,
     dated,
     neighbourhoods: [
       {
+        ...MEASURED,
         name: 'Bir Mahalle',
         sale_per_m2: salePerM2,
         listing_count: 12,
@@ -1066,7 +1139,7 @@ describe('the page script', () => {
 });
 
 describe('how stale the picture is', () => {
-  const reading = (dated: string) => ({ place: 'Menemen', dated, neighbourhoods: [] });
+  const reading = (dated: string) => ({ ...RECORDED, place: 'Menemen', dated, neighbourhoods: [] });
   const rate = (captured_on: string) => ({ ...ZIRAAT, captured_on });
 
   it('says when the record was last looked at, and how long ago', () => {
@@ -1306,6 +1379,7 @@ describe('the readings behind a bank', () => {
 
 describe('the readings behind a district', () => {
   const hood = (sale: number) => ({
+    ...MEASURED,
     name: 'Egekent 2',
     sale_per_m2: sale,
     rent_per_m2: 288,
@@ -1313,6 +1387,7 @@ describe('the readings behind a district', () => {
     source: 'İlan sitesi',
   });
   const reading = (dated: string, sale: number, extra = {}) => ({
+    ...RECORDED,
     place: 'İzmir / Menemen',
     dated,
     neighbourhoods: [hood(sale)],
@@ -1444,10 +1519,12 @@ describe('an offer only some people can take', () => {
       rates: [cheapGated, openToAll],
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
             {
+              ...MEASURED,
               name: 'Egekent 2',
               sale_per_m2: 52_857,
               rent_per_m2: 288,
@@ -1583,10 +1660,12 @@ describe('asking about one neighbourhood', () => {
 
 describe('putting neighbourhoods side by side', () => {
   const report = {
+    ...RECORDED,
     place: 'İzmir / Menemen',
     dated: '2026-07-29',
     neighbourhoods: [
       {
+        ...MEASURED,
         name: '30 Ağustos',
         sale_per_m2: 52_857,
         rent_per_m2: 288,
@@ -1594,6 +1673,7 @@ describe('putting neighbourhoods side by side', () => {
         source: 'İlan, 3+1',
       },
       {
+        ...MEASURED,
         name: 'Ulukent',
         sale_per_m2: 45_000,
         rent_per_m2: 260,
@@ -1634,12 +1714,14 @@ describe('putting neighbourhoods side by side', () => {
 
 describe('what moved in a district since an earlier reading', () => {
   const hood = (sale: number, count = 40, source = 'İlan, 3+1') => ({
+    ...MEASURED,
     name: 'Egekent 2',
     sale_per_m2: sale,
     listing_count: count,
     source,
   });
   const reading = (dated: string, sale: number, count?: number, source?: string, extra = {}) => ({
+    ...RECORDED,
     place: 'İzmir / Menemen',
     dated,
     neighbourhoods: [hood(sale, count, source)],

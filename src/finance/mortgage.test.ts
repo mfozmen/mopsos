@@ -152,6 +152,21 @@ describe('validation', () => {
   it('rejects a term shorter than one month through the same gate', () => {
     expect(() => assertTermAllowed(rules, 0)).toThrow(/month/i);
   });
+
+  // Both arrive the same way: a figure parsed out of a rate sheet or typed into
+  // the calculator, where an empty field is NaN and a division by a missing
+  // denominator is Infinity. Neither is a number anybody meant, and the annuity
+  // formula answers both without complaining — NaN for one, a payment of
+  // Infinity for the other — which is a wrong answer that looks like an answer.
+  it('refuses a principal that is not a finite number', () => {
+    expect(() => monthlyPayment(Number.NaN, 2.79, 120)).toThrow(/principal/i);
+    expect(() => monthlyPayment(Number.POSITIVE_INFINITY, 2.79, 120)).toThrow(/principal/i);
+  });
+
+  it('refuses a rate that is not a finite number', () => {
+    expect(() => monthlyPayment(1_000_000, Number.NaN, 120)).toThrow(/rate/i);
+    expect(() => monthlyPayment(1_000_000, Number.POSITIVE_INFINITY, 120)).toThrow(/rate/i);
+  });
 });
 
 describe('affordability', () => {
@@ -241,6 +256,20 @@ describe('affordability', () => {
     expect(() => affordability({ ...base, monthlyBudget: 30_000, downPayment: -1 })).toThrow(
       /down payment/i,
     );
+  });
+
+  // An infinite budget or down payment returns an infinite price, which is the
+  // one answer this function must never give: the whole point of it is the
+  // ceiling, and a ceiling of Infinity reads as "anything is affordable".
+  it.each([
+    ['monthlyBudget', /budget/i],
+    ['monthlyRatePercent', /rate/i],
+    ['downPayment', /down payment/i],
+  ])('refuses a %s that is not a finite number', (field, message) => {
+    const sound = { ...base, monthlyBudget: 30_000, downPayment: 1_000_000 };
+
+    expect(() => affordability({ ...sound, [field]: Number.NaN })).toThrow(message);
+    expect(() => affordability({ ...sound, [field]: Number.POSITIVE_INFINITY })).toThrow(message);
   });
 });
 
