@@ -224,6 +224,12 @@ interface Reading {
   file: string;
 }
 
+/** A reading's claim to replace an earlier file, and when the claim was made. */
+interface Claim {
+  supersedes: string;
+  at: string;
+}
+
 /** What the read pass worked out, for the two steps that need all of it at once. */
 interface RateRecord {
   readings: Reading[];
@@ -265,12 +271,9 @@ export function loadRateReports(root: string): ShownRateReport[] {
   // there must not make the report itself vanish, because a bank that quietly
   // disappears looks the same as a bank nobody checked.
   const readAtByFile = new Map<string, string>();
-  const claims: { supersedes: string; at: string }[] = [];
-  const replaced = new Set<string>();
+  const claims: Claim[] = [];
   const readings: Reading[] = [];
   const byFile = new Map<string, RateReport>();
-  const noteOnReplacing = new Map<string, string>();
-  const renamedTo = new Map<string, string>();
 
   for (const { report: parsed, file } of readReports<RateReport>(root, 'rates', 'rate-report')) {
     // An unmarked bank is conventional, which is the common case. Spread first
@@ -293,22 +296,8 @@ export function loadRateReports(root: string): ShownRateReport[] {
     }
   }
 
-  // Only a later reading may retire an earlier one. A correction is written
-  // after the thing it corrects, so a file claiming to replace something newer
-  // than itself has its history backwards — and honouring it would delete the
-  // right reading and keep the wrong one, which is the opposite of the job.
-  for (const claim of claims) {
-    const target = readAtByFile.get(claim.supersedes);
-    if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
-  }
-
-  for (const { report } of readings) {
-    if (report.supersedes === undefined || !replaced.has(report.supersedes)) continue;
-    if (report.note !== undefined) noteOnReplacing.set(report.supersedes, report.note);
-
-    const was = byFile.get(report.supersedes)?.bank;
-    if (was !== undefined && was !== report.bank) renamedTo.set(was, report.bank);
-  }
+  const replaced = replacedFiles(claims, readAtByFile);
+  const { noteOnReplacing, renamedTo } = followCorrections(readings, byFile, replaced);
 
   for (const [bank, kept] of newest) {
     if (replaced.has(kept.file)) newest.delete(bank);
@@ -330,6 +319,51 @@ export function loadRateReports(root: string): ShownRateReport[] {
   return [...newest.values()]
     .map((kept) => ({ ...kept.report, earlier: earlierThan(kept, record) }))
     .sort((a, b) => byRealCost(a, b) || byHeadline(a, b) || byCodePoint(a.bank, b.bank));
+}
+
+/**
+ * The files a later reading retired.
+ *
+ * Only a later reading may retire an earlier one. A correction is written after
+ * the thing it corrects, so a file claiming to replace something newer than
+ * itself has its history backwards — and honouring it would delete the right
+ * reading and keep the wrong one, which is the opposite of the job.
+ */
+function replacedFiles(claims: Claim[], readAtByFile: Map<string, string>): Set<string> {
+  const replaced = new Set<string>();
+
+  for (const claim of claims) {
+    const target = readAtByFile.get(claim.supersedes);
+    if (target !== undefined && target <= claim.at) replaced.add(claim.supersedes);
+  }
+
+  return replaced;
+}
+
+/**
+ * What each honoured correction says about the reading it replaced.
+ *
+ * Two things, and only from corrections that were honoured: the note explaining
+ * why, so the retired reading can carry it, and the name that changed, which is
+ * the only thing tying one spelling of a bank to another.
+ */
+function followCorrections(
+  readings: Reading[],
+  byFile: Map<string, RateReport>,
+  replaced: Set<string>,
+): Pick<RateRecord, 'noteOnReplacing' | 'renamedTo'> {
+  const noteOnReplacing = new Map<string, string>();
+  const renamedTo = new Map<string, string>();
+
+  for (const { report } of readings) {
+    if (report.supersedes === undefined || !replaced.has(report.supersedes)) continue;
+    if (report.note !== undefined) noteOnReplacing.set(report.supersedes, report.note);
+
+    const was = byFile.get(report.supersedes)?.bank;
+    if (was !== undefined && was !== report.bank) renamedTo.set(was, report.bank);
+  }
+
+  return { noteOnReplacing, renamedTo };
 }
 
 /**
