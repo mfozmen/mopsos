@@ -36,6 +36,14 @@ const ZIRAAT = {
 };
 
 /**
+ * The fields the record puts on every reading and every neighbourhood, and that
+ * none of these tests are about. Spread into a fixture so what is written out
+ * is only what the test is checking.
+ */
+const RECORDED = { earlier: [], corrected: false };
+const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
+
+/**
  * One panel's markup. Bounded by the next panel or the footer rather than the
  * next `<section>`, because panels contain sections of their own.
  */
@@ -558,10 +566,12 @@ describe('research findings', () => {
     ...EMPTY,
     research: [
       {
+        ...RECORDED,
         place: 'İzmir · Çiğli',
         dated: '2026-07-27',
         neighbourhoods: [
           {
+            ...MEASURED,
             name: 'Egekent 2',
             sale_per_m2: 48500,
             rent_per_m2: 180,
@@ -596,7 +606,14 @@ describe('safety', () => {
   it('escapes content instead of letting it become markup', () => {
     const data: PageData = {
       ...EMPTY,
-      research: [{ place: '<script>alert(1)</script>', dated: '2026-07-27', neighbourhoods: [] }],
+      research: [
+        {
+          ...RECORDED,
+          place: '<script>alert(1)</script>',
+          dated: '2026-07-27',
+          neighbourhoods: [],
+        },
+      ],
     };
 
     expect(renderPage(data)).not.toContain('<script>alert(1)</script>');
@@ -613,6 +630,7 @@ describe('safety', () => {
 
 describe('market research', () => {
   const report = (neighbourhood: Record<string, unknown>) => ({
+    ...RECORDED,
     place: 'İzmir / Çiğli',
     dated: '2026-07-28',
     neighbourhoods: [
@@ -648,6 +666,7 @@ describe('market research', () => {
         ...EMPTY,
         research: [
           {
+            ...RECORDED,
             ...report({ note: 'Sadece 4 ilan; medyan güvenilir değil.' }),
             note: 'Sahibinden bu ilçede robots.txt ile kapalı, hepsiemlak kullanıldı.',
           },
@@ -669,6 +688,7 @@ describe('market research', () => {
         ...EMPTY,
         research: [
           {
+            ...RECORDED,
             ...report({ sale_per_m2: 42_590, rent_per_m2: 309 }),
             reading:
               'Gazi Mustafa Kemal hem en yüksek getiriyi hem en düşük taksit/kira oranını veriyor.',
@@ -997,10 +1017,12 @@ describe('sortable tables', () => {
 
 describe('several reports on one page', () => {
   const reading = (place: string, dated: string, salePerM2: number) => ({
+    ...RECORDED,
     place,
     dated,
     neighbourhoods: [
       {
+        ...MEASURED,
         name: 'Bir Mahalle',
         sale_per_m2: salePerM2,
         listing_count: 12,
@@ -1117,7 +1139,7 @@ describe('the page script', () => {
 });
 
 describe('how stale the picture is', () => {
-  const reading = (dated: string) => ({ place: 'Menemen', dated, neighbourhoods: [] });
+  const reading = (dated: string) => ({ ...RECORDED, place: 'Menemen', dated, neighbourhoods: [] });
   const rate = (captured_on: string) => ({ ...ZIRAAT, captured_on });
 
   it('says when the record was last looked at, and how long ago', () => {
@@ -1357,6 +1379,7 @@ describe('the readings behind a bank', () => {
 
 describe('the readings behind a district', () => {
   const hood = (sale: number) => ({
+    ...MEASURED,
     name: 'Egekent 2',
     sale_per_m2: sale,
     rent_per_m2: 288,
@@ -1364,6 +1387,7 @@ describe('the readings behind a district', () => {
     source: 'İlan sitesi',
   });
   const reading = (dated: string, sale: number, extra = {}) => ({
+    ...RECORDED,
     place: 'İzmir / Menemen',
     dated,
     neighbourhoods: [hood(sale)],
@@ -1495,10 +1519,12 @@ describe('an offer only some people can take', () => {
       rates: [cheapGated, openToAll],
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
             {
+              ...MEASURED,
               name: 'Egekent 2',
               sale_per_m2: 52_857,
               rent_per_m2: 288,
@@ -1634,10 +1660,12 @@ describe('asking about one neighbourhood', () => {
 
 describe('putting neighbourhoods side by side', () => {
   const report = {
+    ...RECORDED,
     place: 'İzmir / Menemen',
     dated: '2026-07-29',
     neighbourhoods: [
       {
+        ...MEASURED,
         name: '30 Ağustos',
         sale_per_m2: 52_857,
         rent_per_m2: 288,
@@ -1645,6 +1673,7 @@ describe('putting neighbourhoods side by side', () => {
         source: 'İlan, 3+1',
       },
       {
+        ...MEASURED,
         name: 'Ulukent',
         sale_per_m2: 45_000,
         rent_per_m2: 260,
@@ -1685,12 +1714,14 @@ describe('putting neighbourhoods side by side', () => {
 
 describe('what moved in a district since an earlier reading', () => {
   const hood = (sale: number, count = 40, source = 'İlan, 3+1') => ({
+    ...MEASURED,
     name: 'Egekent 2',
     sale_per_m2: sale,
     listing_count: count,
     source,
   });
   const reading = (dated: string, sale: number, count?: number, source?: string, extra = {}) => ({
+    ...RECORDED,
     place: 'İzmir / Menemen',
     dated,
     neighbourhoods: [hood(sale, count, source)],

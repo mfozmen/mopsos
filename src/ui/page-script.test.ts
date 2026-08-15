@@ -44,6 +44,12 @@ const compiled = await build({
 // something for the test to pass.
 const RATE = 3.15;
 
+// The fields the record puts on every reading and every neighbourhood, and that
+// none of these tests are about. Spread into a fixture so what is written out is
+// only what the test is checking.
+const RECORDED = { earlier: [], corrected: false };
+const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
+
 const DATA: PageData = {
   modules: [{ id: 'housing', label_tr: 'Konut' }],
   research: [],
@@ -310,7 +316,7 @@ describe('how long ago a reading was', () => {
 
   const withDates = (research: string, rate: string): PageData => ({
     ...DATA,
-    research: [{ place: 'Menemen', dated: research, neighbourhoods: [] }],
+    research: [{ ...RECORDED, place: 'Menemen', dated: research, neighbourhoods: [] }],
     rates: [{ ...DATA.rates[0]!, captured_on: rate }],
   });
 
@@ -429,6 +435,7 @@ describe('an offer the reader cannot take', () => {
 
 describe('comparing neighbourhoods', () => {
   const hood = (name: string, district: string, sale: number, count: number) => ({
+    ...MEASURED,
     name,
     sale_per_m2: sale,
     rent_per_m2: 280,
@@ -441,11 +448,13 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [hood('30 Ağustos', 'Menemen', 52_857, 40)],
         },
         {
+          ...RECORDED,
           place: 'İzmir / Çiğli',
           dated: '2026-07-29',
           neighbourhoods: [hood('Küçük Çiğli', 'Çiğli', 48_000, 3)],
@@ -499,11 +508,12 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
-            { ...hood('A', 'Menemen', 50_000, 20), source: long + '3+1' },
-            { ...hood('B', 'Menemen', 40_000, 20), source: long + '2+1' },
+            { ...MEASURED, ...hood('A', 'Menemen', 50_000, 20), source: long + '3+1' },
+            { ...MEASURED, ...hood('B', 'Menemen', 40_000, 20), source: long + '2+1' },
           ],
         },
       ],
@@ -525,11 +535,13 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Merkez',
           dated: '2026-07-29',
           neighbourhoods: [hood('Cumhuriyet', 'Merkez', 50_000, 20)],
         },
         {
+          ...RECORDED,
           place: 'Ankara / Merkez',
           dated: '2026-07-29',
           neighbourhoods: [hood('Cumhuriyet', 'Merkez', 40_000, 20)],
@@ -553,11 +565,13 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [hood('A', 'Menemen', 50_000, 20)],
         },
         {
+          ...RECORDED,
           place: 'İzmir / Çiğli',
           dated: '2026-06-15',
           neighbourhoods: [hood('B', 'Çiğli', 40_000, 20)],
@@ -590,6 +604,7 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
@@ -611,6 +626,7 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
@@ -642,11 +658,18 @@ describe('finding a reading again', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Çiğli',
           dated: '2026-07-29',
           note: 'sahibinden satılık listesini 14. sayfadan sonra vermedi',
           neighbourhoods: [
-            { name: 'Küçük Çiğli', sale_per_m2: 48_000, listing_count: 22, source: 'İlan, 3+1' },
+            {
+              ...MEASURED,
+              name: 'Küçük Çiğli',
+              sale_per_m2: 48_000,
+              listing_count: 22,
+              source: 'İlan, 3+1',
+            },
           ],
         },
       ],
