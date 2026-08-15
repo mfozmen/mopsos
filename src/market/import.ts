@@ -24,6 +24,14 @@ const THIN = 10;
  *
  * Turkish prices get pasted as `"4.750.000"`, where the quotes are what stop
  * the thousands separators from looking like fields.
+ *
+ * Sonar reads this pattern as super-linear and it is not. Both alternatives can
+ * match the empty string, which is what the warning is about — and it is also
+ * why the pattern can never fail: every position matches something, so the scan
+ * moves forward and no start is ever retried. Measured over four shapes chosen
+ * to be adversarial (an unclosed quote, nothing but commas, quoted fields) at
+ * 10k to 80k characters, the time doubles with the length. The trailing empty
+ * match this leaves at the end of the line is what `slice(0, -1)` drops.
  */
 function cells(line: string): string[] {
   return (line.match(/("[^"]*"|[^,]*)(,|$)/g) ?? [])

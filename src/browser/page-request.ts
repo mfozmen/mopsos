@@ -28,8 +28,17 @@ export interface PageRequest {
  * NAT space rather than private space, so it is easy to leave out — and it is
  * where one cloud put the same prize.
  */
-const PRIVATE_IPV4 =
-  /^(127(\.\d+){3}|0\.0\.0\.0|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2}|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])(\.\d+){2})$/;
+const PRIVATE_IPV4 = new RegExp(
+  `^(?:${[
+    String.raw`127(\.\d+){3}`, // loopback
+    String.raw`0\.0\.0\.0`, // "this host", which resolves to loopback
+    String.raw`10(\.\d+){3}`, // RFC 1918
+    String.raw`192\.168(\.\d+){2}`, // RFC 1918
+    String.raw`172\.(1[6-9]|2\d|3[01])(\.\d+){2}`, // RFC 1918, 172.16–172.31 only
+    String.raw`169\.254(\.\d+){2}`, // link-local — the AWS and Azure metadata service
+    String.raw`100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])(\.\d+){2}`, // RFC 6598 — Alibaba's
+  ].join('|')})$`,
+);
 
 /** `::1`, `::`, unique-local `fc00::/7` and link-local `fe80::/10`. */
 const PRIVATE_IPV6 = /^(::1?|f[cde][0-9a-f]{2}:.*)$/i;
