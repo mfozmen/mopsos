@@ -45,14 +45,24 @@ export class InvalidLoanError extends Error {
   }
 }
 
+/**
+ * `Number.isFinite` first, then the range, everywhere in this module.
+ *
+ * The two-part form is deliberate and a linter will keep asking for the shorter
+ * one. `principal <= 0` on its own is false for NaN and false for Infinity, so
+ * both walk past the gate: NaN turns the whole schedule into NaN, and an
+ * infinite principal returns an infinite payment. Both are figures nobody typed
+ * — an empty field parsed as a number, a division by a missing denominator —
+ * and both come back as an answer rather than as an error.
+ */
 function checkLoan(principal: number, monthlyRatePercent: number, months: number): void {
   const problems: string[] = [];
 
-  if (!(principal > 0)) {
+  if (!Number.isFinite(principal) || principal <= 0) {
     problems.push(`principal must be above 0 (got ${String(principal)})`);
   }
 
-  if (!(monthlyRatePercent >= 0)) {
+  if (!Number.isFinite(monthlyRatePercent) || monthlyRatePercent < 0) {
     problems.push(
       `monthly rate must not be negative (got ${String(monthlyRatePercent)}). ` +
         'Turkish housing loan rates are quoted per month, so 2.79 means 2.79%/month.',
@@ -313,15 +323,18 @@ export function affordability({
 }: AffordabilityInput): number {
   const problems: string[] = [];
 
-  if (!(monthlyBudget >= 0)) {
+  // See `checkLoan`: the range alone lets NaN and Infinity through, and here an
+  // infinite budget returns an infinite price — the one answer a ceiling must
+  // never give, because it reads as "anything is affordable".
+  if (!Number.isFinite(monthlyBudget) || monthlyBudget < 0) {
     problems.push(`monthly budget must not be negative (got ${String(monthlyBudget)})`);
   }
 
-  if (!(monthlyRatePercent >= 0)) {
+  if (!Number.isFinite(monthlyRatePercent) || monthlyRatePercent < 0) {
     problems.push(`monthly rate must not be negative (got ${String(monthlyRatePercent)})`);
   }
 
-  if (!(downPayment >= 0)) {
+  if (!Number.isFinite(downPayment) || downPayment < 0) {
     problems.push(`down payment must not be negative (got ${String(downPayment)})`);
   }
 

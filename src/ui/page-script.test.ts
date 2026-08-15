@@ -44,6 +44,12 @@ const compiled = await build({
 // something for the test to pass.
 const RATE = 3.15;
 
+// The fields the record puts on every reading and every neighbourhood, and that
+// none of these tests are about. Spread into a fixture so what is written out is
+// only what the test is checking.
+const RECORDED = { earlier: [], corrected: false };
+const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
+
 const DATA: PageData = {
   modules: [{ id: 'housing', label_tr: 'Konut' }],
   research: [],
@@ -233,14 +239,67 @@ describe('sending the agent out', () => {
     page.click('#ask-rates');
 
     expect(page.disabled('#ask-rates')).toBe(true);
-    expect(page.text('ask-status')).toContain('isteniyor');
+    // The rates box's own line, on the panel the button lives on. The market
+    // form's line is on the other panel and saying it there says it to nobody.
+    expect(page.text('ask-rates-status')).toContain('isteniyor');
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Still disabled after the POST returns: the agent run has barely started,
     // and a button that looks idle gets pressed again.
-    expect(page.text('ask-status')).toContain('sıraya alındı');
+    expect(page.text('ask-rates-status')).toContain('sıraya alındı');
     expect(page.disabled('#ask-rates')).toBe(true);
+  });
+
+  // A fresh page per press: the button stays disabled after a successful
+  // request, on purpose, so one page cannot send two.
+  const asked = (bank?: string): unknown => {
+    const page = open();
+    const sent: unknown[] = [];
+    page.window.fetch = ((_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }) as unknown as typeof fetch;
+
+    if (bank !== undefined) page.type('bank', bank);
+    page.click('#ask-rates');
+
+    return sent[0];
+  };
+
+  it('sends a savings request with the firm that was typed', () => {
+    const page = open();
+    const sent: unknown[] = [];
+    page.window.fetch = ((_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }) as unknown as typeof fetch;
+
+    page.type('provider', 'Birevim');
+    page.click('#ask-savings');
+
+    expect(sent[0]).toEqual({ kind: 'savings', provider: 'Birevim' });
+    expect(page.text('ask-savings-status')).toContain('isteniyor');
+  });
+
+  it('sends the bank that was typed', () => {
+    expect(asked('Akbank')).toEqual({ kind: 'rates', bank: 'Akbank' });
+  });
+
+  it('sends no bank when the field was left alone, which is every bank', () => {
+    expect(asked()).toEqual({ kind: 'rates', bank: '' });
+  });
+
+  it('answers the market request on the market panel', async () => {
+    const page = open();
+    page.window.fetch = (() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({}) })) as unknown as typeof fetch;
+
+    page.click('#ask-market');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(page.text('ask-status')).toContain('sıraya alındı');
+    expect(page.text('ask-rates-status')).not.toContain('sıraya alındı');
   });
 });
 
@@ -257,7 +316,7 @@ describe('how long ago a reading was', () => {
 
   const withDates = (research: string, rate: string): PageData => ({
     ...DATA,
-    research: [{ place: 'Menemen', dated: research, neighbourhoods: [] }],
+    research: [{ ...RECORDED, place: 'Menemen', dated: research, neighbourhoods: [] }],
     rates: [{ ...DATA.rates[0]!, captured_on: rate }],
   });
 
@@ -376,6 +435,7 @@ describe('an offer the reader cannot take', () => {
 
 describe('comparing neighbourhoods', () => {
   const hood = (name: string, district: string, sale: number, count: number) => ({
+    ...MEASURED,
     name,
     sale_per_m2: sale,
     rent_per_m2: 280,
@@ -388,11 +448,13 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [hood('30 Ağustos', 'Menemen', 52_857, 40)],
         },
         {
+          ...RECORDED,
           place: 'İzmir / Çiğli',
           dated: '2026-07-29',
           neighbourhoods: [hood('Küçük Çiğli', 'Çiğli', 48_000, 3)],
@@ -446,11 +508,12 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
-            { ...hood('A', 'Menemen', 50_000, 20), source: long + '3+1' },
-            { ...hood('B', 'Menemen', 40_000, 20), source: long + '2+1' },
+            { ...MEASURED, ...hood('A', 'Menemen', 50_000, 20), source: long + '3+1' },
+            { ...MEASURED, ...hood('B', 'Menemen', 40_000, 20), source: long + '2+1' },
           ],
         },
       ],
@@ -472,11 +535,13 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Merkez',
           dated: '2026-07-29',
           neighbourhoods: [hood('Cumhuriyet', 'Merkez', 50_000, 20)],
         },
         {
+          ...RECORDED,
           place: 'Ankara / Merkez',
           dated: '2026-07-29',
           neighbourhoods: [hood('Cumhuriyet', 'Merkez', 40_000, 20)],
@@ -500,11 +565,13 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [hood('A', 'Menemen', 50_000, 20)],
         },
         {
+          ...RECORDED,
           place: 'İzmir / Çiğli',
           dated: '2026-06-15',
           neighbourhoods: [hood('B', 'Çiğli', 40_000, 20)],
@@ -537,6 +604,7 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
@@ -558,6 +626,7 @@ describe('comparing neighbourhoods', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Menemen',
           dated: '2026-07-29',
           neighbourhoods: [
@@ -589,35 +658,35 @@ describe('finding a reading again', () => {
       ...DATA,
       research: [
         {
+          ...RECORDED,
           place: 'İzmir / Çiğli',
           dated: '2026-07-29',
           note: 'sahibinden satılık listesini 14. sayfadan sonra vermedi',
           neighbourhoods: [
-            { name: 'Küçük Çiğli', sale_per_m2: 48_000, listing_count: 22, source: 'İlan, 3+1' },
+            {
+              ...MEASURED,
+              name: 'Küçük Çiğli',
+              sale_per_m2: 48_000,
+              listing_count: 22,
+              source: 'İlan, 3+1',
+            },
           ],
         },
       ],
     });
 
-  it('finds a place typed without its Turkish letters', () => {
+  // One shape, three reasons to keep it working: the Turkish letters a keyboard
+  // skips, a word from the note rather than from the place, and the date without
+  // which a hit cannot be used at all.
+  it.each([
+    ['a place typed without its Turkish letters', 'cigli', 'İzmir / Çiğli'],
+    ['a reading by a word from its note', 'sahibinden', 'İzmir / Çiğli'],
+    ['the date of a hit', 'cigli', '29.07.2026'],
+  ])('finds %s', (_reason, typed, shown) => {
     const page = dom();
-    page.type('find', 'cigli');
+    page.type('find', typed);
 
-    expect(page.region('#found')).toContain('İzmir / Çiğli');
-  });
-
-  it('finds a reading by a word from its note', () => {
-    const page = dom();
-    page.type('find', 'sahibinden');
-
-    expect(page.region('#found')).toContain('İzmir / Çiğli');
-  });
-
-  it('dates every hit, because one without a date cannot be used', () => {
-    const page = dom();
-    page.type('find', 'cigli');
-
-    expect(page.region('#found')).toContain('29.07.2026');
+    expect(page.region('#found')).toContain(shown);
   });
 
   it('says so rather than showing an empty list when nothing matches', () => {

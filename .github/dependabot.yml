@@ -10,6 +10,18 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: development
+    ignore:
+      # typescript-eslint declares `typescript >=4.8.4 <6.1.0` as a peer, and no
+      # released version of it parses TypeScript 7. So a major bump fails
+      # `npm ci` before a single test runs — and because TypeScript sits in the
+      # grouped dev-dependencies update, it takes six unrelated bumps down with
+      # it and the group sits unmergeable until someone works out why.
+      #
+      # Minors and patches still come through. Lift this the moment
+      # typescript-eslint's peer range opens: it is the only thing holding
+      # TypeScript back, not a decision about TypeScript.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   # Keeps the SHA-pinned actions in .github/workflows current.
   - package-ecosystem: github-actions
