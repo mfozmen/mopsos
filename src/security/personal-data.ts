@@ -188,7 +188,7 @@ const RULES: Rule[] = [
         // directly before its number. The full form written out is still
         // caught — "Atatürk Mahallesi, Gül Sokak No: 14/3"  scan-ignore: example
         // — on `Sokak`, which is the word that meant street all along.
-        String.raw`[ ,:]{0,3}`,
+        '[ ,:]{0,3}',
         // Optional: Turkish addresses are as often written without the label,
         // "Gül Sokak 14/3".  scan-ignore: example
         String.raw`(?:\bno[:.\s]*)?`,
