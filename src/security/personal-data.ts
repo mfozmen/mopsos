@@ -188,10 +188,14 @@ const RULES: Rule[] = [
         // directly before its number. The full form written out is still
         // caught — "Atatürk Mahallesi, Gül Sokak No: 14/3"  scan-ignore: example
         // — on `Sokak`, which is the word that meant street all along.
-        '[ ,:]{0,3}',
+        '[ 	,:]{0,3}',
         // Optional: Turkish addresses are as often written without the label,
         // "Gül Sokak 14/3".  scan-ignore: example
-        String.raw`(?:\bno[:.\s]*)?`,
+        //
+        // `numara` alongside `no` because the abbreviation is a habit, not a
+        // rule, and a scanner that only knows the abbreviation misses the
+        // person who wrote the word out.
+        String.raw`(?:\b(?:no|numara(?:sı)?)[:.\s]*)?`,
         // A digit glued to a letter is a unit, not a door number: `m2` in a CSV
         // header would otherwise read as a street plus a number, and a check
         // that cries wolf over column names is one that gets waved through.

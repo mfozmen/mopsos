@@ -299,3 +299,15 @@ describe('a keyword with prose after it is not an address', () => {
     expect(findPersonalData(text)).toEqual([]);
   });
 });
+
+describe('separators and labels a person actually types', () => {
+  it('flags a keyword and number separated by a tab', () => {
+    // A cell pasted out of a table. Nothing about a tab makes it less of an
+    // address than a space does.  scan-ignore: example
+    expect(findPersonalData('Gül Sokak\t14')).toHaveLength(1);
+  });
+
+  it.each(['Daire numara 4', 'Daire numarası 4'])('flags %s, the label spelled out', (text) => {
+    expect(findPersonalData(text)).toHaveLength(1);
+  });
+});
