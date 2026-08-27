@@ -311,3 +311,21 @@ describe('separators and labels a person actually types', () => {
     expect(findPersonalData(text)).toHaveLength(1);
   });
 });
+
+describe('an address the author claims as their own', () => {
+  it.each([
+    "Oturduğum yer Gül Sokak'ta, kapı numarası 14",
+    'Adresim Atatürk Mahallesi, 1234 Sokak',
+    'evim Egekent 2 Mahallesi içinde',
+    'I live on Gül Sokak',
+  ])('flags %s', (text) => {
+    // The narrow rule wants a number against a street keyword, which is how an
+    // address block is written, not how a person mentions where they live. This
+    // is the shape a real leak takes, and the one the repository must not carry.
+    expect(kinds(text)).toContain('address');
+  });
+
+  it('still says nothing about a district named as market geography', () => {
+    expect(kinds('Egekent 2 Mahallesi, 3+1 daire listesinin 18 ilanı')).toEqual([]);
+  });
+});

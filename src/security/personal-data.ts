@@ -70,6 +70,16 @@ function within(characters: number): string {
   return String.raw`[^.\n]{0,${String(characters)}}?`;
 }
 
+/**
+ * The words that mean street, and the ones that mean a unit inside a building.
+ *
+ * `mahalle` is not among them, on purpose. A Turkish address never puts the door
+ * number after the neighbourhood — the street goes there — so `Mahallesi` before
+ * a number says nothing, while "Mahallesi, 3+1 daire" says it in every second
+ * market report. What it does mean is covered by `OWN_ADDRESS` below.
+ */
+const STREET = String.raw`\b(?:sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b`;
+
 const RULES: Rule[] = [
   {
     kind: 'national_id',
@@ -174,7 +184,7 @@ const RULES: Rule[] = [
       [
         // The street keyword carries the signal. A district name on its own —
         // the intended content of this repository — has none.
-        String.raw`\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b`,
+        STREET,
         // The number sits against the keyword, with at most a separator between:
         // "Gül Sokak 14/3", "Caddesi No:12", "Daire 4".  scan-ignore: example
         //
@@ -208,6 +218,32 @@ const RULES: Rule[] = [
         // for the reason `AMOUNT` gives — a door number starts at the front of a
         // number, and starting inside one rescans it.
         String.raw`(?<![a-z\d])\d+(?:\/\d+)?`,
+      ].join(''),
+      'gi',
+    ),
+  },
+  {
+    /**
+     * A place the author says is theirs — with or without a door number.
+     *
+     * The rule above wants a number against a street keyword, which is how an
+     * address block is written and not how a person mentions where they live.
+     * "Oturduğum yer Gül Sokak'ta" carries no door  scan-ignore: example
+     * number at all, and is still the one sentence this repository must never
+     * publish.
+     *
+     * Built the way the amount rules are, and for the same reason: a bare place
+     * name is market geography, which is what this repository is for. It is the
+     * claim of ownership that makes it personal.
+     */
+    kind: 'address',
+    pattern: new RegExp(
+      [
+        // Prefixes rather than whole words: Turkish suffixes carry letters that
+        // `\w` does not know, so `adresimde` has to be reached by `adresim`.
+        String.raw`\b(?:oturduğum|adresim|evim|ikametgâh|ikametim|my address|my home|i live)`,
+        within(60),
+        `(?:${STREET}|${String.raw`\bmahalle(?:si)?\b`})`,
       ].join(''),
       'gi',
     ),
