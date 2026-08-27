@@ -284,3 +284,88 @@ describe('a size is not a house number', () => {
     expect(findPersonalData('Atatürk Caddesi No:12 Daire 4')).toHaveLength(1);
   });
 });
+
+describe('a keyword with prose after it is not an address', () => {
+  it.each([
+    '3+1 daire listesinin 18 ilanı okundu',
+    'mahalle sayfası, 29 ilan',
+    'daire sayfasının tamamı okundu: 1 ilan',
+    'Çiğli mahallesi arasında Egekent 2 yok',
+  ])('says nothing about %s', (text) => {
+    // What a market report says about the pool it read. The number is a count of
+    // listings, and the word before it is a sentence, not a street. Seventy-nine
+    // of these in the record today: enough that a real address among them would
+    // be scrolled past, which is the failure this scanner exists to avoid.
+    expect(findPersonalData(text)).toEqual([]);
+  });
+});
+
+describe('separators and labels a person actually types', () => {
+  it('flags a keyword and number separated by a tab', () => {
+    // A cell pasted out of a table. Nothing about a tab makes it less of an
+    // address than a space does.  scan-ignore: example
+    expect(findPersonalData('Gül Sokak\t14')).toHaveLength(1);
+  });
+
+  it.each(['Daire numara 4', 'Daire numarası 4'])('flags %s, the label spelled out', (text) => {
+    expect(findPersonalData(text)).toHaveLength(1);
+  });
+});
+
+describe('an address the author claims as their own', () => {
+  it.each([
+    "Oturduğum yer Gül Sokak'ta, kapı numarası 14",
+    'Adresim Atatürk Mahallesi, 1234 Sokak',
+    'evim Egekent 2 Mahallesi içinde',
+    'I live on Gül Sokak',
+  ])('flags %s', (text) => {
+    // The narrow rule wants a number against a street keyword, which is how an
+    // address block is written, not how a person mentions where they live. This
+    // is the shape a real leak takes, and the one the repository must not carry.
+    expect(kinds(text)).toContain('address');
+  });
+
+  it('still says nothing about a district named as market geography', () => {
+    expect(kinds('Egekent 2 Mahallesi, 3+1 daire listesinin 18 ilanı')).toEqual([]);
+  });
+});
+
+describe('a village address, which has no street', () => {
+  it.each(['Yeşilköy Mahallesi No: 14', 'Köyde kaldığımız ev, Yeşilköy Mahallesi No: 14'])(
+    'flags %s',
+    (text) => {
+      // Rural addressing in Turkey puts the number straight after the
+      // neighbourhood, because there is no street name to put in between. The
+      // explicit label is what separates it from "Mahallesi, 3+1 daire", which
+      // is market prose and never carries one.
+      expect(kinds(text)).toContain('address');
+    },
+  );
+
+  it('still says nothing about the same words without the label', () => {
+    expect(kinds('Egekent 2 Mahallesi, 3+1 daire listesinin 18 ilanı')).toEqual([]);
+  });
+});
+
+describe('other ways of saying where you live', () => {
+  it.each(['yaşadığım yer Gül Sokak', 'ikamet ettiğim Atatürk Caddesi', 'oturuyorum, Gül Sokak'])(
+    'flags %s',
+    (text) => {
+      expect(kinds(text)).toContain('address');
+    },
+  );
+});
+
+describe('someone else living somewhere is not the author', () => {
+  it.each([
+    'Bu sokakta oturan haneler artık daha az',
+    "Komşu Atatürk Mahallesi'nde oturuyor",
+    'Bu mahallede oturanların çoğu Gül Sokak civarında',
+    'ikametgâh adresi isteyen mahalle listesi',
+  ])('says nothing about %s', (text) => {
+    // The residence rule is about the author claiming a place. A verb in the
+    // third person, or the bare noun for residence, is a report describing a
+    // district — which is what this repository is for.
+    expect(kinds(text)).toEqual([]);
+  });
+});

@@ -70,6 +70,51 @@ function within(characters: number): string {
   return String.raw`[^.\n]{0,${String(characters)}}?`;
 }
 
+/**
+ * The words that mean street, and the ones that mean a unit inside a building.
+ *
+ * `mahalle` is not among them, on purpose: in town the door number follows the
+ * street, never the neighbourhood, so `Mahallesi` before a number signals
+ * nothing — while "Mahallesi, 3+1 daire" is how every second market report
+ * opens. Where it does carry an address, `NEIGHBOURHOOD` picks it up.
+ */
+const STREET = String.raw`\b(?:sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b`;
+
+const NEIGHBOURHOOD = String.raw`\bmahalle(?:si)?\b`;
+
+/**
+ * At most a separator between the place word and the number, which is how an
+ * address is written: "Gül Sokak 14/3", "Caddesi No:12".  scan-ignore: example
+ *
+ * It used to allow forty characters of anything, which let a whole clause in —
+ * and a market report is full of the shape that produces: "3+1 daire listesinin
+ * 18 ilanı", "mahalle sayfası, 29". Seventy-nine of those in the record against
+ * no real address, and a report nobody finishes reading protects nothing.
+ *
+ * `\t` written out rather than typed: a tab inside a character class is a byte
+ * nobody reviewing this file can see, and one stray keystroke from deletion.
+ */
+const SEPARATOR = String.raw`[ \t,:]{0,3}`;
+
+/**
+ * The door-number label. `numara` alongside `no` because the abbreviation is a
+ * habit rather than a rule, and a scanner that only knows the short form misses
+ * the person who wrote the word out.
+ */
+const LABEL = String.raw`\b(?:no|numara(?:sı)?)[:.\s]*`;
+
+/**
+ * A digit glued to a letter is a unit, not a door number: `m2` in a CSV header
+ * would otherwise read as a street plus a number, and a check that cries wolf
+ * over column names is one that gets waved through.
+ *
+ * `[a-z]` and not `[A-Za-z]`: every pattern using this carries `i`, so the
+ * upper-case half excluded nothing the lower-case half did not. `\d` is in there
+ * for the reason `AMOUNT` gives — a door number starts at the front of a number,
+ * and starting inside one rescans it.
+ */
+const DOOR_NUMBER = String.raw`(?<![a-z\d])\d+(?:\/\d+)?`;
+
 const RULES: Rule[] = [
   {
     kind: 'national_id',
@@ -170,24 +215,78 @@ const RULES: Rule[] = [
      * public, and where the person lives is the thing it must never carry.
      */
     kind: 'address',
+    // The label is optional here: Turkish addresses are as often written
+    // without it, "Gül Sokak 14/3".  scan-ignore: example
+    pattern: new RegExp(`${STREET}${SEPARATOR}(?:${LABEL})?${DOOR_NUMBER}`, 'gi'),
+  },
+  {
+    /**
+     * A neighbourhood and a door number, which is how a village is addressed.
+     *
+     * There is no street to put in between, so "Yeşilköy Mahallesi  scan-ignore: example
+     * No: 14" is a complete postal address and still in use.
+     *
+     * The label is required here, unlike the street rule above, and that is the
+     * whole difference: the market prose this has to stay quiet about — "3+1
+     * daire listesinin 18 ilanı" — never carries one.
+     *
+     * An accepted gap, not a settled fact: "Yeşilköy Mahallesi 14"  scan-ignore: example
+     * written without the label is missed. Nothing distinguishes it from
+     * "Egekent 2 Mahallesi 14 ilan" on the page, and that shape is seventy-nine
+     * lines of the record against no address at all. The case that matters is
+     * still covered — an address the author claims as theirs needs no number
+     * and no label to be caught, which is what the rule below is for.
+     */
+    kind: 'address',
+    pattern: new RegExp(`${NEIGHBOURHOOD}${SEPARATOR}${LABEL}${DOOR_NUMBER}`, 'gi'),
+  },
+  {
+    /**
+     * A place the author says is theirs — with or without a door number.
+     *
+     * The rule above wants a number against a street keyword, which is how an
+     * address block is written and not how a person mentions where they live.
+     * "Oturduğum yer Gül Sokak'ta" carries no door  scan-ignore: example
+     * number at all, and is still the one sentence this repository must never
+     * publish.
+     *
+     * Built the way the amount rules are, and for the same reason: a bare place
+     * name is market geography, which is what this repository is for. It is the
+     * claim of ownership that makes it personal.
+     */
+    kind: 'address',
     pattern: new RegExp(
       [
-        // The street keyword carries the signal. A district name on its own —
-        // the intended content of this repository — has none.
-        String.raw`\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b`,
-        within(40),
-        // Optional: Turkish addresses are as often written without the label,
-        // "Gül Sokak 14/3".  scan-ignore: example
-        String.raw`(?:\bno[:.\s]*)?`,
-        // A digit glued to a letter is a unit, not a door number: `m2` in a CSV
-        // header would otherwise read as a street plus a number, and a check
-        // that cries wolf over column names is one that gets waved through.
+        // Prefixes rather than whole words: Turkish suffixes carry letters that
+        // `\w` does not know, so `adresimde` has to be reached by `adresim` and
+        // `kaldığımız` by `kaldığım`.
         //
-        // `[a-z]` and not `[A-Za-z]`: the pattern carries `i`, so the upper-case
-        // half excluded nothing the lower-case half did not. `\d` is in there
-        // for the reason `AMOUNT` gives — a door number starts at the front of a
-        // number, and starting inside one rescans it.
-        String.raw`(?<![a-z\d])\d+(?:\/\d+)?`,
+        // Several verbs for one idea, because there is no single way to say
+        // where you live. Someone typing a note about their own place writes
+        // whichever comes to mind, and the list is worth nothing if it only
+        // knows one of them.
+        //
+        // Every form here is first person, and that is the load-bearing part.
+        // A bare stem — `otur`, `ikamet` — matches the third person too, and
+        // "Bu mahallede oturanların çoğu Gül Sokak civarında" is a report
+        // describing a district, which is the whole content of this repository.
+        // Widening the person is how this rule would reopen the false-positive
+        // problem the other two were just narrowed to close.
+        String.raw`\b(?:` +
+          [
+            String.raw`otur(?:duğum|uyorum|uyoruz|acağım)`,
+            'yaşadığım',
+            'kaldığım',
+            String.raw`ikamet(?:im|gâhım|\s+ettiğim)`,
+            'adresim',
+            'evim',
+            'my address',
+            'my home',
+            'i live',
+          ].join('|') +
+          ')',
+        within(60),
+        `(?:${STREET}|${NEIGHBOURHOOD})`,
       ].join(''),
       'gi',
     ),

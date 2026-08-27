@@ -618,7 +618,7 @@ const ASK_MARKET = `
           <label>İl<input id="province" type="text" value="İzmir" autocomplete="off"></label>
           <label>İlçe<input id="district" type="text" value="Çiğli" autocomplete="off"></label>
           <label><span>Mahalle${hint(
-            'Boş bırakırsan bütün ilçe araştırılır — ilk okuma için doğrusu budur. Bir mahalle yazarsan agent yalnızca oraya bakar: daha az ilan, daha dar bir karışım, ve tek yere daha uzun bakabilen bir okuma. İkinci okumada işe yarar, çünkü soru artık “bu ilçe ne durumda” değil “oturduğum mahalle ne oldu”.',
+            'Boş bırakırsan bütün ilçe araştırılır — ilk okuma için doğrusu budur. Bir mahalle yazarsan agent yalnızca oraya bakar: daha az ilan, daha dar bir karışım, ve tek yere daha uzun bakabilen bir okuma. İkinci okumada işe yarar, çünkü soru artık “bu ilçe ne durumda” değil “bu mahalle ne oldu”.',
           )}</span><input id="neighbourhood" type="text" placeholder="boş = bütün ilçe" autocomplete="off"></label>
           <button type="button" id="ask-market">Araştır</button>
         </div>
