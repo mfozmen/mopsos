@@ -284,3 +284,18 @@ describe('a size is not a house number', () => {
     expect(findPersonalData('Atatürk Caddesi No:12 Daire 4')).toHaveLength(1);
   });
 });
+
+describe('a keyword with prose after it is not an address', () => {
+  it.each([
+    '3+1 daire listesinin 18 ilanı okundu',
+    'mahalle sayfası, 29 ilan',
+    'daire sayfasının tamamı okundu: 1 ilan',
+    'Çiğli mahallesi arasında Egekent 2 yok',
+  ])('says nothing about %s', (text) => {
+    // What a market report says about the pool it read. The number is a count of
+    // listings, and the word before it is a sentence, not a street. Seventy-nine
+    // of these in the record today: enough that a real address among them would
+    // be scrolled past, which is the failure this scanner exists to avoid.
+    expect(findPersonalData(text)).toEqual([]);
+  });
+});

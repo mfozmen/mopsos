@@ -175,7 +175,20 @@ const RULES: Rule[] = [
         // The street keyword carries the signal. A district name on its own —
         // the intended content of this repository — has none.
         String.raw`\b(?:mahalle(?:si)?|sokak|sok\.|cadde(?:si)?|cad\.|apt\.?|daire|blok)\b`,
-        within(40),
+        // The number sits against the keyword, with at most a separator between:
+        // "Gül Sokak 14/3", "Caddesi No:12", "Daire 4".  scan-ignore: example
+        //
+        // It used to allow forty characters of anything, which let a whole
+        // clause in — and a market report is full of the shape that produces:
+        // "3+1 daire listesinin 18 ilanı", "mahalle sayfası, 29". Seventy-nine
+        // of those in the record against no real address, and a report nobody
+        // finishes reading protects nothing.
+        //
+        // Nothing real is lost, because a Turkish address puts a keyword
+        // directly before its number. The full form written out is still
+        // caught — "Atatürk Mahallesi, Gül Sokak No: 14/3"  scan-ignore: example
+        // — on `Sokak`, which is the word that meant street all along.
+        String.raw`[ ,:]{0,3}`,
         // Optional: Turkish addresses are as often written without the label,
         // "Gül Sokak 14/3".  scan-ignore: example
         String.raw`(?:\bno[:.\s]*)?`,
