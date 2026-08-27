@@ -226,9 +226,16 @@ const RULES: Rule[] = [
      * There is no street to put in between, so "Yeşilköy Mahallesi  scan-ignore: example
      * No: 14" is a complete postal address and still in use.
      *
-     * The label is required here, and that is the whole difference: a village
-     * address always carries one, and the market prose this rule has to stay
-     * quiet about — "Mahallesi, 3+1 daire listesinin 18 ilanı" — never does.
+     * The label is required here, unlike the street rule above, and that is the
+     * whole difference: the market prose this has to stay quiet about — "3+1
+     * daire listesinin 18 ilanı" — never carries one.
+     *
+     * An accepted gap, not a settled fact: "Yeşilköy Mahallesi 14"  scan-ignore: example
+     * written without the label is missed. Nothing distinguishes it from
+     * "Egekent 2 Mahallesi 14 ilan" on the page, and that shape is seventy-nine
+     * lines of the record against no address at all. The case that matters is
+     * still covered — an address the author claims as theirs needs no number
+     * and no label to be caught, which is what the rule below is for.
      */
     kind: 'address',
     pattern: new RegExp(`${NEIGHBOURHOOD}${SEPARATOR}${LABEL}${DOOR_NUMBER}`, 'gi'),
@@ -258,7 +265,26 @@ const RULES: Rule[] = [
         // where you live. Someone typing a note about their own place writes
         // whichever comes to mind, and the list is worth nothing if it only
         // knows one of them.
-        String.raw`\b(?:otur\w*|yaşadığım|kaldığım|ikamet|adresim|evim|my address|my home|i live)`,
+        //
+        // Every form here is first person, and that is the load-bearing part.
+        // A bare stem — `otur`, `ikamet` — matches the third person too, and
+        // "Bu mahallede oturanların çoğu Gül Sokak civarında" is a report
+        // describing a district, which is the whole content of this repository.
+        // Widening the person is how this rule would reopen the false-positive
+        // problem the other two were just narrowed to close.
+        String.raw`\b(?:` +
+          [
+            String.raw`otur(?:duğum|uyorum|uyoruz|acağım)`,
+            'yaşadığım',
+            'kaldığım',
+            String.raw`ikamet(?:im|gâhım|\s+ettiğim)`,
+            'adresim',
+            'evim',
+            'my address',
+            'my home',
+            'i live',
+          ].join('|') +
+          ')',
         within(60),
         `(?:${STREET}|${NEIGHBOURHOOD})`,
       ].join(''),

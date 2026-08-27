@@ -355,3 +355,17 @@ describe('other ways of saying where you live', () => {
     },
   );
 });
+
+describe('someone else living somewhere is not the author', () => {
+  it.each([
+    'Bu sokakta oturan haneler artık daha az',
+    "Komşu Atatürk Mahallesi'nde oturuyor",
+    'Bu mahallede oturanların çoğu Gül Sokak civarında',
+    'ikametgâh adresi isteyen mahalle listesi',
+  ])('says nothing about %s', (text) => {
+    // The residence rule is about the author claiming a place. A verb in the
+    // third person, or the bare noun for residence, is a report describing a
+    // district — which is what this repository is for.
+    expect(kinds(text)).toEqual([]);
+  });
+});
