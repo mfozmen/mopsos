@@ -329,3 +329,29 @@ describe('an address the author claims as their own', () => {
     expect(kinds('Egekent 2 Mahallesi, 3+1 daire listesinin 18 ilanı')).toEqual([]);
   });
 });
+
+describe('a village address, which has no street', () => {
+  it.each(['Yeşilköy Mahallesi No: 14', 'Köyde kaldığımız ev, Yeşilköy Mahallesi No: 14'])(
+    'flags %s',
+    (text) => {
+      // Rural addressing in Turkey puts the number straight after the
+      // neighbourhood, because there is no street name to put in between. The
+      // explicit label is what separates it from "Mahallesi, 3+1 daire", which
+      // is market prose and never carries one.
+      expect(kinds(text)).toContain('address');
+    },
+  );
+
+  it('still says nothing about the same words without the label', () => {
+    expect(kinds('Egekent 2 Mahallesi, 3+1 daire listesinin 18 ilanı')).toEqual([]);
+  });
+});
+
+describe('other ways of saying where you live', () => {
+  it.each(['yaşadığım yer Gül Sokak', 'ikamet ettiğim Atatürk Caddesi', 'oturuyorum, Gül Sokak'])(
+    'flags %s',
+    (text) => {
+      expect(kinds(text)).toContain('address');
+    },
+  );
+});
