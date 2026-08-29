@@ -86,6 +86,19 @@ describe('the shapes a hand-pasted CSV arrives in', () => {
     expect(listingsToReport(trailing, WHERE).neighbourhoods[0]?.sale_per_m2).toBe(43_182);
   });
 
+  it('refuses a row whose last field is empty rather than reading it one short', () => {
+    // The regex this replaced dropped the empty field a trailing comma leaves,
+    // so a row missing its price looked like a row with two columns. It has
+    // three, and the third is empty, which is a refusal.
+    expect(() =>
+      listingsToReport(
+        `${CSV}Balatçık,90,
+`,
+        WHERE,
+      ),
+    ).toThrow(/fiyat/);
+  });
+
   it('does not hang on a line that never closes its quote', () => {
     // 20k characters of the worst case the pattern had: an opening quote with
     // no partner. A splitter that backtracks does not come back from this.

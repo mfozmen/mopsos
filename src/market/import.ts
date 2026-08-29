@@ -29,6 +29,11 @@ const THIN = 10;
  * was wrong about it, but proving that took ten lines of comment and a timing
  * run, and a CSV splitter nobody can read off the page is a poor place to be
  * subtle — this one reads in a glance and cannot backtrack at all.
+ *
+ * One deliberate difference from the pattern, which dropped the empty field a
+ * trailing comma leaves behind: this keeps it. A trailing comma means a field
+ * is there and empty, so `Egekent 2,110,` is a row missing its price and gets
+ * refused for that, rather than read as a row one column shorter.
  */
 function cells(line: string): string[] {
   const values: string[] = [];
