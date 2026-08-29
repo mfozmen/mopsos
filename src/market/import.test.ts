@@ -65,3 +65,45 @@ describe('listingsToReport', () => {
     expect(listingsToReport(turkish, WHERE).neighbourhoods[0]?.sale_per_m2).toBe(43_182);
   });
 });
+
+describe('the shapes a hand-pasted CSV arrives in', () => {
+  // Every one of these is what a person actually pastes, and each used to lean
+  // on a regex whose behaviour nobody could read off the page. Pinned here so
+  // the splitter underneath can be replaced without anyone having to trust it.
+  it('keeps a quoted comma inside its own field', () => {
+    const quoted = 'mahalle,m2,fiyat\n"Egekent 2, A blok",110,4750000\n'; // scan-ignore: example
+
+    expect(listingsToReport(quoted, WHERE).neighbourhoods[0]?.name).toBe('Egekent 2, A blok');
+  });
+
+  it('reports the row when a field is empty rather than shifting the ones after it', () => {
+    expect(() => listingsToReport(`${CSV}Balatçık,,3900000\n`, WHERE)).toThrow(/m²/);
+  });
+
+  it('reads a row that ends with a trailing comma', () => {
+    const trailing = 'mahalle,m2,fiyat\nEgekent 2,110,4750000,\nEgekent 2,110,4750000,\n';
+
+    expect(listingsToReport(trailing, WHERE).neighbourhoods[0]?.sale_per_m2).toBe(43_182);
+  });
+
+  it('refuses a row whose last field is empty rather than reading it one short', () => {
+    // The regex this replaced dropped the empty field a trailing comma leaves,
+    // so a row missing its price looked like a row with two columns. It has
+    // three, and the third is empty, which is a refusal.
+    expect(() =>
+      listingsToReport(
+        `${CSV}Balatçık,90,
+`,
+        WHERE,
+      ),
+    ).toThrow(/fiyat/);
+  });
+
+  it('does not hang on a line that never closes its quote', () => {
+    // 20k characters of the worst case the pattern had: an opening quote with
+    // no partner. A splitter that backtracks does not come back from this.
+    const unclosed = `mahalle,m2,fiyat\n"${'a,'.repeat(10_000)}\n`;
+
+    expect(() => listingsToReport(unclosed, WHERE)).toThrow(InvalidListingsError);
+  });
+});
