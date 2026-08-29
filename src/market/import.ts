@@ -25,18 +25,29 @@ const THIN = 10;
  * Turkish prices get pasted as `"4.750.000"`, where the quotes are what stop
  * the thousands separators from looking like fields.
  *
- * Sonar reads this pattern as super-linear and it is not. Both alternatives can
- * match the empty string, which is what the warning is about — and it is also
- * why the pattern can never fail: every position matches something, so the scan
- * moves forward and no start is ever retried. Measured over four shapes chosen
- * to be adversarial (an unclosed quote, nothing but commas, quoted fields) at
- * 10k to 80k characters, the time doubles with the length. The trailing empty
- * match this leaves at the end of the line is what `slice(0, -1)` drops.
+ * A loop rather than a pattern. The regex this replaces was correct and Sonar
+ * was wrong about it, but proving that took ten lines of comment and a timing
+ * run, and a CSV splitter nobody can read off the page is a poor place to be
+ * subtle — this one reads in a glance and cannot backtrack at all.
  */
 function cells(line: string): string[] {
-  return (line.match(/("[^"]*"|[^,]*)(,|$)/g) ?? [])
-    .map((cell) => cell.replace(/,$/, '').trim().replace(/^"|"$/g, ''))
-    .slice(0, -1);
+  const values: string[] = [];
+  let value = '';
+  let quoted = false;
+
+  for (const character of line) {
+    if (character === '"') {
+      quoted = !quoted;
+    } else if (character === ',' && !quoted) {
+      values.push(value.trim());
+      value = '';
+    } else {
+      value += character;
+    }
+  }
+  values.push(value.trim());
+
+  return values;
 }
 
 function median(values: number[]): number {

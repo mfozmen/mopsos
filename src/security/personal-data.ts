@@ -274,7 +274,7 @@ const RULES: Rule[] = [
         // problem the other two were just narrowed to close.
         String.raw`\b(?:` +
           [
-            String.raw`otur(?:duğum|uyorum|uyoruz|acağım)`,
+            'otur(?:duğum|uyorum|uyoruz|acağım)',
             'yaşadığım',
             'kaldığım',
             String.raw`ikamet(?:im|gâhım|\s+ettiğim)`,
