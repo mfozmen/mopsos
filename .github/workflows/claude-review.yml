@@ -59,7 +59,7 @@ jobs:
         if: env.HAS_CLAUDE_TOKEN == 'false'
         run: echo "::warning::Claude review skipped - CLAUDE_CODE_OAUTH_TOKEN is not set."
 
-      - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678 # v1
+      - uses: anthropics/claude-code-action@e8c2d7c16c018cf1e694711c1c07a5f5db2b5eb1 # v1
         if: env.HAS_CLAUDE_TOKEN == 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
