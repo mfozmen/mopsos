@@ -626,14 +626,20 @@ const ASK_MARKET = `
       </div>`;
 
 /**
- * The rates request, under the rates.
+ * The rates request, above the rates.
  *
- * It used to sit under the market heading, next to the district form, because
- * both were "send an agent". They are not the same job: one reads listings in a
+ * It began under the market heading, next to the district form, because both
+ * were "send an agent". They are not the same job: one reads listings in a
  * mahalle and one reads what banks charge, they are different agents, and this
- * button changes the table directly above it. A reader comparing neighbourhood
+ * button changes the table it sits with. A reader comparing neighbourhood
  * prices has no use for it there, and a reader looking at the bank table could
  * not find it at all.
+ *
+ * Above rather than below, because below meant seventeen hundred pixels below:
+ * refreshing the rates started with scrolling past the very data you wanted
+ * replaced. The savings box, the same shape, was worse — the section's only
+ * content was "henüz bakılmadı" and the button that could change that sat under
+ * the sentence.
  */
 const ASK_RATES = `
       <div class="dispatch">
@@ -664,30 +670,6 @@ const ASK_SAVINGS = `
         </div>
         <p class="note" id="ask-savings-status">${WHERE_IT_RUNS}</p>
       </div>`;
-
-/**
- * A request box, above the section it fills rather than below it.
- *
- * It used to sit underneath. With fifteen banks in the record that put the
- * control seventeen hundred pixels below the heading it belongs to — a reader
- * refreshing the rates had to scroll past the very data they wanted replaced to
- * find the thing that replaces it. The savings section was worse: its only
- * content was "henüz bakılmadı" and the one button that could change that sat
- * below the sentence.
- *
- * Folded once the section has readings, open while it has none. Empty means the
- * request is the only thing to do here, and a fold over an empty section hides
- * it; full means the reader came to read, and a maintenance action does not
- * need five lines above the data.
- */
-function dispatch(box: string, summary: string, folded: boolean): string {
-  if (!folded) return box;
-
-  return `
-      <details class="fold">
-        <summary>${summary}</summary>${box}
-      </details>`;
-}
 
 const RATES_EMPTY =
   'Henüz banka oranı yok. rate-scout agent’ını gönderip bankaları araştırdığında güncel konut kredisi oranları buraya gelir ve tıklayınca hesaba aktarılır.';
@@ -1250,13 +1232,13 @@ function panelBody(tab: Tab, data: PageData): string {
 
           <section class="banks">
             <h3 class="section">Banka oranları</h3>
-            ${dispatch(ASK_RATES, 'Oranları güncelle', data.rates.length > 0)}
+            ${ASK_RATES}
             ${ratesTable(data.rates)}
           </section>
 
           <section class="savings-finance">
             <h3 class="section">Tasarruf finansmanı</h3>
-            ${dispatch(ASK_SAVINGS, 'Tasarruf finansmanına bak', data.savings.length > 0)}
+            ${ASK_SAVINGS}
             ${savingsTable(data.savings)}
           </section>
 
@@ -1797,13 +1779,6 @@ const STYLE = `
   /* Top margin too: under a table it would otherwise start on the last line of
      the note above it. */
   .dispatch { margin: 1.5rem 0 2.5rem; }
-  /* Quiet, like the earlier-readings fold: a way back to an action, not a
-     second heading competing with the one above it. */
-  .fold { margin: .9rem 0 1.2rem; }
-  .fold > summary { font-size: .8rem; color: var(--muted); cursor: pointer; }
-  /* Open, the box below brings its own margin; closed, the summary is the only
-     thing between the heading and the table and has to hold them apart itself. */
-  .fold[open] { margin-bottom: 0; }
   .ask { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem; }
   /* The caption and its ? are one row, the field is the next. Without the span
      around them the grid gives the button a row of its own, and the label of a
