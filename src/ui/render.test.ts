@@ -281,6 +281,49 @@ describe('sending the agent from the page', () => {
     expect(housing).toContain('id="ask-market"');
   });
 
+  it('puts the rates request above the table it changes, not below it', () => {
+    // It used to sit under the table. With fifteen banks in the record that is
+    // seventeen hundred pixels below the heading it belongs to — far enough
+    // that a reader refreshing the rates has to go looking for the control that
+    // does it, past the very data they wanted to replace.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+
+    expect(housing.indexOf('id="ask-rates"')).toBeLessThan(housing.indexOf('<table class="rates"'));
+  });
+
+  it('puts the savings request above the sentence saying nobody has looked', () => {
+    // The worst version of the old order: a section whose only content is
+    // "henüz bakılmadı", with the one control that could change that underneath
+    // it. The remedy sat below the complaint.
+    const { finansman } = halves();
+
+    expect(finansman.indexOf('id="ask-savings"')).toBeLessThan(
+      finansman.indexOf('Tasarruf finansmanı') +
+        finansman.slice(finansman.indexOf('Tasarruf finansmanı')).indexOf('henüz'),
+    );
+  });
+
+  it('leaves the request open when there is nothing in the table yet', () => {
+    // Nothing to read means the request is the whole section, and a fold over
+    // an empty section hides the only thing there is to do.
+    const { finansman } = halves();
+
+    expect(finansman.slice(0, finansman.indexOf('id="ask-rates"'))).not.toContain(
+      '<details class="fold"',
+    );
+  });
+
+  it('folds the request away once the table has readings', () => {
+    // Then the reader came to read, not to dispatch. The control stays at the
+    // top where it belongs and takes one line instead of five.
+    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
+    const before = housing.slice(0, housing.indexOf('id="ask-rates"'));
+    const fold = before.lastIndexOf('<details');
+
+    expect(fold).toBeGreaterThan(before.lastIndexOf('</details>'));
+    expect(before.slice(fold)).not.toContain('open>');
+  });
+
   it('says the request goes to the open Claude session, not into the void', () => {
     // A button that appears to do nothing is worse than no button. The reader
     // has to know where the work happens and that it needs the session open.
