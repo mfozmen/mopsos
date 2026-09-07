@@ -1013,6 +1013,17 @@ describe('the housing layout', () => {
     expect(mapped()).toMatch(/<title>Karaburun[^<]*okunmadı<\/title>/);
   });
 
+  it('is one tab stop, not thirty', () => {
+    // A keyboard reader should not have to tab past every district in the
+    // province to reach the readings underneath.
+    const page = mapped();
+    const map = page.slice(page.indexOf('class="coverage"'), page.indexOf('</figure>'));
+    const stops = [...map.matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
+
+    expect(stops).toHaveLength(30);
+    expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
+  });
+
   it('leaves the list under the map rather than replacing it', () => {
     // The map is an index over the record, not the record. If it fails to draw
     // — a name that stops matching, a shape that goes missing — the readings

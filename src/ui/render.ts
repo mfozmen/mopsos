@@ -611,13 +611,17 @@ function earlierReadings(report: ShownMarketReport): string {
 function coverageMap(reports: ShownMarketReport[]): string {
   const counts = coverageByDistrict(reports);
 
-  const shapes = IZMIR_DISTRICTS.map((district) => {
+  const shapes = IZMIR_DISTRICTS.map((district, index) => {
     const count = counts.get(district.name);
     const read = count === undefined ? '' : ` data-count="${String(count)}"`;
 
+    // One tab stop for the whole map, arrow keys inside it. Thirty stops in a
+    // row would mean tabbing past every district in the province to reach the
+    // readings underneath, which is the standard reason this pattern exists.
     return `
           <path class="district${count === undefined ? '' : ' read'}" d="${district.d}"
-            data-district="${escape(district.name)}"${read} tabindex="0" role="button"
+            data-district="${escape(district.name)}"${read} role="button"
+            tabindex="${index === 0 ? '0' : '-1'}"
             ><title>${escape(district.name)}${count === undefined ? ' — okunmadı' : ` — ${String(count)} mahalle`}</title></path>`;
   }).join('');
 
@@ -1531,12 +1535,30 @@ const FINANCE_SCRIPT = `
       var shape = event.target.closest('[data-district]');
       if (shape) openDistrict(shape.getAttribute('data-district'));
     });
+    var STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+
     coverage.addEventListener('keydown', function (event) {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
       var shape = event.target.closest('[data-district]');
       if (!shape) return;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openDistrict(shape.getAttribute('data-district'));
+        return;
+      }
+
+      var step = STEP[event.key];
+      if (!step) return;
       event.preventDefault();
-      openDistrict(shape.getAttribute('data-district'));
+
+      // Wrapping, and in the order the shapes are written, which is
+      // alphabetical. Geographic neighbours would be the other reading of an
+      // arrow key on a map, and it is not one thirty polygons can answer
+      // without a neighbour table nobody has asked for.
+      var all = [].slice.call(coverage.querySelectorAll('[data-district]'));
+      var next = all[(all.indexOf(shape) + step + all.length) % all.length];
+      for (var other of all) other.setAttribute('tabindex', other === next ? '0' : '-1');
+      next.focus();
     });
   }
 
