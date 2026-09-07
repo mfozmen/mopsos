@@ -217,7 +217,6 @@ describe('the finance calculator', () => {
   });
 });
 
-/** The markup of one section of the finance panel, sliced off at the next one. */
 /**
  * The markup of one region of the finance panel.
  *
@@ -228,7 +227,14 @@ describe('the finance calculator', () => {
 const REGIONS = ['who', 'banks', 'savings-finance', 'need', 'result'];
 
 const region = (page: string, name: string): string => {
-  const rest = page.slice(page.indexOf(`<section class="${name}"`) + 1);
+  const opens = page.indexOf(`<section class="${name}"`);
+
+  // Throwing rather than returning the whole page. A typo would otherwise make
+  // every `toContain` in every test using this pass, and a helper that quietly
+  // accepts everything looks exactly like one that works.
+  if (opens === -1) throw new Error(`No <section class="${name}"> in the page`);
+
+  const rest = page.slice(opens + 1);
   const next = REGIONS.map((other) => rest.indexOf(`<section class="${other}"`)).filter(
     (at) => at !== -1,
   );
@@ -933,6 +939,12 @@ describe('the housing layout', () => {
     expect(region(page, 'need')).not.toContain('id="breakdown"');
     expect(region(page, 'result')).toContain('id="maxPrice"');
     expect(region(page, 'result')).toContain('id="breakdown"');
+  });
+
+  it('refuses a region name that is not on the page', () => {
+    // The guard above, exercised. Without it a renamed section would turn every
+    // containment assertion in this file into a pass.
+    expect(() => region(housing(), 'evidence')).toThrow(/evidence/);
   });
 
   it('gives each financing instrument its own section', () => {
