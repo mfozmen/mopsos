@@ -1609,7 +1609,7 @@ const FINANCE_SCRIPT = `
     };
 
     var showProvince = function (name) {
-      var group = districtLayer.querySelector('[data-province="' + name + '"]');
+      var group = districtLayer.querySelector('[data-province="' + CSS.escape(name) + '"]');
       if (!group) return false;
 
       openProvince = name;
@@ -1671,7 +1671,9 @@ const FINANCE_SCRIPT = `
     // which is a property of the names rather than a rule.
     var openDistrict = function (name) {
       var wanted = document.querySelector(
-        '#panel-pazar details.report[data-place="' + openProvince + ' / ' + name + '"]',
+        '#panel-pazar details.report[data-place="' +
+          CSS.escape(openProvince + ' / ' + name) +
+          '"]',
       );
       if (!wanted) return putInRequest('district', name);
       wanted.open = true;
@@ -1680,8 +1682,14 @@ const FINANCE_SCRIPT = `
 
     var choose = function (level, name) {
       if (level !== 'province') return openDistrict(name);
-      fillRequest('province', name);
-      showProvince(name);
+      // Opened: the form is filled quietly, because focus belongs on the
+      // districts that just appeared. Not opened — which a test says cannot
+      // happen today, and which a regenerated dataset or a rename in one file
+      // and not the other would make happen — the form is where the click
+      // goes, and it takes focus. Never nothing: a click that does nothing
+      // teaches the reader the map is decoration.
+      if (showProvince(name)) return fillRequest('province', name);
+      putInRequest('province', name);
     };
 
     var STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
