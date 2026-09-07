@@ -1879,8 +1879,16 @@ const STYLE = `
   /* Read districts carry the page's measured colour, unread ones stay the
      background they were. The contrast IS the information. */
   .place.read { fill: var(--measured); fill-opacity: .28; }
-  .place:hover, .place:focus-visible { fill: var(--measured); fill-opacity: .5;
-    outline: none; }
+  .place:hover, .place:focus-visible { fill: var(--measured); fill-opacity: .5; }
+  /* The browser draws its focus ring on a path as a rectangle around the path's
+     bounding box, not along the path. On a map that is a stray square sitting
+     across the neighbouring districts — and it appeared without anyone asking,
+     because zooming in moves focus to the first shape in the layer. Ours
+     follows the shape's own edge instead.
+     Cancelled on :focus rather than :focus-visible: a click moves focus too,
+     and it is only the keyboard that needs to be shown where it landed. */
+  .place:focus { outline: none; }
+  .place:focus-visible { stroke: var(--ink); stroke-width: 2; }
   /* Sized in the layer's own units. Both layers are drawn at the same width on
      screen but their viewBoxes are not the same size, so one font-size would
      come out smaller on the country than on the province. */
