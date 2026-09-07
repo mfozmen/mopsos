@@ -1039,24 +1039,66 @@ describe('the housing layout', () => {
     expect(mapped()).toContain('id="zoom-out"');
   });
 
-  it('is one tab stop, not thirty', () => {
-    // A keyboard reader should not have to tab past every district in the
-    // province to reach the readings underneath.
+  it('is one tab stop, not eighty-one', () => {
+    // A keyboard reader should not have to tab past every province in the
+    // country to reach the readings underneath.
     const page = mapped();
-    const layer = (level: string) => {
-      const from = page.indexOf(`data-level="${level}"`);
-      return page.slice(from, page.indexOf('</svg>', from));
-    };
+    const from = page.indexOf('data-level="province"');
+    const country = page.slice(from, page.indexOf('</svg>', from));
+    const stops = [...country.matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
 
-    for (const [level, shapes] of [
-      ['province', 81],
-      ['district', 30],
-    ] as const) {
-      const stops = [...layer(level).matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
+    expect(stops).toHaveLength(81);
+    expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
+  });
 
-      expect(stops).toHaveLength(shapes);
-      expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
-    }
+  it('makes no district tabbable until a province is opened', () => {
+    // All eighty-one groups ship in the page and eighty are hidden. A tab stop
+    // inside a hidden group is a stop into nothing.
+    const page = mapped();
+    const from = page.indexOf('data-level="district"');
+    const districts = page.slice(from, page.indexOf('</svg>', from));
+
+    expect(districts).not.toContain('tabindex="0"');
+  });
+
+  it('says so when a reading matches no shape on the map', () => {
+    // The one failure this map can hide. A district whose name stops matching
+    // counts nothing and draws blank — identical to a district nobody has
+    // researched — so it has to be said out loud rather than left to be
+    // noticed. Which means the saying of it needs a test: without one, a
+    // refactor could drop this block and the map would quietly go back to
+    // hiding exactly what it was added to surface.
+    const page = panel(
+      renderPage({
+        ...EMPTY,
+        research: [
+          {
+            ...RECORDED,
+            place: 'İzmir / Cigli',
+            dated: '2026-07-29',
+            neighbourhoods: [
+              {
+                ...MEASURED,
+                name: 'Bir Mahalle',
+                sale_per_m2: 42_590,
+                listing_count: 12,
+                source: 'test',
+              },
+            ],
+          },
+        ],
+      }),
+      'housing',
+    );
+
+    expect(page).toContain('İzmir / Cigli');
+    expect(page).toMatch(/Haritada yeri bulunamayan/);
+  });
+
+  it('says nothing about unmatched readings when every one was placed', () => {
+    // The other half: a caution that is always on screen is furniture, and
+    // furniture is not read.
+    expect(mapped()).not.toMatch(/Haritada yeri bulunamayan/);
   });
 
   it('leaves the list under the map rather than replacing it', () => {

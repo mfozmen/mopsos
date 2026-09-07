@@ -15,10 +15,12 @@
  * would not survive the scale anyway. 84 KB at 1 per cent, 54 KB here, and at
  * this size the two are indistinguishable on screen.
  *
- * The names are written out for the reason given in `izmir.ts`: the source's
- * Turkish field is mangled the same way at this level — "İzmi̇r" with a
- * combining dot, "Şanliurfa" for Şanlıurfa, "Aydin" for Aydın, "Ağri" for Ağrı.
- * The dotless ı is not in the file and cannot be derived from it.
+ * The names come from the same repair as the districts, and the same correction
+ * table: see the header of `districts.ts` for why a bare i is a dotless ı and
+ * what the rule cannot fix. Derived rather than typed on purpose — the two
+ * layers join on the province name, and two hand-written lists disagreed on
+ * "Hakkari" against "Hakkâri" the first time, which is a province that cannot
+ * be zoomed into and nothing on the page to say why.
  */
 import type { PlaceShape } from './shape.js';
 
@@ -252,7 +254,7 @@ export const TURKEY_PROVINCES: PlaceShape[] = [
   },
   {
     pcode: 'TUR030',
-    name: 'Hakkâri',
+    name: 'Hakkari',
     cx: 865.2,
     cy: 273.0,
     d: 'M 878.23 252.25 882.15 251.14 885.09 252.08 887.33 255.34 884.98 257.93 887.27 261.48 886.77 269.31 890.64 274.22 899 279.52 896.49 283.08 897.47 286.81 888.24 287.88 887.05 290.57 878.92 297.01 876.84 299.78 873.65 299.3 869.82 293.3 871.47 289.83 873.99 289.07 873.02 284.58 870.86 282.49 865.37 280.72 860.47 281.14 856.39 287.53 845.41 287.88 842.25 289.03 837.01 288.31 828.28 283.95 826.02 276.32 825.68 271.06 831.65 266.46 833.64 262.7 833.31 258.66 836.12 258.67 839.61 255.95 844.38 256.34 852.3 254.99 858.43 252.12 864.53 255.89 867.31 255.7 871.66 252.42 878.23 252.25 Z',

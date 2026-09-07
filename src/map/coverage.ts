@@ -1,32 +1,39 @@
 import type { ShownMarketReport } from '../market/load.js';
 
-import { IZMIR_DISTRICTS } from './izmir.js';
+import { DISTRICTS_BY_PROVINCE } from './districts.js';
 import { TURKEY_PROVINCES } from './turkey.js';
 
-/** The province this map draws. Only its districts are counted. */
-const PROVINCE = 'İzmir';
-
-const KNOWN_DISTRICTS = new Set(IZMIR_DISTRICTS.map((district) => district.name));
 const KNOWN_PROVINCES = new Set(TURKEY_PROVINCES.map((province) => province.name));
 
+const KNOWN_PLACES = new Set(
+  DISTRICTS_BY_PROVINCE.flatMap((entry) =>
+    entry.districts.map((district) => `${entry.province} / ${district.name}`),
+  ),
+);
+
 /**
- * The two halves of a place string, or nothing if it is not one.
+ * The province and district of a reading worth counting, or nothing.
  *
  * A reading with no mahalle in it is nothing to either map. The schema allows
  * the array to be empty, so without this a run that came back with nothing
  * would set a count of zero — and a zero on the map reads as "looked and found
  * nothing", which is the one answer this record cannot make.
  */
-function readingAt(report: ShownMarketReport): { province: string; district: string } | undefined {
+function readingAt(report: ShownMarketReport): { province: string; place: string } | undefined {
   const [province, district] = report.place.split(' / ');
   if (province === undefined || district === undefined) return undefined;
   if (report.neighbourhoods.length === 0) return undefined;
 
-  return { province, district };
+  return { province, place: report.place };
 }
 
 /**
  * How much of each district has been read, as a count of mahalle.
+ *
+ * Keyed by the whole place — "İzmir / Menemen" — because district names are not
+ * unique across the country: Merkez appears in dozens of provinces, and so do
+ * Çay, Kale and Şehitkamil-shaped repeats. Keyed by district alone the counts
+ * would leak between provinces.
  *
  * Mahalle rather than reports, because a count of reports says the same thing
  * at every zoom level and means less at each: a 28-mahalle reading of Çiğli and
@@ -41,36 +48,22 @@ function readingAt(report: ShownMarketReport): { province: string; district: str
  * more often it was re-read, and this is the one repository where coverage must
  * not be something you can manufacture by looking twice.
  *
- * A district with no reading is absent from the map rather than present with a
- * zero. "Nobody has looked" and "looked and found nothing" are different
- * answers, and the second is not one this record can currently produce.
- *
- * A reading with no mahalle in it is skipped for the same reason. The schema
- * allows the array to be empty, so without this a run that came back with
- * nothing would set the count to zero — and a zero on the map is the second
- * answer, printed where the record only supports the first.
+ * A district with no reading is absent rather than present with a zero.
  */
 export function coverageByDistrict(reports: ShownMarketReport[]): Map<string, number> {
   const counts = new Map<string, number>();
 
   for (const report of reports) {
     const at = readingAt(report);
-    if (at === undefined || at.province !== PROVINCE || !KNOWN_DISTRICTS.has(at.district)) continue;
+    if (at === undefined || !KNOWN_PLACES.has(at.place)) continue;
 
-    counts.set(at.district, (counts.get(at.district) ?? 0) + report.neighbourhoods.length);
+    counts.set(at.place, (counts.get(at.place) ?? 0) + report.neighbourhoods.length);
   }
 
   return counts;
 }
 
-/**
- * The same count one level up: mahalle per province, from every reading.
- *
- * Not restricted to the province the district layer draws. The country map has
- * eighty-one shapes and the record may hold a reading in any of them; dropping
- * a Manisa reading because no Manisa district shapes exist would make the
- * record look smaller than it is on the one view meant to show its extent.
- */
+/** The same count one level up: mahalle per province, from every reading. */
 export function coverageByProvince(reports: ShownMarketReport[]): Map<string, number> {
   const counts = new Map<string, number>();
 
@@ -82,4 +75,27 @@ export function coverageByProvince(reports: ShownMarketReport[]): Map<string, nu
   }
 
   return counts;
+}
+
+/**
+ * Readings the map cannot place, so the page can say so.
+ *
+ * The district names are derived from a source that has at least one typo in
+ * it, and the record's names are written by whoever wrote the reading. When the
+ * two disagree the district counts nothing and draws blank — which is exactly
+ * what a district nobody has researched looks like. That is the one failure a
+ * coverage map can hide, and hiding it would make the map worse than the list
+ * it sits above.
+ *
+ * Named rather than corrected: guessing which shape was meant is how "Çiğli"
+ * and "Cigli" become one place, and `places/level.ts` refuses that for the same
+ * reason the record refuses to drop a row it cannot read.
+ */
+export function unmatchedPlaces(reports: ShownMarketReport[]): string[] {
+  return reports
+    .filter((report) => {
+      const at = readingAt(report);
+      return at !== undefined && !KNOWN_PLACES.has(at.place);
+    })
+    .map((report) => report.place);
 }

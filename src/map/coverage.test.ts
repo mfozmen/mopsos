@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { coverageByDistrict, coverageByProvince } from './coverage.js';
-import { IZMIR_DISTRICTS } from './izmir.js';
+import { coverageByDistrict, coverageByProvince, unmatchedPlaces } from './coverage.js';
+import { DISTRICTS_BY_PROVINCE } from './districts.js';
 import { TURKEY_PROVINCES } from './turkey.js';
 
 const reading = (place: string, mahalle: number) => ({
@@ -21,71 +21,37 @@ const reading = (place: string, mahalle: number) => ({
 
 describe('what the map counts', () => {
   it('counts the mahalle in a district’s current reading', () => {
-    const counts = coverageByDistrict([reading('İzmir / Çiğli', 28)]);
+    expect(coverageByDistrict([reading('İzmir / Çiğli', 28)]).get('İzmir / Çiğli')).toBe(28);
+  });
 
-    expect(counts.get('Çiğli')).toBe(28);
+  it('counts a district in a province the record has never touched before', () => {
+    // Every province has a district layer now, so the counting cannot be
+    // written around the one province that happened to have readings first.
+    expect(coverageByDistrict([reading('Manisa / Turgutlu', 9)]).get('Manisa / Turgutlu')).toBe(9);
   });
 
   it('leaves a district nobody has read out of the counts entirely', () => {
     // Absent, not zero. A district with no reading and a district read and
     // found empty are different answers, and the map must not print the second
     // when it means the first.
-    const counts = coverageByDistrict([reading('İzmir / Çiğli', 28)]);
-
-    expect(counts.has('Menemen')).toBe(false);
+    expect(coverageByDistrict([reading('İzmir / Çiğli', 28)]).has('İzmir / Menemen')).toBe(false);
   });
 
   it('ignores a reading that was superseded', () => {
-    // This is the whole point of counting current readings. Counted, a
-    // correction would make a district look better covered the more often it
-    // was re-read — a correction reading as coverage.
+    // Counted, a correction would make a district look better covered the more
+    // often it was re-read.
     const live = reading('İzmir / Menemen', 21);
     const counts = coverageByDistrict([
       { ...live, earlier: [{ ...reading('İzmir / Menemen', 21), corrected: true }] },
     ]);
 
-    expect(counts.get('Menemen')).toBe(21);
-  });
-
-  it('adds up two readings of different districts under one province', () => {
-    const counts = coverageByDistrict([
-      reading('İzmir / Çiğli', 28),
-      reading('İzmir / Menemen', 21),
-    ]);
-
-    expect([...counts.values()].reduce((sum, n) => sum + n, 0)).toBe(49);
+    expect(counts.get('İzmir / Menemen')).toBe(21);
   });
 
   it('leaves out a reading that found no mahalle at all', () => {
-    // The schema allows an empty array. Counted, it would put a nought on the
-    // map — "looked and found nothing" — which is not what an empty run means
-    // and not an answer this record can make.
-    expect(coverageByDistrict([reading('İzmir / Çiğli', 0)]).has('Çiğli')).toBe(false);
+    expect(coverageByDistrict([reading('İzmir / Çiğli', 0)]).size).toBe(0);
   });
 
-  it('ignores a place outside the province the map draws', () => {
-    // The map is İzmir. A Manisa reading is real data and must not be silently
-    // attached to a district it has nothing to do with.
-    const counts = coverageByDistrict([reading('Manisa / Turgutlu', 9)]);
-
-    expect(counts.size).toBe(0);
-  });
-
-  it('knows every district by the name the record writes', () => {
-    // The join is on the Turkish spelling. A transliterated or mangled name in
-    // the shapes would silently count nothing, and an empty map looks exactly
-    // like a province nobody has researched.
-    const names = IZMIR_DISTRICTS.map((district) => district.name);
-
-    expect(names).toHaveLength(30);
-    expect(names).toContain('Çiğli');
-    expect(names).toContain('Menemen');
-    expect(names).toContain('Karşıyaka');
-    expect(names).toContain('Bayındır');
-  });
-});
-
-describe('what the country map counts', () => {
   it('rolls a province up from the districts inside it', () => {
     const counts = coverageByProvince([
       reading('İzmir / Çiğli', 28),
@@ -94,44 +60,68 @@ describe('what the country map counts', () => {
 
     expect(counts.get('İzmir')).toBe(49);
   });
+});
 
-  it('counts a province the district layer knows nothing about', () => {
-    // The district map is İzmir only. The country map is not, and a reading in
-    // Manisa is real — dropping it because no district shapes exist for that
-    // province would make the record look smaller than it is.
-    expect(coverageByProvince([reading('Manisa / Turgutlu', 9)]).get('Manisa')).toBe(9);
+describe('a reading whose place matches no shape', () => {
+  it('is named rather than silently dropped', () => {
+    // The district names are derived from a source with known typos in it. A
+    // name that stops matching counts nothing and looks exactly like a district
+    // nobody has researched — the one failure this map could hide.
+    expect(unmatchedPlaces([reading('İzmir / Cigli', 12)])).toEqual(['İzmir / Cigli']);
   });
 
-  it('leaves a province nobody has read out of the counts', () => {
-    expect(coverageByProvince([reading('İzmir / Çiğli', 28)]).has('Ankara')).toBe(false);
+  it('says nothing when every reading found its shape', () => {
+    expect(unmatchedPlaces([reading('İzmir / Çiğli', 28)])).toEqual([]);
   });
 
-  it('leaves out a reading that found no mahalle', () => {
-    expect(coverageByProvince([reading('İzmir / Çiğli', 0)]).size).toBe(0);
+  it('catches a province that matches nothing either', () => {
+    expect(unmatchedPlaces([reading('Izmir / Çiğli', 28)])).toEqual(['Izmir / Çiğli']);
+  });
+});
+
+describe('the shapes themselves', () => {
+  it('covers every province with a district layer', () => {
+    expect(DISTRICTS_BY_PROVINCE).toHaveLength(81);
+    expect(DISTRICTS_BY_PROVINCE.flatMap((entry) => entry.districts)).toHaveLength(973);
   });
 
-  it('knows all eighty-one provinces by the name the record writes', () => {
-    // Written out by hand for the same reason as the districts: the source's
-    // Turkish field has lost the dotless ı, so "Aydın" arrives as "Aydin" and
-    // "Şanlıurfa" as "Şanliurfa". A mangled name here would silently count
-    // nothing, and an uncounted province looks exactly like an unresearched one.
-    const names = TURKEY_PROVINCES.map((province) => province.name);
+  it('names the provinces the same way in both layers', () => {
+    // Two files, one join, and the join is the Turkish spelling. A disagreement
+    // would leave a province that cannot be zoomed into and nothing to say why.
+    const country = new Set(TURKEY_PROVINCES.map((province) => province.name));
 
-    expect(names).toHaveLength(81);
-    expect(names).toContain('İzmir');
-    expect(names).toContain('Aydın');
-    expect(names).toContain('Şanlıurfa');
-    expect(names).toContain('Ağrı');
-    expect(names).toContain('Kırıkkale');
+    for (const entry of DISTRICTS_BY_PROVINCE) expect(country.has(entry.province)).toBe(true);
   });
 
-  it('draws every district of İzmir inside the İzmir province shape', () => {
-    // Both layers come from the same release of the same dataset, so the
-    // district p-codes carry the province p-code as their prefix. If a future
-    // regeneration mixed releases this is what would notice.
-    const izmir = TURKEY_PROVINCES.find((province) => province.name === 'İzmir');
+  it('spells the districts the way the record does', () => {
+    // Spread across the country on purpose: the names are derived by a rule,
+    // and these are the shapes that rule has to get right — dotless ı in both
+    // positions, İ at the start, and the ones the record already holds.
+    const all = new Set(DISTRICTS_BY_PROVINCE.flatMap((e) => e.districts.map((d) => d.name)));
 
-    expect(izmir?.pcode).toBe('TUR035');
-    expect(IZMIR_DISTRICTS.every((district) => district.pcode.startsWith('TUR035'))).toBe(true);
+    for (const name of [
+      'Çiğli',
+      'Menemen',
+      'Karşıyaka',
+      'Bayındır',
+      'Kadıköy',
+      'Beşiktaş',
+      'Çankaya',
+      'Seyhan',
+      'Nilüfer',
+      'Melikgazi',
+      'Şahinbey',
+      'İskenderun',
+      'Kızıltepe',
+      'Sarıyer',
+    ]) {
+      expect(all).toContain(name);
+    }
+  });
+
+  it('gives every province a viewBox of its own, which is how zoom works', () => {
+    for (const entry of DISTRICTS_BY_PROVINCE) {
+      expect(entry.viewBox).toMatch(/^-?[\d.]+ -?[\d.]+ [\d.]+ [\d.]+$/);
+    }
   });
 });
