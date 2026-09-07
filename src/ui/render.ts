@@ -1640,9 +1640,9 @@ const FINANCE_SCRIPT = `
       if (back) back.focus();
     });
 
-    var putInRequest = function (field, name) {
+    var fillRequest = function (field, name) {
       var input = document.getElementById(field);
-      if (!input) return;
+      if (!input) return null;
       input.value = name;
       // Cleared rather than left standing: a district from the province you
       // just left would ask a scout for a place that does not exist.
@@ -1650,6 +1650,17 @@ const FINANCE_SCRIPT = `
         var district = document.getElementById('district');
         if (district) district.value = '';
       }
+      return input;
+    };
+
+    // Filling and going there are separate, because opening a province does the
+    // first without the second: it fills the form and then puts focus on the
+    // districts it just drew, which is where the reader is looking. Focusing
+    // the field there too would scroll away from the map and be overridden a
+    // line later anyway.
+    var putInRequest = function (field, name) {
+      var input = fillRequest(field, name);
+      if (!input) return;
       input.focus();
       input.select();
       input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1669,7 +1680,7 @@ const FINANCE_SCRIPT = `
 
     var choose = function (level, name) {
       if (level !== 'province') return openDistrict(name);
-      putInRequest('province', name);
+      fillRequest('province', name);
       showProvince(name);
     };
 
