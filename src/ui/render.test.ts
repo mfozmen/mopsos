@@ -217,6 +217,31 @@ describe('the finance calculator', () => {
   });
 });
 
+/**
+ * The markup of one region of the finance panel.
+ *
+ * Cut at the next region rather than at the next `<section>`: the answers block
+ * has `<section class="answer">` inside it, and slicing on that would stop
+ * short of the very figures these tests are about.
+ */
+const REGIONS = ['who', 'banks', 'savings-finance', 'need', 'result'];
+
+const region = (page: string, name: string): string => {
+  const opens = page.indexOf(`<section class="${name}"`);
+
+  // Throwing rather than returning the whole page. A typo would otherwise make
+  // every `toContain` in every test using this pass, and a helper that quietly
+  // accepts everything looks exactly like one that works.
+  if (opens === -1) throw new Error(`No <section class="${name}"> in the page`);
+
+  const rest = page.slice(opens + 1);
+  const next = REGIONS.map((other) => rest.indexOf(`<section class="${other}"`)).filter(
+    (at) => at !== -1,
+  );
+
+  return next.length === 0 ? rest : rest.slice(0, Math.min(...next));
+};
+
 describe('sending the agent from the page', () => {
   const halves = (): { pazar: string; finansman: string } => {
     const page = panel(renderPage(EMPTY), 'housing');
@@ -893,13 +918,53 @@ describe('the housing layout', () => {
     expect(at('class="rates"')).toBeLessThan(at('id="finance"'));
   });
 
-  it('puts the calculator beside the banks on a wide screen', () => {
-    // Reading a rate used to mean scrolling past fifteen banks to use it.
-    // Placement is by grid coordinates, so the DOM order above stays intact.
+  it('rearranges only above a breakpoint, leaving the narrow order alone', () => {
+    // Every coordinate lives inside the media query. Below it there is no grid
+    // and the sections fall in DOM order, which the test above pins.
     const page = renderPage(EMPTY);
+    const wide = page.slice(page.indexOf('@media (min-width:'));
 
     expect(page).toMatch(/@media \(min-width:[^)]*\)/);
-    expect(page).toMatch(/\.evidence\s*\{[^}]*grid-(row|area)/);
+    expect(page.slice(0, page.indexOf('@media (min-width:'))).not.toMatch(/grid-column:/);
+    expect(wide).toMatch(/\.result\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+  });
+
+  it('separates the figures you enter from the answer they produce', () => {
+    // Two sections, not one, so the answer can be placed under both input
+    // panels on a wide screen while the fields stay where the reader put them.
+    // The script binds by id, so nothing here depends on them sharing a parent.
+    const page = housing();
+
+    expect(region(page, 'need')).toContain('id="finance"');
+    expect(region(page, 'need')).not.toContain('id="breakdown"');
+    expect(region(page, 'result')).toContain('id="maxPrice"');
+    expect(region(page, 'result')).toContain('id="breakdown"');
+  });
+
+  it('refuses a region name that is not on the page', () => {
+    // The guard above, exercised. Without it a renamed section would turn every
+    // containment assertion in this file into a pass.
+    expect(() => region(housing(), 'evidence')).toThrow(/evidence/);
+  });
+
+  it('gives each financing instrument its own section', () => {
+    // A bank loan and a savings finance plan are different instruments, and
+    // they go side by side rather than one under the other in a single column.
+    const page = housing();
+
+    expect(region(page, 'banks')).toContain('class="rates"');
+    expect(region(page, 'banks')).not.toContain('id="ask-savings"');
+    expect(region(page, 'savings-finance')).toContain('id="ask-savings"');
+  });
+
+  it('places all four regions by coordinate, so the DOM order is free', () => {
+    // The narrow order above is the phone's order and must survive the wide
+    // rearrangement. Coordinates are what let the two disagree.
+    const page = renderPage(EMPTY);
+
+    for (const area of ['who', 'need', 'result', 'banks', 'savings-finance']) {
+      expect(page).toMatch(new RegExp(String.raw`\.${area}\s*\{[^}]*grid-column`));
+    }
   });
 
   it('lets a wide table scroll inside itself rather than the page sideways', () => {

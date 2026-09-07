@@ -1082,8 +1082,9 @@ const FINANCE_FORM = `
             <option value="OTHER" selected>D ve altı / bilinmiyor</option>
           </select></label>
         </div>
-      </form>
+      </form>`;
 
+const FINANCE_RESULT = `
       <div class="answers">
         <section class="answer">
           <h4>Bu bütçeyle en fazla</h4>
@@ -1247,18 +1248,26 @@ function panelBody(tab: Tab, data: PageData): string {
             ${HOUSEHOLD}
           </section>
 
-          <section class="evidence">
+          <section class="banks">
             <h3 class="section">Banka oranları</h3>
             ${dispatch(ASK_RATES, 'Oranları güncelle', data.rates.length > 0)}
             ${ratesTable(data.rates)}
+          </section>
+
+          <section class="savings-finance">
             <h3 class="section">Tasarruf finansmanı</h3>
             ${dispatch(ASK_SAVINGS, 'Tasarruf finansmanına bak', data.savings.length > 0)}
             ${savingsTable(data.savings)}
           </section>
 
-          <section class="money">
-            <h3 class="section">Finansman</h3>
+          <section class="need">
+            <h3 class="section">Finansman ihtiyacın</h3>
             ${FINANCE_FORM}
+          </section>
+
+          <section class="result">
+            <h3 class="section">Sonuç</h3>
+            ${FINANCE_RESULT}
           </section>
         </div>
       </section>`;
@@ -1606,16 +1615,41 @@ const STYLE = `
        which stretched row 1 to 755px for a 477px panel and left 279px of dead
        space above the calculator. The third row has nothing in it and takes the
        slack, so rows 1 and 2 size to what is actually in them. */
-    .split { display: grid; grid-template-columns: minmax(22rem, 27rem) 1fr; gap: 0 3rem;
-      grid-template-rows: min-content min-content 1fr; align-items: start; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3rem;
+      align-items: start; }
     /* Placed by coordinate, so the source order — and therefore the phone's
-       order — is untouched by this rearrangement. */
+       order — is untouched by this rearrangement. The phone still meets the
+       bank rates before the calculator, which is deliberate: a rate is a
+       button, and a reader who meets the calculator first fills in the default
+       and never finds out.
+       What you have and what you need go side by side; the answer they produce
+       spans both, above the evidence, because the answer is what the tab is
+       for. Nothing spans more than one row, so no row inherits a taller
+       neighbour's height — which is what used to leave 279px of dead space. */
     .who { grid-column: 1; grid-row: 1; }
-    .money { grid-column: 1; grid-row: 2; }
-    .evidence { grid-column: 2; grid-row: 1 / span 3; }
-    .money .fields { grid-template-columns: 1fr 1fr; }
-    .who .household { grid-template-columns: 1fr; }
-    .evidence .rates td.terms { max-width: 26rem; }
+    .need { grid-column: 2; grid-row: 1; }
+    .result { grid-column: 1 / -1; grid-row: 2; }
+    .banks { grid-column: 1; grid-row: 3; }
+    .savings-finance { grid-column: 2; grid-row: 3; }
+    /* Both input panels start a row, so neither carries the 3.5rem that
+       separates a heading from whatever came before it. */
+    .need > h3.section:first-child { margin-top: 0; }
+    /* The result spans both columns, but nothing inside it wants to be 1168px
+       wide: a definition list that wide puts the label and its figure at
+       opposite ends of the screen, and a paragraph that wide is unreadable.
+       The two answers sit side by side and the detail keeps a column's measure
+       underneath them. */
+    .result .answers { grid-template-columns: repeat(2, minmax(15rem, 20rem)); }
+    .result .breakdown { max-width: 34rem; }
+    .result .caveat { max-width: 52rem; }
+    .banks .rates td.terms { max-width: 26rem; }
+    /* The two overrides that used to live here are gone on purpose, not by
+       accident. ".money .fields" forced two columns and ".who .household"
+       forced one, both because the left column was a fixed 22–27rem. Now every
+       panel is half of the page — 560px — and the base auto-fit rules land on
+       two columns each on their own (measured: 268px + 268px for the fields,
+       241px + 241px for the household). Forcing a count here would only start
+       disagreeing with the widths the rest of the sheet is built from. */
   }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
@@ -1718,6 +1752,11 @@ const STYLE = `
      what holds a panel's *content* off the tabs above it, and a strip needs a
      margin wherever it follows something. They were never meant to meet. */
   [role="tabpanel"] > [role="tablist"]:first-child { margin-top: 0; }
+  /* Same idea one level in: the first section of a two-column panel opens the
+     panel, and a heading that opens something needs no gap above it. Without
+     this the finance tab began with 96px of nothing — the panel's 2.5rem
+     padding plus the heading's own 3.5rem margin. */
+  .split > section:first-child > h3.section:first-child { margin-top: 0; }
   h3 { font-family: var(--serif); font-size: 1.35rem; font-weight: normal; margin: 0 0 1rem;
     display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
   h3 .dated { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
