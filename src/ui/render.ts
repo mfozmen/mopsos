@@ -2,6 +2,8 @@ import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
 import { type ShownMarketReport, type ShownNeighbourhood } from '../market/load.js';
+import { coverageByDistrict } from '../map/coverage.js';
+import { IZMIR_DISTRICTS, IZMIR_VIEWBOX } from '../map/izmir.js';
 import { movedIn } from '../market/movement.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
@@ -453,7 +455,7 @@ function reportSection(report: ShownMarketReport, cost?: Affordability, open = f
   const count = report.neighbourhoods.length;
 
   return `
-      <details class="report"${open ? ' open' : ''}>
+      <details class="report" data-place="${escape(report.place)}"${open ? ' open' : ''}>
       <summary><strong>${escape(report.place)}</strong><span class="dated">${turkishDate(
         report.dated,
       )}${clockTime(report.at)}</span>${
@@ -590,6 +592,58 @@ function earlierReadings(report: ShownMarketReport): string {
  * visible. The copy says so, because a button that appears to do nothing is
  * worse than no button.
  */
+/**
+ * Where the record has been, and where it has not.
+ *
+ * A list says what you have. This says what you are missing — twenty-seven
+ * districts of İzmir with nothing on them is the answer to "where does the next
+ * scout go", and no list of three readings can show it at any length.
+ *
+ * A district with no reading carries no number rather than a nought. "Nobody
+ * looked" and "looked and found nothing" are different answers and the record
+ * can only make the first, so printing a zero would be inventing the second.
+ *
+ * The shapes are inline and pre-projected: no tile server, no map library, no
+ * request off this machine. A tile server would also learn which districts get
+ * looked at, which for a record of one person's house hunt is exactly the thing
+ * kept out of everything else here.
+ */
+function coverageMap(reports: ShownMarketReport[]): string {
+  const counts = coverageByDistrict(reports);
+
+  const shapes = IZMIR_DISTRICTS.map((district, index) => {
+    const count = counts.get(district.name);
+    const read = count === undefined ? '' : ` data-count="${String(count)}"`;
+
+    // One tab stop for the whole map, arrow keys inside it. Thirty stops in a
+    // row would mean tabbing past every district in the province to reach the
+    // readings underneath, which is the standard reason this pattern exists.
+    return `
+          <path class="district${count === undefined ? '' : ' read'}" d="${district.d}"
+            data-district="${escape(district.name)}"${read} role="button"
+            tabindex="${index === 0 ? '0' : '-1'}"
+            ><title>${escape(district.name)}${count === undefined ? ' — okunmadı' : ` — ${String(count)} mahalle`}</title></path>`;
+  }).join('');
+
+  const labels = IZMIR_DISTRICTS.filter((district) => counts.has(district.name))
+    .map(
+      (district) => `
+          <text class="count" x="${String(district.cx)}" y="${String(district.cy)}"
+            >${String(counts.get(district.name) ?? 0)}</text>`,
+    )
+    .join('');
+
+  return `
+      <figure class="coverage">
+        <svg viewBox="${IZMIR_VIEWBOX}" role="group" aria-label="İzmir ilçeleri — okunan mahalle sayıları">${shapes}${labels}
+        </svg>
+        <figcaption>
+          İzmir’in 30 ilçesi. Rakam, o ilçede okunan mahalle sayısı — bir ilçeye
+          tıklayınca raporları aşağıda açılır. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
+        </figcaption>
+      </figure>`;
+}
+
 /**
  * Finding a reading you remember.
  *
@@ -1153,20 +1207,11 @@ function panelBody(tab: Tab, data: PageData): string {
     // is exactly why the brief tells a scout not to work it out.
     const cheapest = cheapestRealRate(data.rates);
 
-    // Which reading is the newest, rather than which sorts first. The loader
-    // orders by place name — every reading in the record shares a date today,
-    // so `index === 0` looked right and was the alphabetically first district.
-    // Ties keep the loader's order, so the list stays stable.
-    const newest = data.research.reduce(
-      (best, report, index) => (report.dated > (data.research[best]?.dated ?? '') ? index : best),
-      0,
-    );
-
     const research =
       data.research.length === 0
         ? empty
         : data.research
-            .map((report, index) => {
+            .map((report) => {
               // Built fresh per report rather than mutated in place: sharing one
               // object across the loop is correct only for as long as nothing
               // here becomes asynchronous, which is not a property worth
@@ -1185,7 +1230,11 @@ function panelBody(tab: Tab, data: PageData): string {
                       ),
                     };
 
-              return reportSection(report, cost, index === newest);
+              // Nothing opens on load. The map above is how a reading is
+              // chosen now, and a district expanded before anyone picked it is
+              // a district the page picked — which on a page about where to buy
+              // is a suggestion nobody made.
+              return reportSection(report, cost, false);
             })
             .join('');
 
@@ -1216,6 +1265,7 @@ function panelBody(tab: Tab, data: PageData): string {
         <section class="research">
           ${ASK_MARKET}
           ${SEARCH}
+          ${coverageMap(data.research)}
           ${compareBlock(data.research)}
           ${research}
           ${placesData(data.research)}
@@ -1451,6 +1501,67 @@ const FINANCE_SCRIPT = `
     activate(heading);
   });
 
+  /**
+   * Clicking a district opens its readings.
+   *
+   * The report blocks are <details> keyed by the place they belong to, so this
+   * opens the matching one and scrolls to it rather than filtering the list.
+   * Filtering would hide the rest, and the rest is the comparison — a district
+   * price means nothing without the districts next to it.
+   *
+   * A district nobody has read has nothing to open, and says so where the
+   * request form is rather than doing nothing.
+   */
+  var PROVINCE_PREFIX = 'İzmir / ';
+  var coverage = document.querySelector('.coverage svg');
+  if (coverage) {
+    var openDistrict = function (name) {
+      // Matched on the place, not on the summary's text. A substring search
+      // over rendered text works only while no district name is inside another
+      // one, which is a property of today's thirty names rather than a rule.
+      var wanted = document.querySelector(
+        '#panel-pazar details.report[data-place="' + PROVINCE_PREFIX + name + '"]',
+      );
+      if (!wanted) {
+        var district = document.getElementById('district');
+        if (district) { district.value = name; district.focus(); district.select(); }
+        return;
+      }
+      wanted.open = true;
+      wanted.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    coverage.addEventListener('click', function (event) {
+      var shape = event.target.closest('[data-district]');
+      if (shape) openDistrict(shape.getAttribute('data-district'));
+    });
+    var STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+
+    coverage.addEventListener('keydown', function (event) {
+      var shape = event.target.closest('[data-district]');
+      if (!shape) return;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openDistrict(shape.getAttribute('data-district'));
+        return;
+      }
+
+      var step = STEP[event.key];
+      if (!step) return;
+      event.preventDefault();
+
+      // Wrapping, and in the order the shapes are written, which is
+      // alphabetical. Geographic neighbours would be the other reading of an
+      // arrow key on a map, and it is not one thirty polygons can answer
+      // without a neighbour table nobody has asked for.
+      var all = [].slice.call(coverage.querySelectorAll('[data-district]'));
+      var next = all[(all.indexOf(shape) + step + all.length) % all.length];
+      for (var other of all) other.setAttribute('tabindex', other === next ? '0' : '-1');
+      next.focus();
+    });
+  }
+
   for (const button of document.querySelectorAll('.use-rate')) {
     button.addEventListener('click', () => {
       const rate = $('rate');
@@ -1665,6 +1776,24 @@ const STYLE = `
      look identical. */
   /* Above the comparison and the reports both, because it is how you get to
      either one once the record stops fitting on a screen. */
+  /* The map is an index, so it stays small: wide enough to tell the districts
+     apart, never so wide it becomes the page. */
+  .coverage { margin: 1.5rem 0 2rem; max-width: 34rem; }
+  .coverage svg { width: 100%; height: auto; display: block; }
+  /* The unread districts still have to read as districts. Surface on ground is
+     a four-per-cent difference, so the border does the work and takes the
+     stronger colour. */
+  .district { fill: var(--surface); stroke: var(--line); stroke-width: 1;
+    cursor: pointer; transition: fill .12s; }
+  /* Read districts carry the page's measured colour, unread ones stay the
+     background they were. The contrast IS the information. */
+  .district.read { fill: var(--measured); fill-opacity: .28; }
+  .district:hover, .district:focus-visible { fill: var(--measured); fill-opacity: .5;
+    outline: none; }
+  .count { font-family: var(--sans); font-size: 15px; font-weight: 600; fill: var(--ink);
+    text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .coverage figcaption { margin: .6rem 0 0; font-size: .75rem; color: var(--muted);
+    max-width: 44ch; }
   .find { margin: 1.2rem 0; }
   /* The label above its box, not glued to its left edge. Same treatment the
      district form's labels get — a caption over the field rather than a word

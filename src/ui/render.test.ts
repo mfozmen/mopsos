@@ -901,6 +901,27 @@ describe('market research', () => {
 describe('the housing layout', () => {
   const housing = () => panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 
+  /** Two districts of İzmir with two mahalle each, which is what the map counts. */
+  const mapped = (): string => {
+    const reading = (place: string) => ({
+      ...RECORDED,
+      place,
+      dated: '2026-07-29',
+      neighbourhoods: ['Bir Mahalle', 'Başka Mahalle'].map((name) => ({
+        ...MEASURED,
+        name,
+        sale_per_m2: 42_590,
+        listing_count: 12,
+        source: 'emlakjet, 3+1, 55–175 m², medyan',
+      })),
+    });
+
+    return panel(
+      renderPage({ ...EMPTY, research: [reading('İzmir / Menemen'), reading('İzmir / Çiğli')] }),
+      'housing',
+    );
+  };
+
   it('keeps the reading order a narrow screen gets', () => {
     // research -> who you are -> the banks -> the calculator. The banks come
     // BEFORE the calculator on purpose: a rate is a button, and a reader who
@@ -963,6 +984,54 @@ describe('the housing layout', () => {
     for (const area of ['who', 'need', 'result', 'banks', 'savings-finance']) {
       expect(page).toMatch(new RegExp(String.raw`\.${area}\s*\{[^}]*grid-column`));
     }
+  });
+
+  it('draws a map of the districts, with the count on the ones that were read', () => {
+    // The number is the point. A list says what you have; a map with counts
+    // says what you are missing, and twenty-seven blank districts is the answer
+    // to "where does the next scout go".
+    const page = mapped();
+
+    expect(page).toContain('class="coverage"');
+    expect(page).toContain('data-district="Menemen"');
+    expect(page).toContain('data-district="Çiğli"');
+    expect(page).toContain('data-district="Karaburun"');
+  });
+
+  it('puts a count only on a district that has a reading', () => {
+    // Absent, not zero: "nobody looked" and "looked and found nothing" are
+    // different answers and the record can only make the first.
+    const counted = [...mapped().matchAll(/data-district="([^"]+)" data-count="(\d+)"/g)];
+
+    expect(counted.map((match) => match[1]).sort()).toEqual(['Menemen', 'Çiğli']);
+    expect(counted.find((match) => match[1] === 'Çiğli')?.[2]).toBe('2');
+  });
+
+  it('carries the district name for a reader who cannot see the shape', () => {
+    // A path with no accessible name is a coloured blob to a screen reader.
+    expect(mapped()).toMatch(/<title>Menemen[^<]*<\/title>/);
+    expect(mapped()).toMatch(/<title>Karaburun[^<]*okunmadı<\/title>/);
+  });
+
+  it('is one tab stop, not thirty', () => {
+    // A keyboard reader should not have to tab past every district in the
+    // province to reach the readings underneath.
+    const page = mapped();
+    const map = page.slice(page.indexOf('class="coverage"'), page.indexOf('</figure>'));
+    const stops = [...map.matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
+
+    expect(stops).toHaveLength(30);
+    expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
+  });
+
+  it('leaves the list under the map rather than replacing it', () => {
+    // The map is an index over the record, not the record. If it fails to draw
+    // — a name that stops matching, a shape that goes missing — the readings
+    // must still be reachable.
+    const page = mapped();
+
+    expect(page.indexOf('class="coverage"')).toBeLessThan(page.indexOf('class="report"'));
+    expect(page).toContain('class="report"');
   });
 
   it('lets a wide table scroll inside itself rather than the page sideways', () => {
@@ -1142,31 +1211,37 @@ describe('several reports on one page', () => {
     reading('İzmir / Çiğli', '2026-07-28', 49_231),
   ];
 
-  it('folds every report but the newest, so the page is not a scroll', () => {
+  it('opens nothing until a district is chosen', () => {
+    // It used to open the newest reading. That was right while the list was the
+    // only way in; with the map above it, an expanded district is one the page
+    // chose, and on a page about where to buy that is a suggestion nobody made.
+    //
     // Three districts is sixty-odd rows of table before the reader reaches
-    // anything they can act on. The newest reading is the one being read; the
-    // rest are there to compare against, one click away.
+    // anything they can act on, and none of it was asked for.
     const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
-    const opens = [...housing.matchAll(/<details class="report"( open)?>/g)].map((m) => m[1]);
+    const opens = [...housing.matchAll(/<details class="report"[^>]*?( open)?>/g)].map((m) => m[1]);
 
     expect(opens).toHaveLength(2);
-    expect(opens.filter(Boolean)).toHaveLength(1);
+    expect(opens.filter(Boolean)).toHaveLength(0);
   });
 
-  it('opens the newest reading, not whichever sorts first', () => {
-    // The loader orders by place name, not by date — so index 0 is the
-    // alphabetically first district. Every reading in the record shares a date
-    // today, which is exactly why this would have gone unnoticed.
+  it('names each report by its place, so the map can open one without guessing', () => {
+    // The map used to find a report by searching the rendered summary text for
+    // a district name. That works only while no district name sits inside
+    // another one, which is a property of today's thirty names, not a rule.
+    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
+
+    expect(housing).toContain('data-place="İzmir / Menemen"');
+    expect(housing).toContain('data-place="İzmir / Çiğli"');
+  });
+
+  it('keeps the loader’s order rather than resorting the list', () => {
+    // The loader orders by place name. Nothing here reorders it, so a reader
+    // scanning the list gets the same order every time.
     const older = reading('Aydın / Efeler', '2026-06-01', 30_000);
     const newer = reading('İzmir / Menemen', '2026-07-29', 42_590);
     const housing = panel(renderPage({ ...EMPTY, research: [older, newer] }), 'housing');
-    // Bounded by that block's own summary. Slicing to the end of the panel
-    // swallows the folded report too, and then the assertion passes on the
-    // wrong report — which is how this test first passed against the bug.
-    const from = housing.indexOf('<details class="report" open>');
-    const open = housing.slice(from, housing.indexOf('</summary>', from));
 
-    expect(open).toContain('İzmir / Menemen');
     expect(housing.indexOf('Aydın / Efeler')).toBeLessThan(housing.indexOf('İzmir / Menemen'));
   });
 
