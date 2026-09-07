@@ -1601,13 +1601,18 @@ const STYLE = `
      one order, nothing to reflow on a phone. */
   @media (min-width: 78rem) {
     .wrap { max-width: 76rem; }
+    /* Three rows for two things in the left column. The evidence spans the lot,
+       and a spanning item's height is shared out across every row it covers —
+       which stretched row 1 to 755px for a 477px panel and left 279px of dead
+       space above the calculator. The third row has nothing in it and takes the
+       slack, so rows 1 and 2 size to what is actually in them. */
     .split { display: grid; grid-template-columns: minmax(22rem, 27rem) 1fr; gap: 0 3rem;
-      align-items: start; }
+      grid-template-rows: min-content min-content 1fr; align-items: start; }
     /* Placed by coordinate, so the source order — and therefore the phone's
        order — is untouched by this rearrangement. */
     .who { grid-column: 1; grid-row: 1; }
     .money { grid-column: 1; grid-row: 2; }
-    .evidence { grid-column: 2; grid-row: 1 / span 2; }
+    .evidence { grid-column: 2; grid-row: 1 / span 3; }
     /* The answer stays put while the fields above it are being changed. */
     .money .answers { position: sticky; top: 1.5rem; background: var(--ground);
       padding-bottom: .6rem; z-index: 2; }
