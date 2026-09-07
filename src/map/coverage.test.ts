@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { coverageByDistrict } from './coverage.js';
+import { coverageByDistrict, coverageByProvince } from './coverage.js';
 import { IZMIR_DISTRICTS } from './izmir.js';
+import { TURKEY_PROVINCES } from './turkey.js';
 
 const reading = (place: string, mahalle: number) => ({
   place,
@@ -81,5 +82,56 @@ describe('what the map counts', () => {
     expect(names).toContain('Menemen');
     expect(names).toContain('Karşıyaka');
     expect(names).toContain('Bayındır');
+  });
+});
+
+describe('what the country map counts', () => {
+  it('rolls a province up from the districts inside it', () => {
+    const counts = coverageByProvince([
+      reading('İzmir / Çiğli', 28),
+      reading('İzmir / Menemen', 21),
+    ]);
+
+    expect(counts.get('İzmir')).toBe(49);
+  });
+
+  it('counts a province the district layer knows nothing about', () => {
+    // The district map is İzmir only. The country map is not, and a reading in
+    // Manisa is real — dropping it because no district shapes exist for that
+    // province would make the record look smaller than it is.
+    expect(coverageByProvince([reading('Manisa / Turgutlu', 9)]).get('Manisa')).toBe(9);
+  });
+
+  it('leaves a province nobody has read out of the counts', () => {
+    expect(coverageByProvince([reading('İzmir / Çiğli', 28)]).has('Ankara')).toBe(false);
+  });
+
+  it('leaves out a reading that found no mahalle', () => {
+    expect(coverageByProvince([reading('İzmir / Çiğli', 0)]).size).toBe(0);
+  });
+
+  it('knows all eighty-one provinces by the name the record writes', () => {
+    // Written out by hand for the same reason as the districts: the source's
+    // Turkish field has lost the dotless ı, so "Aydın" arrives as "Aydin" and
+    // "Şanlıurfa" as "Şanliurfa". A mangled name here would silently count
+    // nothing, and an uncounted province looks exactly like an unresearched one.
+    const names = TURKEY_PROVINCES.map((province) => province.name);
+
+    expect(names).toHaveLength(81);
+    expect(names).toContain('İzmir');
+    expect(names).toContain('Aydın');
+    expect(names).toContain('Şanlıurfa');
+    expect(names).toContain('Ağrı');
+    expect(names).toContain('Kırıkkale');
+  });
+
+  it('draws every district of İzmir inside the İzmir province shape', () => {
+    // Both layers come from the same release of the same dataset, so the
+    // district p-codes carry the province p-code as their prefix. If a future
+    // regeneration mixed releases this is what would notice.
+    const izmir = TURKEY_PROVINCES.find((province) => province.name === 'İzmir');
+
+    expect(izmir?.pcode).toBe('TUR035');
+    expect(IZMIR_DISTRICTS.every((district) => district.pcode.startsWith('TUR035'))).toBe(true);
   });
 });

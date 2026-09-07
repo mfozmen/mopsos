@@ -2,8 +2,10 @@ import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
 import { type ShownMarketReport, type ShownNeighbourhood } from '../market/load.js';
-import { coverageByDistrict } from '../map/coverage.js';
+import { coverageByDistrict, coverageByProvince } from '../map/coverage.js';
 import { IZMIR_DISTRICTS, IZMIR_VIEWBOX } from '../map/izmir.js';
+import type { PlaceShape } from '../map/shape.js';
+import { TURKEY_PROVINCES, TURKEY_VIEWBOX } from '../map/turkey.js';
 import { movedIn } from '../market/movement.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
@@ -593,13 +595,66 @@ function earlierReadings(report: ShownMarketReport): string {
  * worse than no button.
  */
 /**
+ * One layer of the coverage map.
+ *
+ * Everything is decided here except which layer is showing: shapes, counts, the
+ * accessible name, and the single tab stop. Two calls make the country and the
+ * province, and the only difference between them is the data.
+ */
+function mapLayer(
+  level: 'province' | 'district',
+  shapes: PlaceShape[],
+  viewBox: string,
+  counts: Map<string, number>,
+  label: string,
+): string {
+  const paths = shapes
+    .map((shape, index) => {
+      const count = counts.get(shape.name);
+      const read = count === undefined ? '' : ` data-count="${String(count)}"`;
+      const said = count === undefined ? ' — okunmadı' : ` — ${String(count)} mahalle`;
+
+      // One tab stop for the whole layer, arrow keys inside it. Eighty-one stops
+      // in a row would mean tabbing past every province in the country to reach
+      // the readings underneath, which is the standard reason for this pattern.
+      return `
+          <path class="place${count === undefined ? '' : ' read'}" d="${shape.d}"
+            data-name="${escape(shape.name)}"${read} role="button"
+            tabindex="${index === 0 ? '0' : '-1'}"
+            ><title>${escape(shape.name)}${said}</title></path>`;
+    })
+    .join('');
+
+  const labels = shapes
+    .filter((shape) => counts.has(shape.name))
+    .map(
+      (shape) => `
+          <text class="count" x="${String(shape.cx)}" y="${String(shape.cy)}"
+            >${String(counts.get(shape.name) ?? 0)}</text>`,
+    )
+    .join('');
+
+  return `
+        <svg data-level="${level}" viewBox="${viewBox}" role="group" aria-label="${label}"${
+          level === 'district' ? ' hidden' : ''
+        }>${paths}${labels}
+        </svg>`;
+}
+
+/**
  * Where the record has been, and where it has not.
  *
- * A list says what you have. This says what you are missing — twenty-seven
- * districts of İzmir with nothing on them is the answer to "where does the next
- * scout go", and no list of three readings can show it at any length.
+ * A list says what you have. This says what you are missing — eighty provinces
+ * with nothing on them, and then twenty-eight districts of İzmir the same, is
+ * the answer to "where does the next scout go", and no list of three readings
+ * can show it at any length.
  *
- * A district with no reading carries no number rather than a nought. "Nobody
+ * Two layers, country and province, because that is what zooming means here and
+ * because the counts mean different things at each: 49 on İzmir is the whole
+ * record, 28 on Çiğli is one district of it. It opens on the country, which is
+ * where a coverage question is asked.
+ *
+ * A place with no reading carries no number rather than a nought. "Nobody
  * looked" and "looked and found nothing" are different answers and the record
  * can only make the first, so printing a zero would be inventing the second.
  *
@@ -607,39 +662,22 @@ function earlierReadings(report: ShownMarketReport): string {
  * request off this machine. A tile server would also learn which districts get
  * looked at, which for a record of one person's house hunt is exactly the thing
  * kept out of everything else here.
+ *
+ * Only İzmir has a district layer, because only İzmir has readings. A province
+ * without one is not a dead click: it fills in the request form, which is the
+ * thing a gap on this map is for.
  */
 function coverageMap(reports: ShownMarketReport[]): string {
-  const counts = coverageByDistrict(reports);
-
-  const shapes = IZMIR_DISTRICTS.map((district, index) => {
-    const count = counts.get(district.name);
-    const read = count === undefined ? '' : ` data-count="${String(count)}"`;
-
-    // One tab stop for the whole map, arrow keys inside it. Thirty stops in a
-    // row would mean tabbing past every district in the province to reach the
-    // readings underneath, which is the standard reason this pattern exists.
-    return `
-          <path class="district${count === undefined ? '' : ' read'}" d="${district.d}"
-            data-district="${escape(district.name)}"${read} role="button"
-            tabindex="${index === 0 ? '0' : '-1'}"
-            ><title>${escape(district.name)}${count === undefined ? ' — okunmadı' : ` — ${String(count)} mahalle`}</title></path>`;
-  }).join('');
-
-  const labels = IZMIR_DISTRICTS.filter((district) => counts.has(district.name))
-    .map(
-      (district) => `
-          <text class="count" x="${String(district.cx)}" y="${String(district.cy)}"
-            >${String(counts.get(district.name) ?? 0)}</text>`,
-    )
-    .join('');
-
   return `
       <figure class="coverage">
-        <svg viewBox="${IZMIR_VIEWBOX}" role="group" aria-label="İzmir ilçeleri — okunan mahalle sayıları">${shapes}${labels}
-        </svg>
+        <p class="where"><button type="button" id="zoom-out" hidden>← Türkiye</button
+          ><span id="zoom-at">Türkiye</span></p>
+${mapLayer('province', TURKEY_PROVINCES, TURKEY_VIEWBOX, coverageByProvince(reports), 'Türkiye illeri — okunan mahalle sayıları')}
+${mapLayer('district', IZMIR_DISTRICTS, IZMIR_VIEWBOX, coverageByDistrict(reports), 'İzmir ilçeleri — okunan mahalle sayıları')}
         <figcaption>
-          İzmir’in 30 ilçesi. Rakam, o ilçede okunan mahalle sayısı — bir ilçeye
-          tıklayınca raporları aşağıda açılır. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
+          Rakam, orada okunan mahalle sayısı. İzmir’e tıklayınca ilçeleri açılır; bir
+          ilçeye tıklayınca raporları aşağıda görünür. Okunmamış bir yere tıklamak onu
+          araştırma isteğine yazar. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
         </figcaption>
       </figure>`;
 }
@@ -1512,38 +1550,85 @@ const FINANCE_SCRIPT = `
    * A district nobody has read has nothing to open, and says so where the
    * request form is rather than doing nothing.
    */
-  var PROVINCE_PREFIX = 'İzmir / ';
-  var coverage = document.querySelector('.coverage svg');
+  /**
+   * The coverage map: two layers, and what a click means on each.
+   *
+   * On the country, a province with a district layer opens it — only İzmir has
+   * one, because only İzmir has readings. On the province, a district opens its
+   * report. Anywhere with nothing to open, the name goes into the request form:
+   * the gap and the way to close it are one gesture, which is the whole reason
+   * a coverage map beats a list.
+   */
+  var ZOOMABLE = 'İzmir';
+  var PROVINCE_PREFIX = ZOOMABLE + ' / ';
+  var coverage = document.querySelector('.coverage');
+
   if (coverage) {
+    var layers = {
+      province: coverage.querySelector('[data-level="province"]'),
+      district: coverage.querySelector('[data-level="district"]'),
+    };
+    var out = document.getElementById('zoom-out');
+    var at = document.getElementById('zoom-at');
+
+    // toggleAttribute, not the hidden property. That property is declared on
+    // HTMLElement and an svg is not one, so assigning it there sets a plain
+    // object property and paints nothing — the label and the back button would
+    // change while both maps stayed on screen.
+    var showLevel = function (level) {
+      layers.province.toggleAttribute('hidden', level !== 'province');
+      layers.district.toggleAttribute('hidden', level !== 'district');
+      out.hidden = level === 'province';
+      at.textContent = level === 'province' ? 'Türkiye' : ZOOMABLE;
+    };
+
+    out.addEventListener('click', function () {
+      showLevel('province');
+      layers.province.querySelector('[tabindex="0"]').focus();
+    });
+
+    var putInRequest = function (field, name) {
+      var input = document.getElementById(field);
+      if (!input) return;
+      input.value = name;
+      input.focus();
+      input.select();
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // Matched on the place, not on the summary's text. A substring search over
+    // rendered text works only while no district name sits inside another one,
+    // which is a property of today's thirty names rather than a rule.
     var openDistrict = function (name) {
-      // Matched on the place, not on the summary's text. A substring search
-      // over rendered text works only while no district name is inside another
-      // one, which is a property of today's thirty names rather than a rule.
       var wanted = document.querySelector(
         '#panel-pazar details.report[data-place="' + PROVINCE_PREFIX + name + '"]',
       );
-      if (!wanted) {
-        var district = document.getElementById('district');
-        if (district) { district.value = name; district.focus(); district.select(); }
-        return;
-      }
+      if (!wanted) return putInRequest('district', name);
       wanted.open = true;
       wanted.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    coverage.addEventListener('click', function (event) {
-      var shape = event.target.closest('[data-district]');
-      if (shape) openDistrict(shape.getAttribute('data-district'));
-    });
+    var choose = function (level, name) {
+      if (level !== 'province') return openDistrict(name);
+      if (name !== ZOOMABLE) return putInRequest('province', name);
+      showLevel('district');
+      layers.district.querySelector('[tabindex="0"]').focus();
+    };
+
     var STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 
+    coverage.addEventListener('click', function (event) {
+      var shape = event.target.closest('[data-name]');
+      if (shape) choose(shape.closest('svg').dataset.level, shape.getAttribute('data-name'));
+    });
+
     coverage.addEventListener('keydown', function (event) {
-      var shape = event.target.closest('[data-district]');
+      var shape = event.target.closest('[data-name]');
       if (!shape) return;
 
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        openDistrict(shape.getAttribute('data-district'));
+        choose(shape.closest('svg').dataset.level, shape.getAttribute('data-name'));
         return;
       }
 
@@ -1553,9 +1638,9 @@ const FINANCE_SCRIPT = `
 
       // Wrapping, and in the order the shapes are written, which is
       // alphabetical. Geographic neighbours would be the other reading of an
-      // arrow key on a map, and it is not one thirty polygons can answer
-      // without a neighbour table nobody has asked for.
-      var all = [].slice.call(coverage.querySelectorAll('[data-district]'));
+      // arrow key on a map, and it is not one these polygons can answer without
+      // a neighbour table nobody has asked for.
+      var all = [].slice.call(shape.closest('svg').querySelectorAll('[data-name]'));
       var next = all[(all.indexOf(shape) + step + all.length) % all.length];
       for (var other of all) other.setAttribute('tabindex', other === next ? '0' : '-1');
       next.focus();
@@ -1778,20 +1863,31 @@ const STYLE = `
      either one once the record stops fitting on a screen. */
   /* The map is an index, so it stays small: wide enough to tell the districts
      apart, never so wide it becomes the page. */
-  .coverage { margin: 1.5rem 0 2rem; max-width: 34rem; }
+  .coverage { margin: 1.5rem 0 2rem; max-width: 40rem; }
   .coverage svg { width: 100%; height: auto; display: block; }
+  /* After the display above, or it loses to it and both layers draw at once. */
+  .coverage svg[hidden] { display: none; }
+  .where { display: flex; align-items: baseline; gap: .6rem; margin: 0 0 .6rem;
+    font-size: .8rem; color: var(--muted); }
+  #zoom-out { font: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--measured); text-decoration: underline dotted; }
   /* The unread districts still have to read as districts. Surface on ground is
      a four-per-cent difference, so the border does the work and takes the
      stronger colour. */
-  .district { fill: var(--surface); stroke: var(--line); stroke-width: 1;
+  .place { fill: var(--surface); stroke: var(--line); stroke-width: 1;
     cursor: pointer; transition: fill .12s; }
   /* Read districts carry the page's measured colour, unread ones stay the
      background they were. The contrast IS the information. */
-  .district.read { fill: var(--measured); fill-opacity: .28; }
-  .district:hover, .district:focus-visible { fill: var(--measured); fill-opacity: .5;
+  .place.read { fill: var(--measured); fill-opacity: .28; }
+  .place:hover, .place:focus-visible { fill: var(--measured); fill-opacity: .5;
     outline: none; }
-  .count { font-family: var(--sans); font-size: 15px; font-weight: 600; fill: var(--ink);
+  /* Sized in the layer's own units. Both layers are drawn at the same width on
+     screen but their viewBoxes are not the same size, so one font-size would
+     come out smaller on the country than on the province. */
+  .count { font-family: var(--sans); font-weight: 600; fill: var(--ink);
     text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  [data-level='province'] .count { font-size: 24px; }
+  [data-level='district'] .count { font-size: 22px; }
   .coverage figcaption { margin: .6rem 0 0; font-size: .75rem; color: var(--muted);
     max-width: 44ch; }
   .find { margin: 1.2rem 0; }

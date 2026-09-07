@@ -1,11 +1,29 @@
 import type { ShownMarketReport } from '../market/load.js';
 
 import { IZMIR_DISTRICTS } from './izmir.js';
+import { TURKEY_PROVINCES } from './turkey.js';
 
 /** The province this map draws. Only its districts are counted. */
 const PROVINCE = 'İzmir';
 
-const KNOWN = new Set(IZMIR_DISTRICTS.map((district) => district.name));
+const KNOWN_DISTRICTS = new Set(IZMIR_DISTRICTS.map((district) => district.name));
+const KNOWN_PROVINCES = new Set(TURKEY_PROVINCES.map((province) => province.name));
+
+/**
+ * The two halves of a place string, or nothing if it is not one.
+ *
+ * A reading with no mahalle in it is nothing to either map. The schema allows
+ * the array to be empty, so without this a run that came back with nothing
+ * would set a count of zero — and a zero on the map reads as "looked and found
+ * nothing", which is the one answer this record cannot make.
+ */
+function readingAt(report: ShownMarketReport): { province: string; district: string } | undefined {
+  const [province, district] = report.place.split(' / ');
+  if (province === undefined || district === undefined) return undefined;
+  if (report.neighbourhoods.length === 0) return undefined;
+
+  return { province, district };
+}
 
 /**
  * How much of each district has been read, as a count of mahalle.
@@ -36,11 +54,31 @@ export function coverageByDistrict(reports: ShownMarketReport[]): Map<string, nu
   const counts = new Map<string, number>();
 
   for (const report of reports) {
-    const [province, district] = report.place.split(' / ');
-    if (province !== PROVINCE || district === undefined || !KNOWN.has(district)) continue;
-    if (report.neighbourhoods.length === 0) continue;
+    const at = readingAt(report);
+    if (at === undefined || at.province !== PROVINCE || !KNOWN_DISTRICTS.has(at.district)) continue;
 
-    counts.set(district, (counts.get(district) ?? 0) + report.neighbourhoods.length);
+    counts.set(at.district, (counts.get(at.district) ?? 0) + report.neighbourhoods.length);
+  }
+
+  return counts;
+}
+
+/**
+ * The same count one level up: mahalle per province, from every reading.
+ *
+ * Not restricted to the province the district layer draws. The country map has
+ * eighty-one shapes and the record may hold a reading in any of them; dropping
+ * a Manisa reading because no Manisa district shapes exist would make the
+ * record look smaller than it is on the one view meant to show its extent.
+ */
+export function coverageByProvince(reports: ShownMarketReport[]): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const report of reports) {
+    const at = readingAt(report);
+    if (at === undefined || !KNOWN_PROVINCES.has(at.province)) continue;
+
+    counts.set(at.province, (counts.get(at.province) ?? 0) + report.neighbourhoods.length);
   }
 
   return counts;

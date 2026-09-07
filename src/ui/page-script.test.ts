@@ -116,15 +116,33 @@ function open(data: PageData = DATA) {
       control(id).value = value;
       fire(id, 'input', 'change');
     },
+    /**
+     * Dispatched rather than `element.click()`.
+     *
+     * `click()` is declared on HTMLElement, and the map's shapes are SVG paths,
+     * which are not. A dispatched, bubbling MouseEvent is also closer to what a
+     * browser sends: the page listens on a container and works out what was hit
+     * from the target, so a non-bubbling synthetic call would reach nothing.
+     */
     click: (selector: string): void => {
-      const element = document.querySelector<HTMLElement>(selector);
+      const element = document.querySelector(selector);
       if (element === null) throw new Error(`the page has no ${selector}`);
-      element.click();
+      element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     },
     /** Text of a region, for asking what the reader can see rather than one field. */
     region: (selector: string): string => document.querySelector(selector)?.textContent ?? '',
     disabled: (selector: string): boolean =>
       document.querySelector<HTMLButtonElement>(selector)?.disabled ?? false,
+    /**
+     * Whether an element is hidden, read off the attribute.
+     *
+     * The attribute rather than the `hidden` property on purpose: `hidden` is
+     * declared on HTMLElement, and an <svg> is not one. Assigning to it there
+     * silently sets an expando and paints nothing, which is exactly the bug
+     * this asks about.
+     */
+    hidden: (selector: string): boolean =>
+      document.querySelector(selector)?.hasAttribute('hidden') ?? false,
   };
 }
 
@@ -698,5 +716,85 @@ describe('finding a reading again', () => {
 
   it('shows nothing at all until something is typed', () => {
     expect(dom().region('#found')).toBe('');
+  });
+});
+
+describe('zooming the coverage map', () => {
+  const withReadings = (): PageData => ({
+    ...DATA,
+    research: [
+      {
+        place: 'İzmir / Menemen',
+        dated: '2026-07-29',
+        neighbourhoods: [
+          {
+            name: 'Bir Mahalle',
+            sale_per_m2: 42_590,
+            listing_count: 12,
+            basis: 'listing_median',
+            confidence: 'medium',
+            source: 'test',
+          },
+        ],
+        earlier: [],
+        corrected: false,
+      },
+    ],
+  });
+
+  it('opens on the country and hides the districts', () => {
+    const page = open(withReadings());
+
+    expect(page.hidden('[data-level="province"]')).toBe(false);
+    expect(page.hidden('[data-level="district"]')).toBe(true);
+    expect(page.text('zoom-at')).toBe('Türkiye');
+  });
+
+  it('swaps the layers when the province is opened', () => {
+    // The layers are <svg>, which does not carry the `hidden` property. Setting
+    // it there assigns a plain object property and paints nothing — the page
+    // changed its label and its back button and left both maps on screen.
+    const page = open(withReadings());
+
+    page.click('[data-level="province"] [data-name="İzmir"]');
+
+    expect(page.hidden('[data-level="province"]')).toBe(true);
+    expect(page.hidden('[data-level="district"]')).toBe(false);
+    expect(page.text('zoom-at')).toBe('İzmir');
+  });
+
+  it('goes back out to the country', () => {
+    const page = open(withReadings());
+
+    page.click('[data-level="province"] [data-name="İzmir"]');
+    page.click('#zoom-out');
+
+    expect(page.hidden('[data-level="province"]')).toBe(false);
+    expect(page.hidden('[data-level="district"]')).toBe(true);
+  });
+
+  it('opens a district’s report when it has one', () => {
+    const page = open(withReadings());
+
+    page.click('[data-level="province"] [data-name="İzmir"]');
+    page.click('[data-level="district"] [data-name="Menemen"]');
+
+    expect(page.hidden('details.report[data-place="İzmir / Menemen"]')).toBe(false);
+    expect(page.window.document.querySelector<HTMLDetailsElement>('details.report')?.open).toBe(
+      true,
+    );
+  });
+
+  it('puts an unread place into the request form instead of doing nothing', () => {
+    // A gap on the map and the way to close it are one gesture. A click that
+    // silently does nothing teaches the reader the map is decoration.
+    const page = open(withReadings());
+
+    page.click('[data-level="province"] [data-name="Manisa"]');
+    expect(page.value('province')).toBe('Manisa');
+
+    page.click('[data-level="province"] [data-name="İzmir"]');
+    page.click('[data-level="district"] [data-name="Karaburun"]');
+    expect(page.value('district')).toBe('Karaburun');
   });
 });
