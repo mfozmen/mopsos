@@ -1643,6 +1643,13 @@ const STYLE = `
     .result .breakdown { max-width: 34rem; }
     .result .caveat { max-width: 52rem; }
     .banks .rates td.terms { max-width: 26rem; }
+    /* The two overrides that used to live here are gone on purpose, not by
+       accident. ".money .fields" forced two columns and ".who .household"
+       forced one, both because the left column was a fixed 22–27rem. Now every
+       panel is half of the page — 560px — and the base auto-fit rules land on
+       two columns each on their own (measured: 268px + 268px for the fields,
+       241px + 241px for the household). Forcing a count here would only start
+       disagreeing with the widths the rest of the sheet is built from. */
   }
   header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .brand { font-family: var(--serif); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }

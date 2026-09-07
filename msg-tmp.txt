@@ -1,0 +1,9 @@
+style(ui): say why the two column-count overrides were dropped
+
+They forced counts that only made sense while the left column was a
+fixed 22-27rem. Every panel is half the page now and the base auto-fit
+rules land on two columns each by themselves - measured, and written
+down so the removal reads as a decision rather than an omission.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EQmVBpodE33dJXGmvpnQGh
