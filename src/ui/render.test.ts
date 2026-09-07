@@ -993,15 +993,17 @@ describe('the housing layout', () => {
     const page = mapped();
 
     expect(page).toContain('class="coverage"');
-    expect(page).toContain('data-district="Menemen"');
-    expect(page).toContain('data-district="Çiğli"');
-    expect(page).toContain('data-district="Karaburun"');
+    expect(page).toContain('data-name="Menemen"');
+    expect(page).toContain('data-name="Çiğli"');
+    expect(page).toContain('data-name="Karaburun"');
   });
 
   it('puts a count only on a district that has a reading', () => {
     // Absent, not zero: "nobody looked" and "looked and found nothing" are
     // different answers and the record can only make the first.
-    const counted = [...mapped().matchAll(/data-district="([^"]+)" data-count="(\d+)"/g)];
+    const page = mapped();
+    const districts = page.slice(page.indexOf('data-level="district"'));
+    const counted = [...districts.matchAll(/data-name="([^"]+)" data-count="(\d+)"/g)];
 
     expect(counted.map((match) => match[1]).sort()).toEqual(['Menemen', 'Çiğli']);
     expect(counted.find((match) => match[1] === 'Çiğli')?.[2]).toBe('2');
@@ -1013,15 +1015,48 @@ describe('the housing layout', () => {
     expect(mapped()).toMatch(/<title>Karaburun[^<]*okunmadı<\/title>/);
   });
 
+  it('starts on the country, with the province carrying the whole record', () => {
+    // Zoomed all the way out is where a coverage map starts: one province with
+    // 4 on it and eighty without is the state of the record at a glance.
+    const page = mapped();
+    const country = page.slice(page.indexOf('data-level="province"'));
+
+    expect(country).toContain('data-name="İzmir" data-count="4"');
+    expect(country).toContain('data-name="Ankara"');
+    expect(country.slice(0, country.indexOf('</svg>'))).not.toContain('data-count="0"');
+  });
+
+  it('hides the district layer until the province is opened', () => {
+    const page = mapped();
+    const district = page.slice(page.indexOf('data-level="district"'));
+
+    expect(district.slice(0, district.indexOf('>'))).toContain('hidden');
+  });
+
+  it('offers a way back out of the district layer', () => {
+    // A zoom with no way back is a dead end, and the country view is where the
+    // question "where have I not looked" is actually asked.
+    expect(mapped()).toContain('id="zoom-out"');
+  });
+
   it('is one tab stop, not thirty', () => {
     // A keyboard reader should not have to tab past every district in the
     // province to reach the readings underneath.
     const page = mapped();
-    const map = page.slice(page.indexOf('class="coverage"'), page.indexOf('</figure>'));
-    const stops = [...map.matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
+    const layer = (level: string) => {
+      const from = page.indexOf(`data-level="${level}"`);
+      return page.slice(from, page.indexOf('</svg>', from));
+    };
 
-    expect(stops).toHaveLength(30);
-    expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
+    for (const [level, shapes] of [
+      ['province', 81],
+      ['district', 30],
+    ] as const) {
+      const stops = [...layer(level).matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
+
+      expect(stops).toHaveLength(shapes);
+      expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
+    }
   });
 
   it('leaves the list under the map rather than replacing it', () => {

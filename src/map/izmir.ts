@@ -36,29 +36,12 @@
  * them, checkable by eye.
  */
 
+import type { PlaceShape } from './shape.js';
+
 /** The pixel space the paths are drawn in, from the projection above. */
 export const IZMIR_VIEWBOX = '0 0 800 695';
 
-export interface DistrictShape {
-  /** The OCHA p-code: stable across the source's releases, and the join key. */
-  pcode: string;
-  /** As written in Turkish. What the record is matched against. */
-  name: string;
-  /** An SVG path in the viewBox above. */
-  d: string;
-  /**
-   * Where the count is written: the mean of the path's own vertices.
-   *
-   * Not a true centroid and not trying to be. It only has to land somewhere
-   * inside a shape a number can sit on, and for a district that is convex
-   * enough to be worth labelling it does. Computed here rather than in the
-   * browser so the page ships coordinates instead of the arithmetic.
-   */
-  cx: number;
-  cy: number;
-}
-
-export const IZMIR_DISTRICTS: DistrictShape[] = [
+export const IZMIR_DISTRICTS: PlaceShape[] = [
   {
     pcode: 'TUR035001',
     name: 'Aliağa',
