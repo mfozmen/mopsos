@@ -328,25 +328,23 @@ describe('sending the agent from the page', () => {
     );
   });
 
-  it('leaves the request open when there is nothing in the table yet', () => {
-    // Nothing to read means the request is the whole section, and a fold over
-    // an empty section hides the only thing there is to do.
-    const { finansman } = halves();
+  it('leaves both requests open, whether or not the table has readings', () => {
+    // They were folded once, when a fifteen-bank table sat directly underneath
+    // and five lines of form above it pushed the data off the screen. The table
+    // has its own half of the page now, so the fold was paying rent on space
+    // that is no longer scarce - and a control behind a click is a control the
+    // reader has to already know is there.
+    const full = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 
-    expect(finansman.slice(0, finansman.indexOf('id="ask-rates"'))).not.toContain(
-      '<details class="fold"',
-    );
+    expect(full).not.toContain('<details class="fold"');
+    expect(panel(renderPage(EMPTY), 'housing')).not.toContain('<details class="fold"');
   });
 
-  it('folds the request away once the table has readings', () => {
-    // Then the reader came to read, not to dispatch. The control stays at the
-    // top where it belongs and takes one line instead of five.
-    const housing = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
-    const before = housing.slice(0, housing.indexOf('id="ask-rates"'));
-    const fold = before.lastIndexOf('<details');
+  it('still puts each request above the table it changes', () => {
+    // The order is the part that mattered, not the fold.
+    const full = panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 
-    expect(fold).toBeGreaterThan(before.lastIndexOf('</details>'));
-    expect(before.slice(fold)).not.toContain('open>');
+    expect(full.indexOf('id="ask-rates"')).toBeLessThan(full.indexOf('<table class="rates"'));
   });
 
   it('says the request goes to the open Claude session, not into the void', () => {
