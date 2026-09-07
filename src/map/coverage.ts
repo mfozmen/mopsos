@@ -26,6 +26,11 @@ const KNOWN = new Set(IZMIR_DISTRICTS.map((district) => district.name));
  * A district with no reading is absent from the map rather than present with a
  * zero. "Nobody has looked" and "looked and found nothing" are different
  * answers, and the second is not one this record can currently produce.
+ *
+ * A reading with no mahalle in it is skipped for the same reason. The schema
+ * allows the array to be empty, so without this a run that came back with
+ * nothing would set the count to zero — and a zero on the map is the second
+ * answer, printed where the record only supports the first.
  */
 export function coverageByDistrict(reports: ShownMarketReport[]): Map<string, number> {
   const counts = new Map<string, number>();
@@ -33,6 +38,7 @@ export function coverageByDistrict(reports: ShownMarketReport[]): Map<string, nu
   for (const report of reports) {
     const [province, district] = report.place.split(' / ');
     if (province !== PROVINCE || district === undefined || !KNOWN.has(district)) continue;
+    if (report.neighbourhoods.length === 0) continue;
 
     counts.set(district, (counts.get(district) ?? 0) + report.neighbourhoods.length);
   }

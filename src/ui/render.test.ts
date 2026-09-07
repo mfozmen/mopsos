@@ -1200,31 +1200,37 @@ describe('several reports on one page', () => {
     reading('İzmir / Çiğli', '2026-07-28', 49_231),
   ];
 
-  it('folds every report but the newest, so the page is not a scroll', () => {
+  it('opens nothing until a district is chosen', () => {
+    // It used to open the newest reading. That was right while the list was the
+    // only way in; with the map above it, an expanded district is one the page
+    // chose, and on a page about where to buy that is a suggestion nobody made.
+    //
     // Three districts is sixty-odd rows of table before the reader reaches
-    // anything they can act on. The newest reading is the one being read; the
-    // rest are there to compare against, one click away.
+    // anything they can act on, and none of it was asked for.
     const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
-    const opens = [...housing.matchAll(/<details class="report"( open)?>/g)].map((m) => m[1]);
+    const opens = [...housing.matchAll(/<details class="report"[^>]*?( open)?>/g)].map((m) => m[1]);
 
     expect(opens).toHaveLength(2);
-    expect(opens.filter(Boolean)).toHaveLength(1);
+    expect(opens.filter(Boolean)).toHaveLength(0);
   });
 
-  it('opens the newest reading, not whichever sorts first', () => {
-    // The loader orders by place name, not by date — so index 0 is the
-    // alphabetically first district. Every reading in the record shares a date
-    // today, which is exactly why this would have gone unnoticed.
+  it('names each report by its place, so the map can open one without guessing', () => {
+    // The map used to find a report by searching the rendered summary text for
+    // a district name. That works only while no district name sits inside
+    // another one, which is a property of today's thirty names, not a rule.
+    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
+
+    expect(housing).toContain('data-place="İzmir / Menemen"');
+    expect(housing).toContain('data-place="İzmir / Çiğli"');
+  });
+
+  it('keeps the loader’s order rather than resorting the list', () => {
+    // The loader orders by place name. Nothing here reorders it, so a reader
+    // scanning the list gets the same order every time.
     const older = reading('Aydın / Efeler', '2026-06-01', 30_000);
     const newer = reading('İzmir / Menemen', '2026-07-29', 42_590);
     const housing = panel(renderPage({ ...EMPTY, research: [older, newer] }), 'housing');
-    // Bounded by that block's own summary. Slicing to the end of the panel
-    // swallows the folded report too, and then the assertion passes on the
-    // wrong report — which is how this test first passed against the bug.
-    const from = housing.indexOf('<details class="report" open>');
-    const open = housing.slice(from, housing.indexOf('</summary>', from));
 
-    expect(open).toContain('İzmir / Menemen');
     expect(housing.indexOf('Aydın / Efeler')).toBeLessThan(housing.indexOf('İzmir / Menemen'));
   });
 

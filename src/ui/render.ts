@@ -455,7 +455,7 @@ function reportSection(report: ShownMarketReport, cost?: Affordability, open = f
   const count = report.neighbourhoods.length;
 
   return `
-      <details class="report"${open ? ' open' : ''}>
+      <details class="report" data-place="${escape(report.place)}"${open ? ' open' : ''}>
       <summary><strong>${escape(report.place)}</strong><span class="dated">${turkishDate(
         report.dated,
       )}${clockTime(report.at)}</span>${
@@ -1203,20 +1203,11 @@ function panelBody(tab: Tab, data: PageData): string {
     // is exactly why the brief tells a scout not to work it out.
     const cheapest = cheapestRealRate(data.rates);
 
-    // Which reading is the newest, rather than which sorts first. The loader
-    // orders by place name — every reading in the record shares a date today,
-    // so `index === 0` looked right and was the alphabetically first district.
-    // Ties keep the loader's order, so the list stays stable.
-    const newest = data.research.reduce(
-      (best, report, index) => (report.dated > (data.research[best]?.dated ?? '') ? index : best),
-      0,
-    );
-
     const research =
       data.research.length === 0
         ? empty
         : data.research
-            .map((report, index) => {
+            .map((report) => {
               // Built fresh per report rather than mutated in place: sharing one
               // object across the loop is correct only for as long as nothing
               // here becomes asynchronous, which is not a property worth
@@ -1235,7 +1226,11 @@ function panelBody(tab: Tab, data: PageData): string {
                       ),
                     };
 
-              return reportSection(report, cost, index === newest);
+              // Nothing opens on load. The map above is how a reading is
+              // chosen now, and a district expanded before anyone picked it is
+              // a district the page picked — which on a page about where to buy
+              // is a suggestion nobody made.
+              return reportSection(report, cost, false);
             })
             .join('');
 
@@ -1513,14 +1508,16 @@ const FINANCE_SCRIPT = `
    * A district nobody has read has nothing to open, and says so where the
    * request form is rather than doing nothing.
    */
+  var PROVINCE_PREFIX = 'İzmir / ';
   var coverage = document.querySelector('.coverage svg');
   if (coverage) {
     var openDistrict = function (name) {
-      var wanted = null;
-      for (var block of document.querySelectorAll('#panel-pazar details.report')) {
-        var summary = block.querySelector('summary');
-        if (summary && summary.textContent.indexOf(name) !== -1) { wanted = block; break; }
-      }
+      // Matched on the place, not on the summary's text. A substring search
+      // over rendered text works only while no district name is inside another
+      // one, which is a property of today's thirty names rather than a rule.
+      var wanted = document.querySelector(
+        '#panel-pazar details.report[data-place="' + PROVINCE_PREFIX + name + '"]',
+      );
       if (!wanted) {
         var district = document.getElementById('district');
         if (district) { district.value = name; district.focus(); district.select(); }

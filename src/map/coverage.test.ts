@@ -55,6 +55,13 @@ describe('what the map counts', () => {
     expect([...counts.values()].reduce((sum, n) => sum + n, 0)).toBe(49);
   });
 
+  it('leaves out a reading that found no mahalle at all', () => {
+    // The schema allows an empty array. Counted, it would put a nought on the
+    // map — "looked and found nothing" — which is not what an empty run means
+    // and not an answer this record can make.
+    expect(coverageByDistrict([reading('İzmir / Çiğli', 0)]).has('Çiğli')).toBe(false);
+  });
+
   it('ignores a place outside the province the map draws', () => {
     // The map is İzmir. A Manisa reading is real data and must not be silently
     // attached to a district it has nothing to do with.
