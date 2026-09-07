@@ -1779,8 +1779,6 @@ const STYLE = `
   /* Top margin too: under a table it would otherwise start on the last line of
      the note above it. */
   .dispatch { margin: 1.5rem 0 2.5rem; }
-  /* Quiet, like the earlier-readings fold: a way back to an action, not a
-     second heading competing with the one above it. */
   .ask { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem; }
   /* The caption and its ? are one row, the field is the next. Without the span
      around them the grid gives the button a row of its own, and the label of a
