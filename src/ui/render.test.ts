@@ -1061,6 +1061,46 @@ describe('the housing layout', () => {
     expect(districts).not.toContain('tabindex="0"');
   });
 
+  it('says so when a reading matches no shape on the map', () => {
+    // The one failure this map can hide. A district whose name stops matching
+    // counts nothing and draws blank — identical to a district nobody has
+    // researched — so it has to be said out loud rather than left to be
+    // noticed. Which means the saying of it needs a test: without one, a
+    // refactor could drop this block and the map would quietly go back to
+    // hiding exactly what it was added to surface.
+    const page = panel(
+      renderPage({
+        ...EMPTY,
+        research: [
+          {
+            ...RECORDED,
+            place: 'İzmir / Cigli',
+            dated: '2026-07-29',
+            neighbourhoods: [
+              {
+                ...MEASURED,
+                name: 'Bir Mahalle',
+                sale_per_m2: 42_590,
+                listing_count: 12,
+                source: 'test',
+              },
+            ],
+          },
+        ],
+      }),
+      'housing',
+    );
+
+    expect(page).toContain('İzmir / Cigli');
+    expect(page).toMatch(/Haritada yeri bulunamayan/);
+  });
+
+  it('says nothing about unmatched readings when every one was placed', () => {
+    // The other half: a caution that is always on screen is furniture, and
+    // furniture is not read.
+    expect(mapped()).not.toMatch(/Haritada yeri bulunamayan/);
+  });
+
   it('leaves the list under the map rather than replacing it', () => {
     // The map is an index over the record, not the record. If it fails to draw
     // — a name that stops matching, a shape that goes missing — the readings
