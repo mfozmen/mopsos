@@ -2,6 +2,8 @@ import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
 import { type ShownMarketReport, type ShownNeighbourhood } from '../market/load.js';
+import { coverageByDistrict } from '../map/coverage.js';
+import { IZMIR_DISTRICTS, IZMIR_VIEWBOX } from '../map/izmir.js';
 import { movedIn } from '../market/movement.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
@@ -590,6 +592,54 @@ function earlierReadings(report: ShownMarketReport): string {
  * visible. The copy says so, because a button that appears to do nothing is
  * worse than no button.
  */
+/**
+ * Where the record has been, and where it has not.
+ *
+ * A list says what you have. This says what you are missing — twenty-seven
+ * districts of İzmir with nothing on them is the answer to "where does the next
+ * scout go", and no list of three readings can show it at any length.
+ *
+ * A district with no reading carries no number rather than a nought. "Nobody
+ * looked" and "looked and found nothing" are different answers and the record
+ * can only make the first, so printing a zero would be inventing the second.
+ *
+ * The shapes are inline and pre-projected: no tile server, no map library, no
+ * request off this machine. A tile server would also learn which districts get
+ * looked at, which for a record of one person's house hunt is exactly the thing
+ * kept out of everything else here.
+ */
+function coverageMap(reports: ShownMarketReport[]): string {
+  const counts = coverageByDistrict(reports);
+
+  const shapes = IZMIR_DISTRICTS.map((district) => {
+    const count = counts.get(district.name);
+    const read = count === undefined ? '' : ` data-count="${String(count)}"`;
+
+    return `
+          <path class="district${count === undefined ? '' : ' read'}" d="${district.d}"
+            data-district="${escape(district.name)}"${read} tabindex="0" role="button"
+            ><title>${escape(district.name)}${count === undefined ? ' — okunmadı' : ` — ${String(count)} mahalle`}</title></path>`;
+  }).join('');
+
+  const labels = IZMIR_DISTRICTS.filter((district) => counts.has(district.name))
+    .map(
+      (district) => `
+          <text class="count" x="${String(district.cx)}" y="${String(district.cy)}"
+            >${String(counts.get(district.name) ?? 0)}</text>`,
+    )
+    .join('');
+
+  return `
+      <figure class="coverage">
+        <svg viewBox="${IZMIR_VIEWBOX}" role="group" aria-label="İzmir ilçeleri — okunan mahalle sayıları">${shapes}${labels}
+        </svg>
+        <figcaption>
+          İzmir’in 30 ilçesi. Rakam, o ilçede okunan mahalle sayısı — bir ilçeye
+          tıklayınca raporları aşağıda açılır. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
+        </figcaption>
+      </figure>`;
+}
+
 /**
  * Finding a reading you remember.
  *
@@ -1216,6 +1266,7 @@ function panelBody(tab: Tab, data: PageData): string {
         <section class="research">
           ${ASK_MARKET}
           ${SEARCH}
+          ${coverageMap(data.research)}
           ${compareBlock(data.research)}
           ${research}
           ${placesData(data.research)}
@@ -1451,6 +1502,47 @@ const FINANCE_SCRIPT = `
     activate(heading);
   });
 
+  /**
+   * Clicking a district opens its readings.
+   *
+   * The report blocks are <details> keyed by the place they belong to, so this
+   * opens the matching one and scrolls to it rather than filtering the list.
+   * Filtering would hide the rest, and the rest is the comparison — a district
+   * price means nothing without the districts next to it.
+   *
+   * A district nobody has read has nothing to open, and says so where the
+   * request form is rather than doing nothing.
+   */
+  var coverage = document.querySelector('.coverage svg');
+  if (coverage) {
+    var openDistrict = function (name) {
+      var wanted = null;
+      for (var block of document.querySelectorAll('#panel-pazar details.report')) {
+        var summary = block.querySelector('summary');
+        if (summary && summary.textContent.indexOf(name) !== -1) { wanted = block; break; }
+      }
+      if (!wanted) {
+        var district = document.getElementById('district');
+        if (district) { district.value = name; district.focus(); district.select(); }
+        return;
+      }
+      wanted.open = true;
+      wanted.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    coverage.addEventListener('click', function (event) {
+      var shape = event.target.closest('[data-district]');
+      if (shape) openDistrict(shape.getAttribute('data-district'));
+    });
+    coverage.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      var shape = event.target.closest('[data-district]');
+      if (!shape) return;
+      event.preventDefault();
+      openDistrict(shape.getAttribute('data-district'));
+    });
+  }
+
   for (const button of document.querySelectorAll('.use-rate')) {
     button.addEventListener('click', () => {
       const rate = $('rate');
@@ -1665,6 +1757,24 @@ const STYLE = `
      look identical. */
   /* Above the comparison and the reports both, because it is how you get to
      either one once the record stops fitting on a screen. */
+  /* The map is an index, so it stays small: wide enough to tell the districts
+     apart, never so wide it becomes the page. */
+  .coverage { margin: 1.5rem 0 2rem; max-width: 34rem; }
+  .coverage svg { width: 100%; height: auto; display: block; }
+  /* The unread districts still have to read as districts. Surface on ground is
+     a four-per-cent difference, so the border does the work and takes the
+     stronger colour. */
+  .district { fill: var(--surface); stroke: var(--line); stroke-width: 1;
+    cursor: pointer; transition: fill .12s; }
+  /* Read districts carry the page's measured colour, unread ones stay the
+     background they were. The contrast IS the information. */
+  .district.read { fill: var(--measured); fill-opacity: .28; }
+  .district:hover, .district:focus-visible { fill: var(--measured); fill-opacity: .5;
+    outline: none; }
+  .count { font-family: var(--sans); font-size: 15px; font-weight: 600; fill: var(--ink);
+    text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .coverage figcaption { margin: .6rem 0 0; font-size: .75rem; color: var(--muted);
+    max-width: 44ch; }
   .find { margin: 1.2rem 0; }
   /* The label above its box, not glued to its left edge. Same treatment the
      district form's labels get — a caption over the field rather than a word

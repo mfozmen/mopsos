@@ -901,6 +901,27 @@ describe('market research', () => {
 describe('the housing layout', () => {
   const housing = () => panel(renderPage({ ...EMPTY, rates: [ZIRAAT] }), 'housing');
 
+  /** Two districts of İzmir with two mahalle each, which is what the map counts. */
+  const mapped = (): string => {
+    const reading = (place: string) => ({
+      ...RECORDED,
+      place,
+      dated: '2026-07-29',
+      neighbourhoods: ['Bir Mahalle', 'Başka Mahalle'].map((name) => ({
+        ...MEASURED,
+        name,
+        sale_per_m2: 42_590,
+        listing_count: 12,
+        source: 'emlakjet, 3+1, 55–175 m², medyan',
+      })),
+    });
+
+    return panel(
+      renderPage({ ...EMPTY, research: [reading('İzmir / Menemen'), reading('İzmir / Çiğli')] }),
+      'housing',
+    );
+  };
+
   it('keeps the reading order a narrow screen gets', () => {
     // research -> who you are -> the banks -> the calculator. The banks come
     // BEFORE the calculator on purpose: a rate is a button, and a reader who
@@ -963,6 +984,43 @@ describe('the housing layout', () => {
     for (const area of ['who', 'need', 'result', 'banks', 'savings-finance']) {
       expect(page).toMatch(new RegExp(String.raw`\.${area}\s*\{[^}]*grid-column`));
     }
+  });
+
+  it('draws a map of the districts, with the count on the ones that were read', () => {
+    // The number is the point. A list says what you have; a map with counts
+    // says what you are missing, and twenty-seven blank districts is the answer
+    // to "where does the next scout go".
+    const page = mapped();
+
+    expect(page).toContain('class="coverage"');
+    expect(page).toContain('data-district="Menemen"');
+    expect(page).toContain('data-district="Çiğli"');
+    expect(page).toContain('data-district="Karaburun"');
+  });
+
+  it('puts a count only on a district that has a reading', () => {
+    // Absent, not zero: "nobody looked" and "looked and found nothing" are
+    // different answers and the record can only make the first.
+    const counted = [...mapped().matchAll(/data-district="([^"]+)" data-count="(\d+)"/g)];
+
+    expect(counted.map((match) => match[1]).sort()).toEqual(['Menemen', 'Çiğli']);
+    expect(counted.find((match) => match[1] === 'Çiğli')?.[2]).toBe('2');
+  });
+
+  it('carries the district name for a reader who cannot see the shape', () => {
+    // A path with no accessible name is a coloured blob to a screen reader.
+    expect(mapped()).toMatch(/<title>Menemen[^<]*<\/title>/);
+    expect(mapped()).toMatch(/<title>Karaburun[^<]*okunmadı<\/title>/);
+  });
+
+  it('leaves the list under the map rather than replacing it', () => {
+    // The map is an index over the record, not the record. If it fails to draw
+    // — a name that stops matching, a shape that goes missing — the readings
+    // must still be reachable.
+    const page = mapped();
+
+    expect(page.indexOf('class="coverage"')).toBeLessThan(page.indexOf('class="report"'));
+    expect(page).toContain('class="report"');
   });
 
   it('lets a wide table scroll inside itself rather than the page sideways', () => {
