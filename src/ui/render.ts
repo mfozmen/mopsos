@@ -1613,9 +1613,6 @@ const STYLE = `
     .who { grid-column: 1; grid-row: 1; }
     .money { grid-column: 1; grid-row: 2; }
     .evidence { grid-column: 2; grid-row: 1 / span 3; }
-    /* The answer stays put while the fields above it are being changed. */
-    .money .answers { position: sticky; top: 1.5rem; background: var(--ground);
-      padding-bottom: .6rem; z-index: 2; }
     .money .fields { grid-template-columns: 1fr 1fr; }
     .who .household { grid-template-columns: 1fr; }
     .evidence .rates td.terms { max-width: 26rem; }
