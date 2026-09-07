@@ -1695,7 +1695,10 @@ const STYLE = `
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
   /* The inner strip is quieter than the outer one: it chooses a half of one
      tab, not which investment you are looking at. */
-  .subtabs { margin: 2rem 0 0; border-bottom: 1px solid var(--line); }
+  /* No top margin of its own: the sub-strip is always the first thing inside a
+     panel, and the rule below strips the margin there anyway. Setting one here
+     only made two rules disagree about a number neither of them applied. */
+  .subtabs { border-bottom: 1px solid var(--line); }
   .subtabs [role="tab"] { font-size: .78rem; padding-bottom: .6rem; }
   [role="tablist"] { display: flex; gap: .35rem; flex-wrap: wrap; margin: 2.5rem 0 0;
     border-bottom: 1px solid var(--line); }
@@ -1712,6 +1715,12 @@ const STYLE = `
     text-transform: uppercase; color: var(--ink); font-weight: 600; display: block;
     margin: 3.5rem 0 1.4rem; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
   [role="tabpanel"] > h3.section:first-child { margin-top: 0; }
+  /* Two strips of tabs, one directly under the other, used to be separated by
+     80px of nothing: the panel's top padding and the strip's own top margin
+     landed back to back and added up. Neither is wrong alone — the padding is
+     what holds a panel's *content* off the tabs above it, and a strip needs a
+     margin wherever it follows something. They were never meant to meet. */
+  [role="tabpanel"] > [role="tablist"]:first-child { margin-top: 0; }
   h3 { font-family: var(--serif); font-size: 1.35rem; font-weight: normal; margin: 0 0 1rem;
     display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
   h3 .dated { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
