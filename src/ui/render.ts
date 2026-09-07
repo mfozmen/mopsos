@@ -626,14 +626,20 @@ const ASK_MARKET = `
       </div>`;
 
 /**
- * The rates request, under the rates.
+ * The rates request, above the rates.
  *
- * It used to sit under the market heading, next to the district form, because
- * both were "send an agent". They are not the same job: one reads listings in a
+ * It began under the market heading, next to the district form, because both
+ * were "send an agent". They are not the same job: one reads listings in a
  * mahalle and one reads what banks charge, they are different agents, and this
- * button changes the table directly above it. A reader comparing neighbourhood
+ * button changes the table it sits with. A reader comparing neighbourhood
  * prices has no use for it there, and a reader looking at the bank table could
  * not find it at all.
+ *
+ * Above rather than below, because below meant seventeen hundred pixels below:
+ * refreshing the rates started with scrolling past the very data you wanted
+ * replaced. The savings box, the same shape, was worse — the section's only
+ * content was "henüz bakılmadı" and the button that could change that sat under
+ * the sentence.
  */
 const ASK_RATES = `
       <div class="dispatch">
@@ -664,23 +670,6 @@ const ASK_SAVINGS = `
         </div>
         <p class="note" id="ask-savings-status">${WHERE_IT_RUNS}</p>
       </div>`;
-
-/*
- * The request boxes sit above the tables they fill, not below.
- *
- * They used to sit underneath. With fifteen banks in the record that put the
- * control seventeen hundred pixels below the heading it belongs to — a reader
- * refreshing the rates had to scroll past the very data they wanted replaced to
- * find the thing that replaces it. The savings section was worse: its only
- * content was "henüz bakılmadı" and the one button that could change that sat
- * below the sentence.
- *
- * They were briefly folded behind a summary, back when the table ran the full
- * width and five lines of form above it cost real reading space. Each list has
- * half the page to itself now, so the fold was paying rent on room that is no
- * longer scarce — and a control behind a click is one the reader has to already
- * know is there.
- */
 
 const RATES_EMPTY =
   'Henüz banka oranı yok. rate-scout agent’ını gönderip bankaları araştırdığında güncel konut kredisi oranları buraya gelir ve tıklayınca hesaba aktarılır.';
