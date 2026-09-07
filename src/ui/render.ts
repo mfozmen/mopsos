@@ -2,8 +2,8 @@ import { annualCostRate } from '../finance/effective.js';
 import { type MortgageRules } from '../finance/mortgage.js';
 import { owningVsRenting } from '../market/affordability.js';
 import { type ShownMarketReport, type ShownNeighbourhood } from '../market/load.js';
-import { coverageByDistrict, coverageByProvince } from '../map/coverage.js';
-import { IZMIR_DISTRICTS, IZMIR_VIEWBOX } from '../map/izmir.js';
+import { coverageByDistrict, coverageByProvince, unmatchedPlaces } from '../map/coverage.js';
+import { DISTRICTS_BY_PROVINCE } from '../map/districts.js';
 import type { PlaceShape } from '../map/shape.js';
 import { TURKEY_PROVINCES, TURKEY_VIEWBOX } from '../map/turkey.js';
 import { movedIn } from '../market/movement.js';
@@ -595,22 +595,22 @@ function earlierReadings(report: ShownMarketReport): string {
  * worse than no button.
  */
 /**
- * One layer of the coverage map.
+ * The shapes of one layer: a path each, a count on the ones that have readings.
  *
- * Everything is decided here except which layer is showing: shapes, counts, the
- * accessible name, and the single tab stop. Two calls make the country and the
- * province, and the only difference between them is the data.
+ * `key` turns a shape into the name the counts are keyed by. The country keys
+ * on the province alone; the districts key on the whole place, because district
+ * names repeat across provinces — Merkez is in dozens of them — and keying on
+ * the short name would leak counts between provinces.
  */
-function mapLayer(
-  level: 'province' | 'district',
+function mapShapes(
   shapes: PlaceShape[],
-  viewBox: string,
   counts: Map<string, number>,
-  label: string,
+  key: (shape: PlaceShape) => string,
+  firstTabStop: boolean,
 ): string {
   const paths = shapes
     .map((shape, index) => {
-      const count = counts.get(shape.name);
+      const count = counts.get(key(shape));
       const read = count === undefined ? '' : ` data-count="${String(count)}"`;
       const said = count === undefined ? ' — okunmadı' : ` — ${String(count)} mahalle`;
 
@@ -620,39 +620,39 @@ function mapLayer(
       return `
           <path class="place${count === undefined ? '' : ' read'}" d="${shape.d}"
             data-name="${escape(shape.name)}"${read} role="button"
-            tabindex="${index === 0 ? '0' : '-1'}"
+            tabindex="${firstTabStop && index === 0 ? '0' : '-1'}"
             ><title>${escape(shape.name)}${said}</title></path>`;
     })
     .join('');
 
   const labels = shapes
-    .filter((shape) => counts.has(shape.name))
+    .filter((shape) => counts.has(key(shape)))
     .map(
       (shape) => `
           <text class="count" x="${String(shape.cx)}" y="${String(shape.cy)}"
-            >${String(counts.get(shape.name) ?? 0)}</text>`,
+            >${String(counts.get(key(shape)) ?? 0)}</text>`,
     )
     .join('');
 
-  return `
-        <svg data-level="${level}" viewBox="${viewBox}" role="group" aria-label="${label}"${
-          level === 'district' ? ' hidden' : ''
-        }>${paths}${labels}
-        </svg>`;
+  return paths + labels;
 }
 
 /**
  * Where the record has been, and where it has not.
  *
  * A list says what you have. This says what you are missing — eighty provinces
- * with nothing on them, and then twenty-eight districts of İzmir the same, is
+ * with nothing on them, and then the districts of whichever one you open, is
  * the answer to "where does the next scout go", and no list of three readings
  * can show it at any length.
  *
- * Two layers, country and province, because that is what zooming means here and
- * because the counts mean different things at each: 49 on İzmir is the whole
- * record, 28 on Çiğli is one district of it. It opens on the country, which is
- * where a coverage question is asked.
+ * Two layers, and the counts mean different things at each: 49 on İzmir is the
+ * whole record, 28 on Çiğli is one district of it. It opens on the country,
+ * which is where a coverage question is asked.
+ *
+ * Every province has a district layer, not only the ones with readings. A map
+ * about gaps that only opens where the research already is has it backwards.
+ * All 81 groups ship in the page and one is shown at a time; the zoom itself is
+ * a viewBox, because every province is projected in the same national system.
  *
  * A place with no reading carries no number rather than a nought. "Nobody
  * looked" and "looked and found nothing" are different answers and the record
@@ -662,23 +662,41 @@ function mapLayer(
  * request off this machine. A tile server would also learn which districts get
  * looked at, which for a record of one person's house hunt is exactly the thing
  * kept out of everything else here.
- *
- * Only İzmir has a district layer, because only İzmir has readings. A province
- * without one is not a dead click: it fills in the request form, which is the
- * thing a gap on this map is for.
  */
 function coverageMap(reports: ShownMarketReport[]): string {
+  const districts = coverageByDistrict(reports);
+  const lost = unmatchedPlaces(reports);
+
+  const groups = DISTRICTS_BY_PROVINCE.map(
+    (entry) => `
+        <g data-province="${escape(entry.province)}" data-viewbox="${entry.viewBox}" hidden
+          >${mapShapes(entry.districts, districts, (shape) => `${entry.province} / ${shape.name}`, false)}
+        </g>`,
+  ).join('');
+
   return `
       <figure class="coverage">
         <p class="where"><button type="button" id="zoom-out" hidden>← Türkiye</button
           ><span id="zoom-at">Türkiye</span></p>
-${mapLayer('province', TURKEY_PROVINCES, TURKEY_VIEWBOX, coverageByProvince(reports), 'Türkiye illeri — okunan mahalle sayıları')}
-${mapLayer('district', IZMIR_DISTRICTS, IZMIR_VIEWBOX, coverageByDistrict(reports), 'İzmir ilçeleri — okunan mahalle sayıları')}
+        <svg data-level="province" viewBox="${TURKEY_VIEWBOX}" role="group"
+          aria-label="Türkiye illeri — okunan mahalle sayıları"
+          >${mapShapes(TURKEY_PROVINCES, coverageByProvince(reports), (shape) => shape.name, true)}
+        </svg>
+        <svg data-level="district" viewBox="${TURKEY_VIEWBOX}" role="group"
+          aria-label="İlçeler — okunan mahalle sayıları" hidden>${groups}
+        </svg>
         <figcaption>
-          Rakam, orada okunan mahalle sayısı. İzmir’e tıklayınca ilçeleri açılır; bir
+          Rakam, orada okunan mahalle sayısı. Bir ile tıklayınca ilçeleri açılır; bir
           ilçeye tıklayınca raporları aşağıda görünür. Okunmamış bir yere tıklamak onu
           araştırma isteğine yazar. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
-        </figcaption>
+        </figcaption>${
+          lost.length === 0
+            ? ''
+            : `
+        <p class="caution">Haritada yeri bulunamayan okuma: ${escape(lost.join(', '))}. Bu
+          okuma haritada hiç sayılmıyor — ilçe adı kayıtta bir türlü, haritada başka türlü
+          yazılmış olabilir.</p>`
+        }
       </figure>`;
 }
 
@@ -1559,38 +1577,79 @@ const FINANCE_SCRIPT = `
    * the gap and the way to close it are one gesture, which is the whole reason
    * a coverage map beats a list.
    */
-  var ZOOMABLE = 'İzmir';
-  var PROVINCE_PREFIX = ZOOMABLE + ' / ';
+  /**
+   * The coverage map: two layers, and what a click means on each.
+   *
+   * On the country, a province opens its districts — every province has them,
+   * because a map about gaps that only opens where the research already is has
+   * it backwards. On the province, a district opens its report. Anywhere with
+   * nothing to open, the name goes into the request form: the gap and the way
+   * to close it are one gesture, which is the whole reason a coverage map beats
+   * a list.
+   */
   var coverage = document.querySelector('.coverage');
 
   if (coverage) {
-    var layers = {
-      province: coverage.querySelector('[data-level="province"]'),
-      district: coverage.querySelector('[data-level="district"]'),
-    };
+    var provinceLayer = coverage.querySelector('[data-level="province"]');
+    var districtLayer = coverage.querySelector('[data-level="district"]');
     var out = document.getElementById('zoom-out');
     var at = document.getElementById('zoom-at');
+    var openProvince = null;
 
     // toggleAttribute, not the hidden property. That property is declared on
     // HTMLElement and an svg is not one, so assigning it there sets a plain
     // object property and paints nothing — the label and the back button would
     // change while both maps stayed on screen.
-    var showLevel = function (level) {
-      layers.province.toggleAttribute('hidden', level !== 'province');
-      layers.district.toggleAttribute('hidden', level !== 'district');
-      out.hidden = level === 'province';
-      at.textContent = level === 'province' ? 'Türkiye' : ZOOMABLE;
+    var showCountry = function () {
+      openProvince = null;
+      provinceLayer.toggleAttribute('hidden', false);
+      districtLayer.toggleAttribute('hidden', true);
+      out.hidden = true;
+      at.textContent = 'Türkiye';
+    };
+
+    var showProvince = function (name) {
+      var group = districtLayer.querySelector('[data-province="' + name + '"]');
+      if (!group) return false;
+
+      openProvince = name;
+      for (var other of districtLayer.querySelectorAll('[data-province]')) {
+        other.toggleAttribute('hidden', other !== group);
+      }
+      // Every province is projected in one national system, so framing one is
+      // a matter of which window you look through.
+      districtLayer.setAttribute('viewBox', group.getAttribute('data-viewbox'));
+      provinceLayer.toggleAttribute('hidden', true);
+      districtLayer.toggleAttribute('hidden', false);
+      out.hidden = false;
+      at.textContent = name;
+
+      var first = group.querySelector('[data-name]');
+      if (first) {
+        for (var shape of group.querySelectorAll('[data-name]')) {
+          shape.setAttribute('tabindex', shape === first ? '0' : '-1');
+        }
+        first.focus();
+      }
+      return true;
     };
 
     out.addEventListener('click', function () {
-      showLevel('province');
-      layers.province.querySelector('[tabindex="0"]').focus();
+      showCountry();
+      var back = provinceLayer.querySelector('[tabindex="0"]');
+      if (back) back.focus();
     });
 
     var putInRequest = function (field, name) {
       var input = document.getElementById(field);
       if (!input) return;
       input.value = name;
+      // Cleared rather than left standing: a district from the province you
+      // just left would ask a scout for a place that does not exist.
+      if (field === 'province') {
+        var district = document.getElementById('district');
+        if (district) district.value = '';
+      }
       input.focus();
       input.select();
       input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1598,10 +1657,10 @@ const FINANCE_SCRIPT = `
 
     // Matched on the place, not on the summary's text. A substring search over
     // rendered text works only while no district name sits inside another one,
-    // which is a property of today's thirty names rather than a rule.
+    // which is a property of the names rather than a rule.
     var openDistrict = function (name) {
       var wanted = document.querySelector(
-        '#panel-pazar details.report[data-place="' + PROVINCE_PREFIX + name + '"]',
+        '#panel-pazar details.report[data-place="' + openProvince + ' / ' + name + '"]',
       );
       if (!wanted) return putInRequest('district', name);
       wanted.open = true;
@@ -1610,9 +1669,8 @@ const FINANCE_SCRIPT = `
 
     var choose = function (level, name) {
       if (level !== 'province') return openDistrict(name);
-      if (name !== ZOOMABLE) return putInRequest('province', name);
-      showLevel('district');
-      layers.district.querySelector('[tabindex="0"]').focus();
+      putInRequest('province', name);
+      showProvince(name);
     };
 
     var STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -1640,7 +1698,8 @@ const FINANCE_SCRIPT = `
       // alphabetical. Geographic neighbours would be the other reading of an
       // arrow key on a map, and it is not one these polygons can answer without
       // a neighbour table nobody has asked for.
-      var all = [].slice.call(shape.closest('svg').querySelectorAll('[data-name]'));
+      var within = shape.closest('[data-province]') || shape.closest('svg');
+      var all = [].slice.call(within.querySelectorAll('[data-name]'));
       var next = all[(all.indexOf(shape) + step + all.length) % all.length];
       for (var other of all) other.setAttribute('tabindex', other === next ? '0' : '-1');
       next.focus();

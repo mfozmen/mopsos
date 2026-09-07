@@ -785,16 +785,58 @@ describe('zooming the coverage map', () => {
     );
   });
 
-  it('puts an unread place into the request form instead of doing nothing', () => {
+  it('opens the districts of a province with no readings at all', () => {
+    // Every province has a district layer. Stopping at the country for the
+    // eighty with nothing in them would make the map useful only where the
+    // research already is, which is backwards for a map about gaps.
+    const page = open(withReadings());
+
+    page.click('[data-level="province"] [data-name="Manisa"]');
+
+    expect(page.hidden('[data-level="district"]')).toBe(false);
+    expect(page.text('zoom-at')).toBe('Manisa');
+    expect(
+      page.window.document.querySelector('[data-province="Manisa"]')?.hasAttribute('hidden'),
+    ).toBe(false);
+  });
+
+  it('frames the province it opened, not the whole country', () => {
+    // One national projection, and the viewBox is the zoom.
+    const page = open(withReadings());
+    const svg = () => page.window.document.querySelector('[data-level="district"]');
+
+    page.click('[data-level="province"] [data-name="Manisa"]');
+    const manisa = svg()?.getAttribute('viewBox');
+
+    page.click('#zoom-out');
+    page.click('[data-level="province"] [data-name="İzmir"]');
+
+    expect(svg()?.getAttribute('viewBox')).not.toBe(manisa);
+  });
+
+  it('puts an unread district into the request form instead of doing nothing', () => {
     // A gap on the map and the way to close it are one gesture. A click that
     // silently does nothing teaches the reader the map is decoration.
     const page = open(withReadings());
 
-    page.click('[data-level="province"] [data-name="Manisa"]');
-    expect(page.value('province')).toBe('Manisa');
+    page.click('[data-level="province"] [data-name="İzmir"]');
+    page.click('[data-level="district"] [data-name="Karaburun"]');
+
+    expect(page.value('province')).toBe('İzmir');
+    expect(page.value('district')).toBe('Karaburun');
+  });
+
+  it('clears the district when the province changes under it', () => {
+    // Opening Manisa while Çiğli sat in the district box would leave the form
+    // asking a scout for "Manisa / Çiğli", which is not a place.
+    const page = open(withReadings());
 
     page.click('[data-level="province"] [data-name="İzmir"]');
     page.click('[data-level="district"] [data-name="Karaburun"]');
-    expect(page.value('district')).toBe('Karaburun');
+    page.click('#zoom-out');
+    page.click('[data-level="province"] [data-name="Manisa"]');
+
+    expect(page.value('province')).toBe('Manisa');
+    expect(page.value('district')).toBe('');
   });
 });

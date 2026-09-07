@@ -1039,24 +1039,26 @@ describe('the housing layout', () => {
     expect(mapped()).toContain('id="zoom-out"');
   });
 
-  it('is one tab stop, not thirty', () => {
-    // A keyboard reader should not have to tab past every district in the
-    // province to reach the readings underneath.
+  it('is one tab stop, not eighty-one', () => {
+    // A keyboard reader should not have to tab past every province in the
+    // country to reach the readings underneath.
     const page = mapped();
-    const layer = (level: string) => {
-      const from = page.indexOf(`data-level="${level}"`);
-      return page.slice(from, page.indexOf('</svg>', from));
-    };
+    const from = page.indexOf('data-level="province"');
+    const country = page.slice(from, page.indexOf('</svg>', from));
+    const stops = [...country.matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
 
-    for (const [level, shapes] of [
-      ['province', 81],
-      ['district', 30],
-    ] as const) {
-      const stops = [...layer(level).matchAll(/tabindex="(0|-1)"/g)].map((match) => match[1]);
+    expect(stops).toHaveLength(81);
+    expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
+  });
 
-      expect(stops).toHaveLength(shapes);
-      expect(stops.filter((stop) => stop === '0')).toHaveLength(1);
-    }
+  it('makes no district tabbable until a province is opened', () => {
+    // All eighty-one groups ship in the page and eighty are hidden. A tab stop
+    // inside a hidden group is a stop into nothing.
+    const page = mapped();
+    const from = page.indexOf('data-level="district"');
+    const districts = page.slice(from, page.indexOf('</svg>', from));
+
+    expect(districts).not.toContain('tabindex="0"');
   });
 
   it('leaves the list under the map rather than replacing it', () => {
