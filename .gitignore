@@ -51,3 +51,8 @@ Thumbs.db
 
 # Other agents' checkouts of this repository, made by the Agent tool.
 .claude/worktrees/
+
+# Scratch files for `git commit -F`. One got committed when a failed hook left
+# it on disk and the next `git add -A` swept it up.
+*-tmp.txt
+*-tmp.ts
