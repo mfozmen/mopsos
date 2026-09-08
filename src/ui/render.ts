@@ -1780,7 +1780,7 @@ const FINANCE_SCRIPT = `
         (shownRows.length === 0
           ? '<p class="empty">Bu aralıkta okuma yok.</p>'
           : '<table class="dates"><thead><tr><th>Tarih</th><th>Saat</th>' +
-            '<th class="num">Mahalle</th><th></th></tr></thead><tbody>' +
+            '<th class="num">Mahalle</th></tr></thead><tbody>' +
             shownRows.map(function (entry) {
               return '<tr data-file="' + esc(entry.file) + '" tabindex="0" role="button">' +
                 '<td>' + esc(turkishDay(entry.dated)) + '</td>' +

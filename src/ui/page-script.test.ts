@@ -835,6 +835,16 @@ describe('zooming the coverage map', () => {
     expect(dates[2]).toContain('02.11.2025');
   });
 
+  it('gives the table as many headers as it gives cells', () => {
+    // The removed column left its <th> behind once, so three cells sat under
+    // four headers and every column was labelled with the one to its left.
+    const page = pickMenemen(manyReadings());
+    const table = page.window.document.querySelector('#reading-dates table');
+
+    expect(table?.querySelectorAll('thead th')).toHaveLength(3);
+    expect(table?.querySelectorAll('tbody tr td')).toHaveLength(9);
+  });
+
   it('does not label a correction in the picker, where the order already tells', () => {
     // The rows are newest first, so the picker's job is choosing a date. The
     // label belongs on the reading itself, above the figures it is about —
