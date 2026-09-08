@@ -1,6 +1,8 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { type Household, SALARIES } from '../record/household.js';
+
 const QUEUE = 'requests.jsonl';
 const MAX_PLACE_LENGTH = 80;
 
@@ -272,4 +274,37 @@ export function rejectedRequests(root: string): { request: QueuedRequest; reason
     .filter(
       (entry): entry is { request: QueuedRequest; reason: string } => entry.reason !== undefined,
     );
+}
+
+/**
+ * The household as the page sends it back, or a refusal.
+ *
+ * Validated rather than trusted for the same reason a research request is: what
+ * arrives here is written into the private record, and what is in the record is
+ * read back by an agent and acted on. An answer no rule matches would sit in
+ * the file looking like an answer and quietly change nothing — which is worse
+ * than being refused, because nothing would say so.
+ *
+ * The bounds are not a bank's rule. Banks differ on the age they will lend to,
+ * and the page says so; this is only the range outside which a number in that
+ * field is a typo rather than an answer.
+ */
+export function parseHousehold(body: unknown): Household {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new InvalidRequestError('Hane bilgisi okunamadı');
+  }
+
+  const { age, owns_home: owns, newlywed, salary } = body as Record<string, unknown>;
+
+  if (typeof age !== 'number' || !Number.isInteger(age) || age < 18 || age > 100) {
+    throw new InvalidRequestError('Yaş 18 ile 100 arasında bir tam sayı olmalı');
+  }
+  if (typeof owns !== 'boolean' || typeof newlywed !== 'boolean') {
+    throw new InvalidRequestError('Evet/hayır soruları evet ya da hayır olmalı');
+  }
+  if (typeof salary !== 'string' || !(SALARIES as readonly string[]).includes(salary)) {
+    throw new InvalidRequestError('Maaş kaynağı listedekilerden biri olmalı');
+  }
+
+  return { age, owns_home: owns, newlywed, salary: salary as Household['salary'] };
 }

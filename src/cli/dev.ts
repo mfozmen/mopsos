@@ -10,6 +10,11 @@
  * fresh clone met a 404 telling it to go and run the other one — a step the
  * machine can take on its own and therefore a step nobody should have to.
  *
+ * It also keeps the household answers. Four questions that decide which rates
+ * the reader can actually get, retyped on every regeneration of the page until
+ * they were given somewhere to live — the record, not the browser, because they
+ * are a research input rather than interface state.
+ *
  * It also answers for the readings. The page carries an index of what exists
  * and asks for one when a date is picked, because printing every reading into
  * the page was a quarter of it for three of them. The answer is rendered here
@@ -26,7 +31,13 @@ import { resolveDataDir } from '../config/data-dir.js';
 import { raiseTerminal } from '../server/attention.js';
 import { assertLocalRequest, assertSameOrigin, NotLocalError } from '../server/guards.js';
 import { readingFile } from '../server/reading.js';
-import { appendRequest, InvalidRequestError, parseRequest } from '../server/requests.js';
+import {
+  appendRequest,
+  InvalidRequestError,
+  parseHousehold,
+  parseRequest,
+} from '../server/requests.js';
+import { writeHousehold } from '../record/household.js';
 import { compileCalculator, readPageData } from '../ui/build.js';
 import { renderPage, renderReading } from '../ui/render.js';
 
@@ -44,6 +55,44 @@ const bundle = await compileCalculator();
 const fresh = () => readPageData(dataDir, bundle);
 
 const server = createServer((request, response) => {
+  if (request.method === 'POST' && request.url === '/household') {
+    try {
+      assertLocalRequest(request.headers, PORT);
+    } catch (error) {
+      response.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(
+        JSON.stringify({ error: error instanceof NotLocalError ? error.message : 'Reddedildi' }),
+      );
+      return;
+    }
+
+    let household = '';
+    request.on('data', (chunk: Buffer) => {
+      household += chunk.toString('utf8');
+      if (household.length > MAX_BODY_BYTES) {
+        response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
+        response.end('{"error":"İstek fazla büyük"}');
+        request.destroy();
+      }
+    });
+    request.on('end', () => {
+      if (response.writableEnded) return;
+      try {
+        // Overwritten rather than appended: this is a current state, not an
+        // observation. The record's append-only rule is about measurements, and
+        // nothing here was measured.
+        writeHousehold(dataDir, parseHousehold(JSON.parse(household)));
+        response.writeHead(204);
+        response.end();
+      } catch (error) {
+        const message = error instanceof InvalidRequestError ? error.message : 'Okunamadı';
+        response.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        response.end(JSON.stringify({ error: message }));
+      }
+    });
+    return;
+  }
+
   if (request.method === 'POST' && request.url === '/request') {
     try {
       assertLocalRequest(request.headers, PORT);

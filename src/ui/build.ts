@@ -17,6 +17,7 @@ import { loadModules } from '../modules/registry.js';
 import { loadMortgageRules } from '../finance/rules.js';
 import { loadMarketReports } from '../market/load.js';
 import { loadRateReports } from '../rates/load.js';
+import { DEFAULT_HOUSEHOLD, readHousehold } from '../record/household.js';
 import { loadSavingsFinanceReports } from '../savings/load.js';
 import { type PageData } from './render.js';
 
@@ -61,6 +62,7 @@ export function readPageData(dataDir: string | undefined, bundle: string): PageD
     // which is the honest state today.
     modules: loadModules('modules').map((module) => ({ id: module.id, label_tr: module.label_tr })),
     research: dataDir === undefined ? [] : loadMarketReports(dataDir),
+    household: dataDir === undefined ? DEFAULT_HOUSEHOLD : readHousehold(dataDir),
     instruments: [],
     records: [],
     rates: dataDir === undefined ? [] : loadRateReports(dataDir),

@@ -14,6 +14,7 @@ import {
   readClaims,
   rejectedRequests,
   readRequests,
+  parseHousehold,
 } from './requests.js';
 
 function dir(): string {
@@ -365,5 +366,41 @@ describe('describing a queued request', () => {
     expect(describeRequest({ kind: 'rates', bank: 'Akbank', requested_at: 'x' })).toBe(
       'rates Akbank',
     );
+  });
+});
+
+describe('the household a page sends back', () => {
+  it('takes the four answers', () => {
+    expect(parseHousehold({ age: 41, owns_home: true, newlywed: false, salary: 'public' })).toEqual(
+      { age: 41, owns_home: true, newlywed: false, salary: 'public' },
+    );
+  });
+
+  it('refuses a salary nobody offered', () => {
+    // These reach a rate table. An answer that matches no rule would sit in the
+    // record looking like one.
+    expect(() =>
+      parseHousehold({ age: 41, owns_home: true, newlywed: false, salary: 'x' }),
+    ).toThrow(InvalidRequestError);
+  });
+
+  it('refuses an age that is not a person’s', () => {
+    for (const age of [0, -1, 500, 35.5, '35', null]) {
+      expect(() =>
+        parseHousehold({ age, owns_home: false, newlywed: false, salary: 'private' }),
+      ).toThrow(InvalidRequestError);
+    }
+  });
+
+  it('refuses a yes-or-no that is neither', () => {
+    expect(() =>
+      parseHousehold({ age: 35, owns_home: 'evet', newlywed: false, salary: 'private' }),
+    ).toThrow(InvalidRequestError);
+  });
+
+  it('refuses anything that is not an object at all', () => {
+    for (const body of [null, 'hello', 42, []]) {
+      expect(() => parseHousehold(body)).toThrow(InvalidRequestError);
+    }
   });
 });
