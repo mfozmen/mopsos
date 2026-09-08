@@ -1743,9 +1743,12 @@ const FINANCE_SCRIPT = `
      * exists and fetching waits for a second choice, which is also the answer
      * to a district read more than once: the dates are the choice.
      *
-     * "Düzeltildi" rather than the record's own "yerine yenisi yazıldı". That
-     * sentence is right on a reading you have opened; in a column beside a date
-     * it is a paragraph where a label goes.
+     * No correction label here. The rows are newest first, so this table's job
+     * is choosing a date, and reportSection already says "yerine yenisi
+     * yazıldı" on the reading itself — above the figures it is about, which is
+     * where a reader meets it before reading a number that was never true.
+     * render.test.ts pins that; if it ever stops, this became the thing that
+     * hid a correction.
      */
     var drawDates = function () {
       var mine = readings
@@ -1777,13 +1780,12 @@ const FINANCE_SCRIPT = `
         (shownRows.length === 0
           ? '<p class="empty">Bu aralıkta okuma yok.</p>'
           : '<table class="dates"><thead><tr><th>Tarih</th><th>Saat</th>' +
-            '<th class="num">Mahalle</th><th></th></tr></thead><tbody>' +
+            '<th class="num">Mahalle</th></tr></thead><tbody>' +
             shownRows.map(function (entry) {
               return '<tr data-file="' + esc(entry.file) + '" tabindex="0" role="button">' +
                 '<td>' + esc(turkishDay(entry.dated)) + '</td>' +
                 '<td>' + esc(entry.at ? entry.at.slice(11, 16) : '') + '</td>' +
-                '<td class="num">' + esc(entry.count) + '</td>' +
-                '<td>' + (entry.corrected ? 'düzeltildi' : '') + '</td></tr>';
+                '<td class="num">' + esc(entry.count) + '</td></tr>';
             }).join('') + '</tbody></table>');
       return true;
     };
@@ -2132,7 +2134,6 @@ const STYLE = `
   table.dates tbody tr { cursor: pointer; }
   table.dates tbody tr:hover td, table.dates tbody tr:focus-visible td {
     background: var(--surface); }
-  table.dates td:last-child { font-family: var(--sans); font-size: .75rem; color: var(--muted); }
   .range { font-size: .8rem; color: var(--muted); margin: .6rem 0 0; }
   .range input { font: inherit; font-family: var(--sans); padding: .2rem .4rem;
     border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
