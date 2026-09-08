@@ -835,12 +835,14 @@ describe('zooming the coverage map', () => {
     expect(dates[2]).toContain('02.11.2025');
   });
 
-  it('says a reading was corrected in a word, not a sentence', () => {
-    // "Yerine yenisi yazıldı" is the right sentence on a reading you have
-    // opened. In a column beside a date it is a paragraph where a label goes.
+  it('does not label a correction in the picker, where the order already tells', () => {
+    // The rows are newest first, so the picker's job is choosing a date. The
+    // label belongs on the reading itself, above the figures it is about —
+    // which is where reportSection still puts it, and where a reader meets it
+    // before reading a number that was never true.
     const page = pickMenemen(manyReadings());
 
-    expect(page.region('#reading-dates')).toContain('düzeltildi');
+    expect(page.region('#reading-dates')).not.toContain('düzeltildi');
     expect(page.region('#reading-dates')).not.toContain('yerine yenisi yazıldı');
   });
 
