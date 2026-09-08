@@ -24,13 +24,13 @@
  * Usage: npm run dev
  */
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 
 import { resolveDataDir } from '../config/data-dir.js';
 import { raiseTerminal } from '../server/attention.js';
 import { assertLocalRequest, assertSameOrigin, NotLocalError } from '../server/guards.js';
-import { readingFile } from '../server/reading.js';
+import { findReading } from '../server/reading.js';
 import {
   appendRequest,
   InvalidRequestError,
@@ -54,134 +54,136 @@ const bundle = await compileCalculator();
 // cannot change.
 const fresh = () => readPageData(dataDir, bundle);
 
+type Reply = ServerResponse;
+
+const json = (response: Reply, status: number, body: unknown): void => {
+  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+  response.end(JSON.stringify(body));
+};
+
+const html = (response: Reply, body: string): void => {
+  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  response.end(body);
+};
+
+/**
+ * Collects a request body, then hands it to `act`.
+ *
+ * Both writing routes need the same three things — a size cap so nothing can
+ * pile up, a refusal that is a refusal rather than a crash, and the guard —
+ * and they had all three written out twice. The third copy is where they would
+ * have started to differ.
+ */
+function withBody(request: IncomingMessage, response: Reply, act: (body: unknown) => void): void {
+  try {
+    assertLocalRequest(request.headers, PORT);
+  } catch (error) {
+    json(response, 403, { error: error instanceof NotLocalError ? error.message : 'Reddedildi' });
+    return;
+  }
+
+  let collected = '';
+  request.on('data', (chunk: Buffer) => {
+    collected += chunk.toString('utf8');
+    if (collected.length > MAX_BODY_BYTES) {
+      json(response, 413, { error: 'İstek fazla büyük' });
+      request.destroy();
+    }
+  });
+
+  request.on('end', () => {
+    if (response.writableEnded) return;
+    try {
+      act(JSON.parse(collected));
+    } catch (error) {
+      json(response, 400, {
+        error: error instanceof InvalidRequestError ? error.message : 'İstek okunamadı',
+      });
+    }
+  });
+}
+
+/**
+ * Who the reader is, kept.
+ *
+ * Overwritten rather than appended: this is a current state, not an
+ * observation. The record's append-only rule is about measurements, and nothing
+ * here was measured.
+ */
+function saveHousehold(request: IncomingMessage, response: Reply): void {
+  withBody(request, response, (body) => {
+    writeHousehold(dataDir, parseHousehold(body));
+    response.writeHead(204);
+    response.end();
+  });
+}
+
+/** A research request, queued for the session watching the queue. */
+function queueRequest(request: IncomingMessage, response: Reply): void {
+  withBody(request, response, (body) => {
+    const parsed = parseRequest(body);
+    appendRequest(dataDir, parsed, new Date().toISOString());
+    console.log(`
+MOPSOS_REQUEST ${JSON.stringify(parsed)}`);
+
+    // The request is written; now say so where it will be acted on. The parent
+    // process is the terminal hosting this server, which is the window the
+    // Claude Code session is being read in.
+    raiseTerminal({
+      platform: process.platform,
+      pid: process.ppid,
+      bell: (sequence) => process.stdout.write(sequence),
+      spawn: (command, args) => {
+        spawn(command, args, { stdio: 'ignore', detached: false }).unref();
+      },
+    });
+
+    json(response, 202, { queued: true });
+  });
+}
+
+/**
+ * One reading, rendered by the same function that used to print it inline.
+ *
+ * The Host and Origin checks, not the JSON one: this reads, and a GET has no
+ * body to be the cross-origin form post that check refuses. What still applies
+ * is the rebinding door guards.ts describes, and this is the endpoint that
+ * names files out of the private record.
+ */
+function serveReading(request: IncomingMessage, response: Reply, file: string | undefined): void {
+  try {
+    assertSameOrigin(request.headers, PORT);
+  } catch (error) {
+    response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end(error instanceof NotLocalError ? error.message : 'Reddedildi');
+    return;
+  }
+
+  const data = fresh();
+  const found = findReading(data.research, file);
+
+  if (found === undefined) {
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end('Böyle bir okuma yok');
+    return;
+  }
+
+  html(response, renderReading(found, data));
+}
+
 const server = createServer((request, response) => {
-  if (request.method === 'POST' && request.url === '/household') {
-    try {
-      assertLocalRequest(request.headers, PORT);
-    } catch (error) {
-      response.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
-      response.end(
-        JSON.stringify({ error: error instanceof NotLocalError ? error.message : 'Reddedildi' }),
-      );
-      return;
-    }
-
-    let household = '';
-    request.on('data', (chunk: Buffer) => {
-      household += chunk.toString('utf8');
-      if (household.length > MAX_BODY_BYTES) {
-        response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
-        response.end('{"error":"İstek fazla büyük"}');
-        request.destroy();
-      }
-    });
-    request.on('end', () => {
-      if (response.writableEnded) return;
-      try {
-        // Overwritten rather than appended: this is a current state, not an
-        // observation. The record's append-only rule is about measurements, and
-        // nothing here was measured.
-        writeHousehold(dataDir, parseHousehold(JSON.parse(household)));
-        response.writeHead(204);
-        response.end();
-      } catch (error) {
-        const message = error instanceof InvalidRequestError ? error.message : 'Okunamadı';
-        response.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
-        response.end(JSON.stringify({ error: message }));
-      }
-    });
-    return;
-  }
-
-  if (request.method === 'POST' && request.url === '/request') {
-    try {
-      assertLocalRequest(request.headers, PORT);
-    } catch (error) {
-      response.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
-      response.end(
-        JSON.stringify({ error: error instanceof NotLocalError ? error.message : 'Reddedildi' }),
-      );
-      return;
-    }
-
-    let body = '';
-    request.on('data', (chunk: Buffer) => {
-      body += chunk.toString('utf8');
-      if (body.length > MAX_BODY_BYTES) {
-        response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
-        response.end('{"error":"İstek fazla büyük"}');
-        request.destroy();
-      }
-    });
-    request.on('end', () => {
-      if (response.writableEnded) return;
-      try {
-        const parsed = parseRequest(JSON.parse(body));
-        appendRequest(dataDir, parsed, new Date().toISOString());
-        console.log(`\nMOPSOS_REQUEST ${JSON.stringify(parsed)}`);
-
-        // The request is written; now say so where it will be acted on. The
-        // parent process is the terminal hosting this server, which is the
-        // window the Claude Code session is being read in.
-        raiseTerminal({
-          platform: process.platform,
-          pid: process.ppid,
-          bell: (sequence) => process.stdout.write(sequence),
-          spawn: (command, args) => {
-            spawn(command, args, { stdio: 'ignore', detached: false }).unref();
-          },
-        });
-
-        response.writeHead(202, { 'content-type': 'application/json' });
-        response.end('{"queued":true}');
-      } catch (error) {
-        const message = error instanceof InvalidRequestError ? error.message : 'İstek okunamadı';
-        response.writeHead(400, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({ error: message }));
-      }
-    });
-    return;
-  }
-
-  const asked = new URL(request.url ?? '/', `http://127.0.0.1:${String(PORT)}`);
-
   // The path, not a prefix of it: startsWith would claim /readings-summary and
   // anything else added later that happens to begin the same way.
-  if (request.method === 'GET' && asked.pathname === '/reading') {
-    // The Host and Origin checks, not the JSON one: this reads, and a GET has
-    // no body to be the cross-origin form post that check refuses. What still
-    // applies is the rebinding door guards.ts describes, and this is the
-    // endpoint that names files out of the private record.
-    try {
-      assertSameOrigin(request.headers, PORT);
-    } catch (error) {
-      response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
-      response.end(error instanceof NotLocalError ? error.message : 'Reddedildi');
-      return;
-    }
+  const asked = new URL(request.url ?? '/', `http://127.0.0.1:${String(PORT)}`);
+  const route = `${request.method ?? 'GET'} ${asked.pathname}`;
 
-    const data = fresh();
-    const wanted = readingFile(
-      asked.searchParams.get('file') ?? undefined,
-      data.research.flatMap((report) => [report.file, ...report.earlier.map((old) => old.file)]),
-    );
-    const found = data.research
-      .flatMap((report) => [report, ...report.earlier])
-      .find((report) => report.file === wanted);
-
-    if (found === undefined) {
-      response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-      response.end('Böyle bir okuma yok');
-      return;
-    }
-
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end(renderReading(found, data));
-    return;
+  if (route === 'POST /household') return saveHousehold(request, response);
+  if (route === 'POST /request') return queueRequest(request, response);
+  if (route === 'GET /reading') {
+    return serveReading(request, response, asked.searchParams.get('file') ?? undefined);
   }
 
-  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  response.end(renderPage(fresh()));
+  html(response, renderPage(fresh()));
 });
 
 server.listen(PORT, '127.0.0.1', () => {
