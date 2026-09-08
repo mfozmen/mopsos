@@ -134,15 +134,20 @@ function open(data: PageData = DATA) {
     disabled: (selector: string): boolean =>
       document.querySelector<HTMLButtonElement>(selector)?.disabled ?? false,
     /**
-     * Whether an element is hidden, read off the attribute.
+     * Whether an element is actually not drawn.
      *
-     * The attribute rather than the `hidden` property on purpose: `hidden` is
-     * declared on HTMLElement, and an <svg> is not one. Assigning to it there
-     * silently sets an expando and paints nothing, which is exactly the bug
-     * this asks about.
+     * Computed display rather than the attribute. Reading the attribute is what
+     * let a real bug through: `hidden` on an SVG <g> sets the attribute and
+     * paints nothing away, because the rule that gives `hidden` its meaning is
+     * the browser's own stylesheet and it does not reach inside SVG. The page
+     * looked wrong and the test looked right.
      */
-    hidden: (selector: string): boolean =>
-      document.querySelector(selector)?.hasAttribute('hidden') ?? false,
+    hidden: (selector: string): boolean => {
+      const element = document.querySelector(selector);
+      if (element === null) throw new Error(`the page has no ${selector}`);
+
+      return dom.window.getComputedStyle(element).display === 'none';
+    },
   };
 }
 
@@ -773,16 +778,22 @@ describe('zooming the coverage map', () => {
     expect(page.hidden('[data-level="district"]')).toBe(true);
   });
 
-  it('opens a district’s report when it has one', () => {
+  it('opens a district’s report, and the shelf it is folded into', () => {
+    // The readings sit behind one fold so nothing is on screen before it is
+    // asked for. Opening a report inside a closed shelf would be a click that
+    // appears to do nothing, which is the failure this map avoids everywhere
+    // else.
     const page = open(withReadings());
+    const detail = (selector: string) =>
+      page.window.document.querySelector<HTMLDetailsElement>(selector);
+
+    expect(detail('details.readings')?.open).toBe(false);
 
     page.click('[data-level="province"] [data-name="İzmir"]');
     page.click('[data-level="district"] [data-name="Menemen"]');
 
-    expect(page.hidden('details.report[data-place="İzmir / Menemen"]')).toBe(false);
-    expect(page.window.document.querySelector<HTMLDetailsElement>('details.report')?.open).toBe(
-      true,
-    );
+    expect(detail('details.readings')?.open).toBe(true);
+    expect(detail('details.report[data-place="İzmir / Menemen"]')?.open).toBe(true);
   });
 
   it('opens the districts of a province with no readings at all', () => {
@@ -795,9 +806,32 @@ describe('zooming the coverage map', () => {
 
     expect(page.hidden('[data-level="district"]')).toBe(false);
     expect(page.text('zoom-at')).toBe('Manisa');
-    expect(
-      page.window.document.querySelector('[data-province="Manisa"]')?.hasAttribute('hidden'),
-    ).toBe(false);
+    expect(page.hidden('[data-province="Manisa"]')).toBe(false);
+    // And every other province is gone, not merely cropped out of the frame.
+    expect(page.hidden('[data-province="Konya"]')).toBe(true);
+    expect(page.hidden('[data-province="İzmir"]')).toBe(true);
+  });
+
+  it('sizes the counts to the province it is framing', () => {
+    // The numbers are drawn in national units and every province is framed in
+    // its own slice of them, so one fixed size is a third of Konya and swallows
+    // Yalova. Proportional, and the proportion is what a reversed index in the
+    // viewBox split would silently break.
+    const page = open(withReadings());
+    const svg = () => page.window.document.querySelector<SVGElement>('[data-level="district"]');
+    const sizeFor = (province: string): number => {
+      page.click('#zoom-out');
+      page.click(`[data-level="province"] [data-name="${province}"]`);
+      const box = svg()?.getAttribute('viewBox')?.split(' ') ?? [];
+
+      expect(svg()?.style.getPropertyValue('--count-size')).toBe(
+        `${String(Number(box[2]) * 0.025)}px`,
+      );
+
+      return Number(box[2]);
+    };
+
+    expect(sizeFor('Konya')).toBeGreaterThan(sizeFor('Yalova'));
   });
 
   it('frames the province it opened, not the whole country', () => {

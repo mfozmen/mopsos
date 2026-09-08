@@ -1101,14 +1101,37 @@ describe('the housing layout', () => {
     expect(mapped()).not.toMatch(/Haritada yeri bulunamayan/);
   });
 
-  it('leaves the list under the map rather than replacing it', () => {
-    // The map is an index over the record, not the record. If it fails to draw
-    // — a name that stops matching, a shape that goes missing — the readings
-    // must still be reachable.
+  it('keeps the readings behind a fold until one is asked for', () => {
+    // The map is how a reading is chosen. Three summary rows sitting under it
+    // before anything is chosen is the page answering a question nobody asked,
+    // and with thirty districts read it would be thirty.
+    const page = mapped();
+    const shelf = page.slice(page.indexOf('class="readings"'));
+
+    expect(page).toContain('<details class="readings">');
+    expect(shelf.slice(0, shelf.indexOf('>'))).not.toContain('open');
+  });
+
+  it('never hides the readings from a reader the map failed', () => {
+    // The map is an index over the record, not the record. If a name stops
+    // matching or a shape goes missing, the readings have to stay reachable —
+    // so they are folded away, not withheld.
     const page = mapped();
 
-    expect(page.indexOf('class="coverage"')).toBeLessThan(page.indexOf('class="report"'));
+    expect(page.indexOf('class="coverage"')).toBeLessThan(page.indexOf('class="readings"'));
     expect(page).toContain('class="report"');
+    expect(page).toMatch(/Bütün okumalar/);
+  });
+
+  it('credits the boundaries without putting the licence in the caption', () => {
+    // CC BY-IGO asks for attribution, so it stays; it does not ask for it to be
+    // the second thing under the map. Moved to the footer with the other
+    // provenance the page carries.
+    const page = renderPage(EMPTY);
+    const caption = page.slice(page.indexOf('<figcaption'), page.indexOf('</figcaption>'));
+
+    expect(caption).not.toMatch(/OCHA|CC BY/);
+    expect(page).toMatch(/OCHA COD-AB-TUR/);
   });
 
   it('lets a wide table scroll inside itself rather than the page sideways', () => {

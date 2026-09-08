@@ -669,7 +669,8 @@ function coverageMap(reports: ShownMarketReport[]): string {
 
   const groups = DISTRICTS_BY_PROVINCE.map(
     (entry) => `
-        <g data-province="${escape(entry.province)}" data-viewbox="${entry.viewBox}" hidden
+        <g data-province="${escape(entry.province)}" data-viewbox="${entry.viewBox}"
+          style="display:none"
           >${mapShapes(entry.districts, districts, (shape) => `${entry.province} / ${shape.name}`, false)}
         </g>`,
   ).join('');
@@ -687,8 +688,8 @@ function coverageMap(reports: ShownMarketReport[]): string {
         </svg>
         <figcaption>
           Rakam, orada okunan mahalle sayısı. Bir ile tıklayınca ilçeleri açılır; bir
-          ilçeye tıklayınca raporları aşağıda görünür. Okunmamış bir yere tıklamak onu
-          araştırma isteğine yazar. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
+          ilçeye tıklayınca okuması açılır. Okunmamış bir yere tıklamak onu araştırma
+          isteğine yazar.
         </figcaption>${
           lost.length === 0
             ? ''
@@ -1323,7 +1324,20 @@ function panelBody(tab: Tab, data: PageData): string {
           ${SEARCH}
           ${coverageMap(data.research)}
           ${compareBlock(data.research)}
-          ${research}
+          ${
+            /*
+             * Folded, because the map above is how a reading is chosen now and
+             * a stack of summary rows under it answers a question nobody asked
+             * — three today, thirty once İzmir is read.
+             *
+             * Folded rather than withheld: the map is an index over the record,
+             * not the record. A name that stops matching or a shape that goes
+             * missing must not take the readings with it.
+             */ ''
+          }<details class="readings">
+            <summary>Bütün okumalar${data.research.length === 0 ? '' : ` (${String(data.research.length)})`}</summary>
+            ${research}
+          </details>
           ${placesData(data.research)}
           ${recordData(data)}
         </section>
@@ -1613,12 +1627,27 @@ const FINANCE_SCRIPT = `
       if (!group) return false;
 
       openProvince = name;
+      // display, not the hidden attribute. That attribute only means anything
+      // because the browser's own stylesheet says so, and that rule does not
+      // reach inside SVG: it went on, every other province kept painting, and
+      // the viewBox merely cropped the country down to one corner of it. A
+      // style property means the same thing everywhere and, unlike the
+      // attribute, is the same thing the tests can see.
       for (var other of districtLayer.querySelectorAll('[data-province]')) {
-        other.toggleAttribute('hidden', other !== group);
+        other.style.display = other === group ? '' : 'none';
       }
       // Every province is projected in one national system, so framing one is
-      // a matter of which window you look through.
-      districtLayer.setAttribute('viewBox', group.getAttribute('data-viewbox'));
+      // a matter of which window you look through. The numbers are drawn in
+      // those same units, so they have to be sized to the window as well.
+      var box = group.getAttribute('data-viewbox');
+      districtLayer.setAttribute('viewBox', box);
+      // The figure is drawn at about 640 pixels wide whatever province it is,
+      // so a number that should read at ~16px on screen is that fraction of
+      // the frame's own width.
+      districtLayer.style.setProperty(
+        '--count-size',
+        String(Number(box.split(' ')[2]) * 0.025) + 'px',
+      );
       provinceLayer.toggleAttribute('hidden', true);
       districtLayer.toggleAttribute('hidden', false);
       out.hidden = false;
@@ -1676,6 +1705,10 @@ const FINANCE_SCRIPT = `
           '"]',
       );
       if (!wanted) return putInRequest('district', name);
+      // The shelf as well as the reading inside it. Opening a report that is
+      // still folded away is a click that appears to do nothing.
+      var shelf = wanted.closest('details.readings');
+      if (shelf) shelf.open = true;
       wanted.open = true;
       wanted.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -1973,7 +2006,10 @@ const STYLE = `
   .count { font-family: var(--sans); font-weight: 600; fill: var(--ink);
     text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
   [data-level='province'] .count { font-size: 24px; }
-  [data-level='district'] .count { font-size: 22px; }
+  /* Set from the province's own viewBox when one is opened, because every
+     province is framed in the same national units and they are not the same
+     size: a fixed size is a third of Konya and swallows Yalova. */
+  [data-level='district'] .count { font-size: var(--count-size, 22px); }
   .coverage figcaption { margin: .6rem 0 0; font-size: .75rem; color: var(--muted);
     max-width: 44ch; }
   .find { margin: 1.2rem 0; }
@@ -2570,6 +2606,9 @@ ${panels}
     <footer>
       Bu sayfa kayıttan üretildi ve hiçbir şey yazmaz.
       Yeniden üretmek için: <code>npm run ui</code>
+      <!-- CC BY-IGO asks for credit. It does not ask for it under the map, where
+           it was the second thing a reader met. -->
+      <br>Harita sınırları: OCHA COD-AB-TUR (CC BY-IGO).
     </footer>
   </div>
   <script>${data.finance.bundle}</script>
