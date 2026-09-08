@@ -1718,6 +1718,21 @@ const FINANCE_SCRIPT = `
 
     var turkishDay = function (iso) { return iso.split('-').reverse().join('.'); };
 
+    /**
+     * Escapes a value on its way into markup this builds by hand.
+     *
+     * The file name is not something this code invents — it is whatever a report
+     * under market/ is called, written by an agent and merged in a pull request
+     * where the reviewer is reading the JSON's contents rather than its name.
+     * Concatenated into an attribute, a name like x"><img onerror=...> is a
+     * script running in the reader's own page. The server-rendered half of this
+     * file escapes every value it puts in an attribute; so does this half now.
+     */
+    var ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    var esc = function (value) {
+      return String(value).replace(/[&<>"']/g, function (character) { return ESCAPES[character]; });
+    };
+
     var openPlace = null;
 
     /**
@@ -1754,20 +1769,20 @@ const FINANCE_SCRIPT = `
       // one row it is furniture, and furniture is not read.
       var filter = mine.length < 2 ? '' :
         '<p class="range">Tarih aralığı' +
-        ' <input type="date" id="from-date" value="' + after + '" aria-label="Başlangıç">' +
-        ' – <input type="date" id="to-date" value="' + before + '" aria-label="Bitiş"></p>';
+        ' <input type="date" id="from-date" value="' + esc(after) + '" aria-label="Başlangıç">' +
+        ' – <input type="date" id="to-date" value="' + esc(before) + '" aria-label="Bitiş"></p>';
 
       dates.innerHTML =
-        '<p class="note">' + openPlace + ' — ' + mine.length + ' okuma</p>' + filter +
+        '<p class="note">' + esc(openPlace) + ' — ' + mine.length + ' okuma</p>' + filter +
         (shownRows.length === 0
           ? '<p class="empty">Bu aralıkta okuma yok.</p>'
           : '<table class="dates"><thead><tr><th>Tarih</th><th>Saat</th>' +
             '<th class="num">Mahalle</th><th></th></tr></thead><tbody>' +
             shownRows.map(function (entry) {
-              return '<tr data-file="' + entry.file + '" tabindex="0" role="button">' +
-                '<td>' + turkishDay(entry.dated) + '</td>' +
-                '<td>' + (entry.at ? entry.at.slice(11, 16) : '') + '</td>' +
-                '<td class="num">' + entry.count + '</td>' +
+              return '<tr data-file="' + esc(entry.file) + '" tabindex="0" role="button">' +
+                '<td>' + esc(turkishDay(entry.dated)) + '</td>' +
+                '<td>' + esc(entry.at ? entry.at.slice(11, 16) : '') + '</td>' +
+                '<td class="num">' + esc(entry.count) + '</td>' +
                 '<td>' + (entry.corrected ? 'düzeltildi' : '') + '</td></tr>';
             }).join('') + '</tbody></table>');
       return true;

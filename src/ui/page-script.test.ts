@@ -871,6 +871,40 @@ describe('zooming the coverage map', () => {
     expect(page.region('#reading-dates')).toMatch(/aralıkta okuma yok/i);
   });
 
+  it('cannot be broken out of by a hostile file name', () => {
+    // The file name is not something this code invents: it is whatever a report
+    // under market/ is called, written by an agent and merged in a pull request
+    // where a reviewer is reading the JSON's contents rather than its name.
+    // Concatenated into an attribute it is a script tag in the reader's page.
+    const nasty = '2026-07-29"><img src=x onerror=alert(1)>.json';
+    const page = pickMenemen({
+      ...DATA,
+      research: [
+        {
+          ...RECORDED,
+          file: nasty,
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [],
+          earlier: [
+            {
+              ...RECORDED,
+              file: 'b.json',
+              place: 'İzmir / Menemen',
+              dated: '2026-07-28',
+              neighbourhoods: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(page.window.document.querySelector('#reading-dates img')).toBeNull();
+    expect(
+      page.window.document.querySelector('#reading-dates [data-file]')?.getAttribute('data-file'),
+    ).toBe(nasty);
+  });
+
   it('offers no filter for a district read once', () => {
     // A date range over one row is furniture.
     const page = pickMenemen(withReadings());

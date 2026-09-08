@@ -95,6 +95,18 @@ const server = createServer((request, response) => {
   }
 
   if (request.method === 'GET' && request.url?.startsWith('/reading')) {
+    // Behind the same Host check as the queue. It reads rather than writes, and
+    // the page it sits beside is served without one — but this endpoint is the
+    // one that names files out of the private record, and guards.ts describes
+    // the rebinding attack it is here to stop. Consistency costs nothing.
+    try {
+      assertLocalRequest(request.headers, PORT);
+    } catch (error) {
+      response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+      response.end(error instanceof NotLocalError ? error.message : 'Reddedildi');
+      return;
+    }
+
     const data = fresh();
     const asked = new URL(request.url, `http://127.0.0.1:${String(PORT)}`).searchParams;
     const wanted = readingFile(
