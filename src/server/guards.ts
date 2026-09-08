@@ -1,3 +1,6 @@
+/** What node hands us: one value, several, or none. */
+export type RequestHeaders = Record<string, string | string[] | undefined>;
+
 export class NotLocalError extends Error {
   constructor(reason: string) {
     super(reason);
@@ -36,10 +39,7 @@ function isLocal(value: string | undefined, port: number): boolean {
  * - **Content type** must be JSON. A form post is the one shape that reaches a
  *   cross-origin server with no preflight, so it is refused by name.
  */
-export function assertLocalRequest(
-  headers: Record<string, string | string[] | undefined>,
-  port: number,
-): void {
+export function assertLocalRequest(headers: RequestHeaders, port: number): void {
   assertSameOrigin(headers, port);
 
   if (!(read(headers, 'content-type') ?? '').includes('application/json')) {
@@ -59,10 +59,7 @@ export function assertLocalRequest(
  * controls, pointed at 127.0.0.1, is treated as same-origin by the browser, and
  * the Origin check alone would pass it.
  */
-export function assertSameOrigin(
-  headers: Record<string, string | string[] | undefined>,
-  port: number,
-): void {
+export function assertSameOrigin(headers: RequestHeaders, port: number): void {
   if (!isLocal(read(headers, 'host'), port)) {
     throw new NotLocalError('Bu sunucu yalnızca kendi sayfasından gelen isteği kabul eder');
   }
@@ -73,10 +70,7 @@ export function assertSameOrigin(
   }
 }
 
-function read(
-  headers: Record<string, string | string[] | undefined>,
-  name: string,
-): string | undefined {
+function read(headers: RequestHeaders, name: string): string | undefined {
   const value = headers[name];
   return Array.isArray(value) ? value[0] : value;
 }
