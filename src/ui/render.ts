@@ -688,8 +688,8 @@ function coverageMap(reports: ShownMarketReport[]): string {
         </svg>
         <figcaption>
           Rakam, orada okunan mahalle sayısı. Bir ile tıklayınca ilçeleri açılır; bir
-          ilçeye tıklayınca raporları aşağıda görünür. Okunmamış bir yere tıklamak onu
-          araştırma isteğine yazar. Sınırlar: OCHA COD-AB-TUR (CC BY-IGO).
+          ilçeye tıklayınca okuması açılır. Okunmamış bir yere tıklamak onu araştırma
+          isteğine yazar.
         </figcaption>${
           lost.length === 0
             ? ''
@@ -1324,7 +1324,20 @@ function panelBody(tab: Tab, data: PageData): string {
           ${SEARCH}
           ${coverageMap(data.research)}
           ${compareBlock(data.research)}
-          ${research}
+          ${
+            /*
+             * Folded, because the map above is how a reading is chosen now and
+             * a stack of summary rows under it answers a question nobody asked
+             * — three today, thirty once İzmir is read.
+             *
+             * Folded rather than withheld: the map is an index over the record,
+             * not the record. A name that stops matching or a shape that goes
+             * missing must not take the readings with it.
+             */ ''
+          }<details class="readings">
+            <summary>Bütün okumalar${data.research.length === 0 ? '' : ` (${String(data.research.length)})`}</summary>
+            ${research}
+          </details>
           ${placesData(data.research)}
           ${recordData(data)}
         </section>
@@ -1692,6 +1705,10 @@ const FINANCE_SCRIPT = `
           '"]',
       );
       if (!wanted) return putInRequest('district', name);
+      // The shelf as well as the reading inside it. Opening a report that is
+      // still folded away is a click that appears to do nothing.
+      var shelf = wanted.closest('details.readings');
+      if (shelf) shelf.open = true;
       wanted.open = true;
       wanted.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -2589,6 +2606,9 @@ ${panels}
     <footer>
       Bu sayfa kayıttan üretildi ve hiçbir şey yazmaz.
       Yeniden üretmek için: <code>npm run ui</code>
+      <!-- CC BY-IGO asks for credit. It does not ask for it under the map, where
+           it was the second thing a reader met. -->
+      <br>Harita sınırları: OCHA COD-AB-TUR (CC BY-IGO).
     </footer>
   </div>
   <script>${data.finance.bundle}</script>
