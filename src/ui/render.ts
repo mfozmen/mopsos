@@ -1718,39 +1718,69 @@ const FINANCE_SCRIPT = `
 
     var turkishDay = function (iso) { return iso.split('-').reverse().join('.'); };
 
+    var openPlace = null;
+
     /**
-     * The readings of one district, offered by date.
+     * The readings of one district, as a dated list.
      *
      * The page holds an index, not the readings — printing them all was a
      * quarter of the page for three of them. So picking a district draws what
      * exists and fetching waits for a second choice, which is also the answer
      * to a district read more than once: the dates are the choice.
+     *
+     * "Düzeltildi" rather than the record's own "yerine yenisi yazıldı". That
+     * sentence is right on a reading you have opened; in a column beside a date
+     * it is a paragraph where a label goes.
      */
-    var offerReadings = function (place) {
-      var mine = readings.filter(function (entry) { return entry.place === place; });
-      shown.innerHTML = '';
+    var drawDates = function () {
+      var mine = readings
+        .filter(function (entry) { return entry.place === openPlace; })
+        .sort(function (a, b) { return (b.at || b.dated) < (a.at || a.dated) ? -1 : 1; });
 
       if (mine.length === 0) {
         dates.innerHTML = '<p class="empty">Bu ilçede okuma yok — araştırma isteğine yazıldı.</p>';
         return false;
       }
 
+      var from = document.getElementById('from-date');
+      var to = document.getElementById('to-date');
+      var after = from && from.value ? from.value : '';
+      var before = to && to.value ? to.value : '';
+      var shownRows = mine.filter(function (entry) {
+        return (!after || entry.dated >= after) && (!before || entry.dated <= before);
+      });
+
+      // The filter earns its place only where there is something to filter. Over
+      // one row it is furniture, and furniture is not read.
+      var filter = mine.length < 2 ? '' :
+        '<p class="range">Tarih aralığı' +
+        ' <input type="date" id="from-date" value="' + after + '" aria-label="Başlangıç">' +
+        ' – <input type="date" id="to-date" value="' + before + '" aria-label="Bitiş"></p>';
+
       dates.innerHTML =
-        '<p class="note">' + place + ' — hangi okuma?</p><ul class="dates">' +
-        mine.map(function (entry) {
-          return '<li><button type="button" data-file="' + entry.file + '">' +
-            turkishDay(entry.dated) +
-            (entry.at ? ' ' + entry.at.slice(11, 16) : '') +
-            ' · ' + entry.count + ' mahalle' +
-            (entry.corrected ? ' · yerine yenisi yazıldı' : '') +
-            '</button></li>';
-        }).join('') + '</ul>';
+        '<p class="note">' + openPlace + ' — ' + mine.length + ' okuma</p>' + filter +
+        (shownRows.length === 0
+          ? '<p class="empty">Bu aralıkta okuma yok.</p>'
+          : '<table class="dates"><thead><tr><th>Tarih</th><th>Saat</th>' +
+            '<th class="num">Mahalle</th><th></th></tr></thead><tbody>' +
+            shownRows.map(function (entry) {
+              return '<tr data-file="' + entry.file + '" tabindex="0" role="button">' +
+                '<td>' + turkishDay(entry.dated) + '</td>' +
+                '<td>' + (entry.at ? entry.at.slice(11, 16) : '') + '</td>' +
+                '<td class="num">' + entry.count + '</td>' +
+                '<td>' + (entry.corrected ? 'düzeltildi' : '') + '</td></tr>';
+            }).join('') + '</tbody></table>');
       return true;
     };
 
+    dates.addEventListener('input', function (event) {
+      if (event.target.type === 'date') drawDates();
+    });
+
     var openDistrict = function (name) {
-      var place = openProvince + ' / ' + name;
-      if (!offerReadings(place)) putInRequest('district', name);
+      openPlace = openProvince + ' / ' + name;
+      shown.innerHTML = '';
+      if (!drawDates()) putInRequest('district', name);
       else dates.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
 
@@ -2076,6 +2106,21 @@ const STYLE = `
   [data-level='district'] .count { font-size: var(--count-size, 22px); }
   .coverage figcaption { margin: .6rem 0 0; font-size: .75rem; color: var(--muted);
     max-width: 44ch; }
+  /* Rows, not links: a reading is picked by date and time, and those line up
+     into columns whether there are two of them or two hundred. */
+  table.dates { width: auto; min-width: 22rem; margin: .6rem 0 1.5rem; border-collapse: collapse; }
+  table.dates th { font-family: var(--sans); font-size: .68rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600; text-align: left;
+    padding: 0 1.2rem .4rem 0; border-bottom: 1px solid var(--line); }
+  table.dates td { padding: .5rem 1.2rem .5rem 0; border-bottom: 1px solid var(--line);
+    font-family: var(--serif); }
+  table.dates tbody tr { cursor: pointer; }
+  table.dates tbody tr:hover td, table.dates tbody tr:focus-visible td {
+    background: var(--surface); }
+  table.dates td:last-child { font-family: var(--sans); font-size: .75rem; color: var(--muted); }
+  .range { font-size: .8rem; color: var(--muted); margin: .6rem 0 0; }
+  .range input { font: inherit; font-family: var(--sans); padding: .2rem .4rem;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
   .find { margin: 1.2rem 0; }
   /* The label above its box, not glued to its left edge. Same treatment the
      district form's labels get — a caption over the field rather than a word

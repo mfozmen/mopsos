@@ -129,6 +129,11 @@ function open(data: PageData = DATA) {
       if (element === null) throw new Error(`the page has no ${selector}`);
       element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     },
+    /** The text of each row matching a selector, for asking about a list. */
+    rows: (selector: string): string[] =>
+      [...document.querySelectorAll(selector)].map((row) =>
+        (row.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      ),
     /** Text of a region, for asking what the reader can see rather than one field. */
     region: (selector: string): string => document.querySelector(selector)?.textContent ?? '',
     disabled: (selector: string): boolean =>
@@ -779,19 +784,98 @@ describe('zooming the coverage map', () => {
     expect(page.hidden('[data-level="district"]')).toBe(true);
   });
 
-  it('offers the readings of the district that was picked, by date', () => {
-    // The page carries an index, not the readings. Picking a district turns
-    // that index into a dated list — which reading, from when, how big — and
-    // nothing is fetched until one of them is chosen.
-    const page = open(withReadings());
+  const manyReadings = (): PageData => ({
+    ...DATA,
+    research: [
+      {
+        ...RECORDED,
+        file: '2026-07-29-menemen.json',
+        place: 'İzmir / Menemen',
+        dated: '2026-07-29',
+        at: '2026-07-29T22:55:00+03:00',
+        neighbourhoods: [],
+        earlier: [
+          {
+            ...RECORDED,
+            file: '2026-07-29-menemen-morning.json',
+            place: 'İzmir / Menemen',
+            dated: '2026-07-29',
+            at: '2026-07-29T18:19:00+03:00',
+            corrected: true,
+            neighbourhoods: [],
+          },
+          {
+            ...RECORDED,
+            file: '2025-11-02-menemen.json',
+            place: 'İzmir / Menemen',
+            dated: '2025-11-02',
+            neighbourhoods: [],
+          },
+        ],
+      },
+    ],
+  });
 
-    expect(page.text('reading-dates')).toBe('');
-
+  const pickMenemen = (data: PageData) => {
+    const page = open(data);
     page.click('[data-level="province"] [data-name="İzmir"]');
     page.click('[data-level="district"] [data-name="Menemen"]');
+    return page;
+  };
 
-    expect(page.text('reading-dates')).toMatch(/29\.07\.2026/);
-    expect(page.text('reading-dates')).toMatch(/1 mahalle/);
+  it('offers the readings of the district that was picked, newest first', () => {
+    // The page carries an index, not the readings. Picking a district turns
+    // that index into a dated list; nothing is fetched until one is chosen.
+    const page = pickMenemen(manyReadings());
+    const dates = page.rows('#reading-dates tbody tr');
+
+    expect(dates).toHaveLength(3);
+    expect(dates[0]).toContain('29.07.2026');
+    expect(dates[0]).toContain('22:55');
+    expect(dates[2]).toContain('02.11.2025');
+  });
+
+  it('says a reading was corrected in a word, not a sentence', () => {
+    // "Yerine yenisi yazıldı" is the right sentence on a reading you have
+    // opened. In a column beside a date it is a paragraph where a label goes.
+    const page = pickMenemen(manyReadings());
+
+    expect(page.region('#reading-dates')).toContain('düzeltildi');
+    expect(page.region('#reading-dates')).not.toContain('yerine yenisi yazıldı');
+  });
+
+  it('leaves the time out when the record did not record one', () => {
+    // Half the readings carry a minute and half do not. An invented 00:00 is a
+    // measurement nobody made.
+    const page = pickMenemen(manyReadings());
+
+    expect(page.rows('#reading-dates tbody tr')[2]).not.toMatch(/\d\d:\d\d/);
+  });
+
+  it('narrows the list to a date range', () => {
+    const page = pickMenemen(manyReadings());
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(3);
+
+    page.type('from-date', '2026-01-01');
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(2);
+
+    page.type('to-date', '2026-07-29');
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(2);
+
+    page.type('to-date', '2026-07-28');
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(0);
+    expect(page.region('#reading-dates')).toMatch(/aralıkta okuma yok/i);
+  });
+
+  it('offers no filter for a district read once', () => {
+    // A date range over one row is furniture.
+    const page = pickMenemen(withReadings());
+
+    expect(page.window.document.getElementById('from-date')).toBeNull();
   });
 
   it('says so when a district has no readings at all', () => {
