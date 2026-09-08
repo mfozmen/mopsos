@@ -24,7 +24,7 @@ import { resolve } from 'node:path';
 
 import { resolveDataDir } from '../config/data-dir.js';
 import { raiseTerminal } from '../server/attention.js';
-import { assertLocalRequest, NotLocalError } from '../server/guards.js';
+import { assertLocalRequest, assertSameOrigin, NotLocalError } from '../server/guards.js';
 import { readingFile } from '../server/reading.js';
 import { appendRequest, InvalidRequestError, parseRequest } from '../server/requests.js';
 import { compileCalculator, readPageData } from '../ui/build.js';
@@ -94,13 +94,17 @@ const server = createServer((request, response) => {
     return;
   }
 
-  if (request.method === 'GET' && request.url?.startsWith('/reading')) {
-    // Behind the same Host check as the queue. It reads rather than writes, and
-    // the page it sits beside is served without one — but this endpoint is the
-    // one that names files out of the private record, and guards.ts describes
-    // the rebinding attack it is here to stop. Consistency costs nothing.
+  const asked = new URL(request.url ?? '/', `http://127.0.0.1:${String(PORT)}`);
+
+  // The path, not a prefix of it: startsWith would claim /readings-summary and
+  // anything else added later that happens to begin the same way.
+  if (request.method === 'GET' && asked.pathname === '/reading') {
+    // The Host and Origin checks, not the JSON one: this reads, and a GET has
+    // no body to be the cross-origin form post that check refuses. What still
+    // applies is the rebinding door guards.ts describes, and this is the
+    // endpoint that names files out of the private record.
     try {
-      assertLocalRequest(request.headers, PORT);
+      assertSameOrigin(request.headers, PORT);
     } catch (error) {
       response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
       response.end(error instanceof NotLocalError ? error.message : 'Reddedildi');
@@ -108,9 +112,8 @@ const server = createServer((request, response) => {
     }
 
     const data = fresh();
-    const asked = new URL(request.url, `http://127.0.0.1:${String(PORT)}`).searchParams;
     const wanted = readingFile(
-      asked.get('file') ?? undefined,
+      asked.searchParams.get('file') ?? undefined,
       data.research.flatMap((report) => [report.file, ...report.earlier.map((old) => old.file)]),
     );
     const found = data.research

@@ -40,21 +40,43 @@ export function assertLocalRequest(
   headers: Record<string, string | string[] | undefined>,
   port: number,
 ): void {
-  const header = (name: string): string | undefined => {
-    const value = headers[name];
-    return Array.isArray(value) ? value[0] : value;
-  };
+  assertSameOrigin(headers, port);
 
-  if (!isLocal(header('host'), port)) {
+  if (!(read(headers, 'content-type') ?? '').includes('application/json')) {
+    throw new NotLocalError('İstek JSON olmalı');
+  }
+}
+
+/**
+ * The two checks a read needs: the Host and, when there is one, the Origin.
+ *
+ * Split out because the third check does not belong on a read. Demanding a JSON
+ * content type is how a cross-origin form post is refused, and a form post has
+ * a body — a GET has none, so requiring one there refuses every honest request
+ * and stops nothing.
+ *
+ * The Host check is the one that matters either way: a domain the attacker
+ * controls, pointed at 127.0.0.1, is treated as same-origin by the browser, and
+ * the Origin check alone would pass it.
+ */
+export function assertSameOrigin(
+  headers: Record<string, string | string[] | undefined>,
+  port: number,
+): void {
+  if (!isLocal(read(headers, 'host'), port)) {
     throw new NotLocalError('Bu sunucu yalnızca kendi sayfasından gelen isteği kabul eder');
   }
 
-  const origin = header('origin');
+  const origin = read(headers, 'origin');
   if (origin !== undefined && !isLocal(origin.replace(/^https?:\/\//, ''), port)) {
     throw new NotLocalError('Başka bir kaynaktan gelen istek reddedildi');
   }
+}
 
-  if (!(header('content-type') ?? '').includes('application/json')) {
-    throw new NotLocalError('İstek JSON olmalı');
-  }
+function read(
+  headers: Record<string, string | string[] | undefined>,
+  name: string,
+): string | undefined {
+  const value = headers[name];
+  return Array.isArray(value) ? value[0] : value;
 }
