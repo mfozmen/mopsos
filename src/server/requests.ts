@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { type Household, SALARIES } from '../record/household.js';
+import { AGE, type Household, SALARIES } from '../record/household.js';
 
 const QUEUE = 'requests.jsonl';
 const MAX_PLACE_LENGTH = 80;
@@ -296,8 +296,10 @@ export function parseHousehold(body: unknown): Household {
 
   const { age, owns_home: owns, newlywed, salary } = body as Record<string, unknown>;
 
-  if (typeof age !== 'number' || !Number.isInteger(age) || age < 18 || age > 100) {
-    throw new InvalidRequestError('Yaş 18 ile 100 arasında bir tam sayı olmalı');
+  if (typeof age !== 'number' || !Number.isInteger(age) || age < AGE.least || age > AGE.most) {
+    throw new InvalidRequestError(
+      `Yaş ${String(AGE.least)} ile ${String(AGE.most)} arasında bir tam sayı olmalı`,
+    );
   }
   if (typeof owns !== 'boolean' || typeof newlywed !== 'boolean') {
     throw new InvalidRequestError('Evet/hayır soruları evet ya da hayır olmalı');

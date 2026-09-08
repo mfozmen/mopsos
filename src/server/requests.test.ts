@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { AGE } from '../record/household.js';
+
 import {
   appendRequest,
   claimRequest,
@@ -384,7 +386,17 @@ describe('the household a page sends back', () => {
     ).toThrow(InvalidRequestError);
   });
 
-  it('refuses an age that is not a person’s', () => {
+  it('refuses an age that is not a person’s, at the same bounds the record keeps', () => {
+    // One range, exported, because two copies of it is one edit away from a
+    // page that accepts what the record then throws out and nothing on screen
+    // to say why.
+    expect(() =>
+      parseHousehold({ age: AGE.least - 1, owns_home: false, newlywed: false, salary: 'private' }),
+    ).toThrow(InvalidRequestError);
+    expect(() =>
+      parseHousehold({ age: AGE.most + 1, owns_home: false, newlywed: false, salary: 'private' }),
+    ).toThrow(InvalidRequestError);
+
     for (const age of [0, -1, 500, 35.5, '35', null]) {
       expect(() =>
         parseHousehold({ age, owns_home: false, newlywed: false, salary: 'private' }),

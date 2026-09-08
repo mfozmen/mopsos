@@ -27,8 +27,12 @@ const FILE = 'household.json';
  * Old enough to borrow, young enough to be alive. Not a bank's rule — banks
  * differ, and the page says so — just the range outside which a number in this
  * field is a typo rather than an answer.
+ *
+ * Exported because the server refuses the same range on the way in. Two copies
+ * of a bound is one edit away from a page that accepts what the record then
+ * throws out, and nothing on screen to say why.
  */
-const AGE = { least: 18, most: 100 };
+export const AGE = { least: 18, most: 100 };
 
 function valid(value: unknown): value is Household {
   if (typeof value !== 'object' || value === null) return false;
