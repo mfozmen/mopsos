@@ -3,7 +3,7 @@ import { Script } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { loadMortgageRules } from '../finance/rules.js';
-import { buildTabs, PAGE_SCRIPTS, renderPage, type PageData } from './render.js';
+import { buildTabs, PAGE_SCRIPTS, renderPage, renderReading, type PageData } from './render.js';
 
 const MODULES = [
   { id: 'housing', label_tr: 'Konut' },
@@ -40,7 +40,7 @@ const ZIRAAT = {
  * none of these tests are about. Spread into a fixture so what is written out
  * is only what the test is checking.
  */
-const RECORDED = { earlier: [], corrected: false };
+const RECORDED = { earlier: [], corrected: false, file: 'a.json' };
 const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
 
 /**
@@ -240,6 +240,40 @@ const region = (page: string, name: string): string => {
   );
 
   return next.length === 0 ? rest : rest.slice(0, Math.min(...next));
+};
+
+interface IndexedReading {
+  place: string;
+  file: string;
+  dated: string;
+  count: number;
+  corrected: boolean;
+}
+
+/** The readings index the page ships, parsed. */
+const readingIndex = (page: string): IndexedReading[] => {
+  const at = page.indexOf('id="readings">');
+  if (at === -1) throw new Error('the page ships no readings index');
+
+  return JSON.parse(page.slice(at + 14, page.indexOf('</script>', at))) as IndexedReading[];
+};
+
+/**
+ * One reading as the reader meets it.
+ *
+ * The page ships an index and fetches a reading when it is picked, so a reading
+ * is no longer inside `renderPage` output. Assertions about what a reading
+ * looks like ask the thing that renders one — which is what the server calls
+ * too, so they are still asking about the page.
+ */
+const readingsOf = (data: PageData): string =>
+  data.research.map((report) => renderReading(report, data)).join('');
+
+const readingOf = (data: PageData): string => {
+  const [first] = data.research;
+  if (first === undefined) throw new Error('no reading to render');
+
+  return renderReading(first, data);
 };
 
 describe('sending the agent from the page', () => {
@@ -651,7 +685,7 @@ describe('research findings', () => {
   };
 
   it('shows a neighbourhood with its figures', () => {
-    const konut = panel(renderPage(data), 'housing');
+    const konut = readingOf(data);
 
     expect(konut).toContain('Egekent 2');
     expect(konut).toContain('48.500');
@@ -664,7 +698,7 @@ describe('research findings', () => {
   });
 
   it('says when the research was done, since the market moves', () => {
-    expect(panel(renderPage(data), 'housing')).toContain('27.07.2026');
+    expect(readingOf(data)).toContain('27.07.2026');
   });
 });
 
@@ -727,19 +761,16 @@ describe('market research', () => {
     // The brief asks for it in as many words — a blocked site, four listings, a
     // mix that would not hold still. Validating it and storing it while never
     // showing it is the same as not asking for it.
-    const housing = panel(
-      renderPage({
-        ...EMPTY,
-        research: [
-          {
-            ...RECORDED,
-            ...report({ note: 'Sadece 4 ilan; medyan güvenilir değil.' }),
-            note: 'Sahibinden bu ilçede robots.txt ile kapalı, hepsiemlak kullanıldı.',
-          },
-        ],
-      }),
-      'housing',
-    );
+    const housing = readingOf({
+      ...EMPTY,
+      research: [
+        {
+          ...RECORDED,
+          ...report({ note: 'Sadece 4 ilan; medyan güvenilir değil.' }),
+          note: 'Sahibinden bu ilçede robots.txt ile kapalı, hepsiemlak kullanıldı.',
+        },
+      ],
+    });
 
     expect(housing).toContain('Sadece 4 ilan');
     expect(housing).toContain('robots.txt ile kapalı');
@@ -749,20 +780,17 @@ describe('market research', () => {
     // A table of numbers with no reading makes the reader do the interpreting
     // twice — once to find the pattern, once to doubt it. But it is opinion,
     // and it has to look like opinion beside figures that are not.
-    const housing = panel(
-      renderPage({
-        ...EMPTY,
-        research: [
-          {
-            ...RECORDED,
-            ...report({ sale_per_m2: 42_590, rent_per_m2: 309 }),
-            reading:
-              'Gazi Mustafa Kemal hem en yüksek getiriyi hem en düşük taksit/kira oranını veriyor.',
-          },
-        ],
-      }),
-      'housing',
-    );
+    const housing = readingOf({
+      ...EMPTY,
+      research: [
+        {
+          ...RECORDED,
+          ...report({ sale_per_m2: 42_590, rent_per_m2: 309 }),
+          reading:
+            'Gazi Mustafa Kemal hem en yüksek getiriyi hem en düşük taksit/kira oranını veriyor.',
+        },
+      ],
+    });
 
     expect(housing).toContain('Gazi Mustafa Kemal hem en yüksek');
     expect(housing).toMatch(/class="reading"/);
@@ -771,27 +799,24 @@ describe('market research', () => {
   it('shows what owning costs against renting, per neighbourhood', () => {
     // The buyer's question, and the reason the brief tells a scout not to
     // compute it: it needs the rate record, which the report does not have.
-    const housing = panel(
-      renderPage({
-        ...EMPTY,
-        // With an example, so a real cost can be computed. Without one the
-        // column is absent on purpose — the next test holds that.
-        rates: [
-          {
-            ...ZIRAAT,
-            offers: [
-              {
-                product: 'Konut Kredisi',
-                monthly_rate: 2.6,
-                example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
-              },
-            ],
-          },
-        ],
-        research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
-      }),
-      'housing',
-    );
+    const housing = readingOf({
+      ...EMPTY,
+      // With an example, so a real cost can be computed. Without one the
+      // column is absent on purpose — the next test holds that.
+      rates: [
+        {
+          ...ZIRAAT,
+          offers: [
+            {
+              product: 'Konut Kredisi',
+              monthly_rate: 2.6,
+              example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+            },
+          ],
+        },
+      ],
+      research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
+    });
 
     expect(housing).toContain('Taksit/Kira');
     expect(housing).toMatch(/\d,\d{2}×/);
@@ -801,25 +826,22 @@ describe('market research', () => {
     // Three assumptions sit behind that one number — a 100 m² flat, 120 months,
     // and one particular bank's real rate. A ratio whose assumptions are not
     // stated is a number the reader cannot argue with.
-    const housing = panel(
-      renderPage({
-        ...EMPTY,
-        rates: [
-          {
-            ...ZIRAAT,
-            offers: [
-              {
-                product: 'Konut Kredisi',
-                monthly_rate: 2.6,
-                example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
-              },
-            ],
-          },
-        ],
-        research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
-      }),
-      'housing',
-    );
+    const housing = readingOf({
+      ...EMPTY,
+      rates: [
+        {
+          ...ZIRAAT,
+          offers: [
+            {
+              product: 'Konut Kredisi',
+              monthly_rate: 2.6,
+              example: { amount: 1_000_000, months: 120, instalment: 27_252.33, fees: 36_802 },
+            },
+          ],
+        },
+      ],
+      research: [report({ sale_per_m2: 42_590, rent_per_m2: 309 })],
+    });
 
     expect(housing).toContain('100 m²');
     expect(housing).toContain('120 ay');
@@ -842,10 +864,7 @@ describe('market research', () => {
     // loadable. That makes its absence invisible unless the page says so, and
     // an unread table looks exactly like a table nobody had anything to say
     // about.
-    const housing = panel(
-      renderPage({ ...EMPTY, research: [report({ sale_per_m2: 42_590 })] }),
-      'housing',
-    );
+    const housing = readingOf({ ...EMPTY, research: [report({ sale_per_m2: 42_590 })] });
 
     expect(housing).toContain('Bu raporda okuma yok');
   });
@@ -854,10 +873,7 @@ describe('market research', () => {
     // "orta güven" beside a number is a label until someone says what it takes
     // to earn it. The reader has no way to guess that high means a second
     // source rather than a bigger sample.
-    const housing = panel(
-      renderPage({ ...EMPTY, research: [report({ sale_per_m2: 48_000 })] }),
-      'housing',
-    );
+    const housing = readingOf({ ...EMPTY, research: [report({ sale_per_m2: 48_000 })] });
     const header = housing.slice(housing.indexOf('İlan'), housing.indexOf('İlan') + 900);
 
     expect(header).toContain('class="hint"');
@@ -1101,26 +1117,64 @@ describe('the housing layout', () => {
     expect(mapped()).not.toMatch(/Haritada yeri bulunamayan/);
   });
 
-  it('keeps the readings behind a fold until one is asked for', () => {
-    // The map is how a reading is chosen. Three summary rows sitting under it
-    // before anything is chosen is the page answering a question nobody asked,
-    // and with thirty districts read it would be thirty.
+  it('ships an index of the readings, not the readings', () => {
+    // Three readings of seventy mahalle were 271 KB of the page — a quarter of
+    // it — printed before anyone asked for one. İzmir alone, read out, is
+    // thirty districts of that. What ships is what exists; the reading itself
+    // is fetched when it is picked.
     const page = mapped();
-    const shelf = page.slice(page.indexOf('class="readings"'));
 
-    expect(page).toContain('<details class="readings">');
-    expect(shelf.slice(0, shelf.indexOf('>'))).not.toContain('open');
+    expect(page).toContain('id="readings"');
+    expect(page).not.toContain('<details class="report"');
   });
 
-  it('never hides the readings from a reader the map failed', () => {
-    // The map is an index over the record, not the record. If a name stops
-    // matching or a shape goes missing, the readings have to stay reachable —
-    // so they are folded away, not withheld.
-    const page = mapped();
+  it('says of each reading where it is, when it was, and how big it is', () => {
+    // Enough to draw the dated list and no more. The count is in it because
+    // "21 mahalle" and "1 mahalle" are different offers of the same date.
+    const index = readingIndex(mapped());
 
-    expect(page.indexOf('class="coverage"')).toBeLessThan(page.indexOf('class="readings"'));
-    expect(page).toContain('class="report"');
-    expect(page).toMatch(/Bütün okumalar/);
+    expect(index).toHaveLength(2);
+    expect(index[0]).toMatchObject({ place: 'İzmir / Menemen', dated: '2026-07-29', count: 2 });
+    expect(index[0]?.file).toBeTruthy();
+  });
+
+  it('carries a superseded reading in the index, flagged', () => {
+    // It is still a reading, and looking at what was corrected is a thing this
+    // record exists to allow. It just must not arrive unlabelled.
+    const older = {
+      ...RECORDED,
+      file: 'old.json',
+      corrected: true,
+      place: 'İzmir / Menemen',
+      dated: '2026-07-28',
+      neighbourhoods: [],
+    };
+    const index = readingIndex(
+      panel(
+        renderPage({
+          ...EMPTY,
+          research: [
+            {
+              ...RECORDED,
+              file: 'new.json',
+              place: 'İzmir / Menemen',
+              dated: '2026-07-29',
+              neighbourhoods: [],
+              earlier: [older],
+            },
+          ],
+        }),
+        'housing',
+      ),
+    );
+
+    expect(index.map((entry) => entry.file).sort()).toEqual(['new.json', 'old.json']);
+    expect(index.find((entry) => entry.file === 'old.json')?.corrected).toBe(true);
+  });
+
+  it('leaves somewhere for the chosen reading to arrive', () => {
+    expect(mapped()).toContain('id="reading-dates"');
+    expect(mapped()).toContain('id="reading"');
   });
 
   it('credits the boundaries without putting the licence in the caption', () => {
@@ -1311,25 +1365,11 @@ describe('several reports on one page', () => {
     reading('İzmir / Çiğli', '2026-07-28', 49_231),
   ];
 
-  it('opens nothing until a district is chosen', () => {
-    // It used to open the newest reading. That was right while the list was the
-    // only way in; with the map above it, an expanded district is one the page
-    // chose, and on a page about where to buy that is a suggestion nobody made.
-    //
-    // Three districts is sixty-odd rows of table before the reader reaches
-    // anything they can act on, and none of it was asked for.
-    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
-    const opens = [...housing.matchAll(/<details class="report"[^>]*?( open)?>/g)].map((m) => m[1]);
-
-    expect(opens).toHaveLength(2);
-    expect(opens.filter(Boolean)).toHaveLength(0);
-  });
-
   it('names each report by its place, so the map can open one without guessing', () => {
     // The map used to find a report by searching the rendered summary text for
     // a district name. That works only while no district name sits inside
     // another one, which is a property of today's thirty names, not a rule.
-    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
+    const housing = readingsOf({ ...EMPTY, research: two });
 
     expect(housing).toContain('data-place="İzmir / Menemen"');
     expect(housing).toContain('data-place="İzmir / Çiğli"');
@@ -1349,7 +1389,7 @@ describe('several reports on one page', () => {
     // A row of dates is a filing cabinet. The summary carries the place, when it
     // was read and how much is in it, so the fold is a decision rather than a
     // guess.
-    const housing = panel(renderPage({ ...EMPTY, research: two }), 'housing');
+    const housing = readingsOf({ ...EMPTY, research: two });
 
     expect(housing).toContain('İzmir / Çiğli');
     expect(housing).toMatch(/28\.07\.2026/);
@@ -1676,19 +1716,19 @@ describe('the readings behind a district', () => {
   });
 
   it('shows the figures an earlier reading of a district gave', () => {
-    const page = renderPage({
+    const konut = readingOf({
       ...EMPTY,
       research: [reading('2026-07-29', 52_857, { earlier: [reading('2026-07-20', 48_000)] })],
     });
 
-    expect(panel(page, 'housing')).toContain('48.000');
+    expect(konut).toContain('48.000');
   });
 
   it('tells two readings of one day apart by the time they were taken', () => {
     // The record holds exactly this pair, hours apart, and the second says in
     // its own note that it is not a direction reading. By date alone they are
     // one reading printed twice.
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_857, {
@@ -1698,11 +1738,11 @@ describe('the readings behind a district', () => {
       ],
     });
 
-    expect(panel(page, 'housing')).toContain('09:15');
+    expect(konut).toContain('09:15');
   });
 
   it('counts a corrected district reading apart from a genuine earlier one', () => {
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_857, {
@@ -1714,14 +1754,14 @@ describe('the readings behind a district', () => {
       ],
     });
 
-    expect(panel(page, 'housing')).toContain('1 eski okuma, 1 düzeltme');
+    expect(konut).toContain('1 eski okuma, 1 düzeltme');
   });
 
   it('says on the reading itself that it was replaced', () => {
     // Opened, a corrected reading shows the figures it got wrong. Nothing on
     // the table says so, and the whole point of keeping it is that it was
     // wrong — so the label has to travel with it, not only with the count.
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_857, {
@@ -1730,7 +1770,7 @@ describe('the readings behind a district', () => {
       ],
     });
 
-    expect(panel(page, 'housing')).toContain('yerine yenisi yazıldı');
+    expect(konut).toContain('yerine yenisi yazıldı');
   });
 
   it('adds nothing to a district looked at once', () => {
@@ -1795,7 +1835,7 @@ describe('an offer only some people can take', () => {
         },
       ],
     };
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       rates: [cheapGated, openToAll],
       research: [
@@ -1818,8 +1858,8 @@ describe('an offer only some people can take', () => {
     });
 
     // The note beside the column names the bank the ratio was built on.
-    expect(panel(page, 'housing')).toContain('(Ziraat Bankası, aylık');
-    expect(panel(page, 'housing')).not.toContain('(Halkbank, aylık');
+    expect(konut).toContain('(Ziraat Bankası, aylık');
+    expect(konut).not.toContain('(Halkbank, aylık');
   });
 
   it('leaves an ordinary offer unmarked', () => {
@@ -2010,18 +2050,18 @@ describe('what moved in a district since an earlier reading', () => {
   });
 
   it('says which way a neighbourhood went, and by how much', () => {
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_000, 40, undefined, { earlier: [reading('2026-07-20', 50_000)] }),
       ],
     });
 
-    expect(panel(page, 'housing')).toMatch(/Egekent 2[\s\S]{0,120}%4/);
+    expect(konut).toMatch(/Egekent 2[\s\S]{0,120}%4/);
   });
 
   it('shows both listing counts, since a move is only as good as its thinner side', () => {
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_000, 40, undefined, {
@@ -2030,7 +2070,7 @@ describe('what moved in a district since an earlier reading', () => {
       ],
     });
 
-    expect(panel(page, 'housing')).toMatch(/3.{0,12}40 ilan/);
+    expect(konut).toMatch(/3.{0,12}40 ilan/);
   });
 
   it('says nothing when the reading being measured from was itself replaced', () => {
@@ -2038,7 +2078,7 @@ describe('what moved in a district since an earlier reading', () => {
     // the loader gives a nested reading no history of its own, so this cannot
     // arise from the record — but the rule belongs to the function rather than
     // to the shape of its current input.
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_000, 40, undefined, {
@@ -2052,13 +2092,13 @@ describe('what moved in a district since an earlier reading', () => {
         }),
       ],
     });
-    const pazar = panel(page, 'housing');
+    const pazar = konut;
 
     expect(pazar.slice(pazar.indexOf('eski okuma'))).not.toContain('class="moves"');
   });
 
   it('says nothing at all when the two readings used different bands', () => {
-    const page = renderPage({
+    const konut = readingsOf({
       ...EMPTY,
       research: [
         reading('2026-07-29', 52_000, 40, 'İlan, 3+1', {
@@ -2066,7 +2106,7 @@ describe('what moved in a district since an earlier reading', () => {
         }),
       ],
     });
-    const pazar = panel(page, 'housing');
+    const pazar = konut;
 
     expect(pazar.slice(pazar.indexOf('eski okuma'))).not.toMatch(/%4/);
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertLocalRequest, NotLocalError } from './guards.js';
+import { assertLocalRequest, assertSameOrigin, NotLocalError } from './guards.js';
 
 const PORT = 8787;
 const ok = { host: '127.0.0.1:8787', 'content-type': 'application/json' };
@@ -64,5 +64,39 @@ describe('assertLocalRequest', () => {
     expect(() => assertLocalRequest({ 'content-type': 'application/json' }, PORT)).toThrow(
       NotLocalError,
     );
+  });
+});
+
+describe('a read from this page rather than another one', () => {
+  it('accepts the page asking its own server', () => {
+    expect(() =>
+      assertSameOrigin({ host: '127.0.0.1:8787', origin: 'http://127.0.0.1:8787' }, 8787),
+    ).not.toThrow();
+  });
+
+  it('accepts a request with no Origin at all', () => {
+    // curl and the tests send none, and a request with no Origin did not come
+    // from a page.
+    expect(() => assertSameOrigin({ host: '127.0.0.1:8787' }, 8787)).not.toThrow();
+  });
+
+  it('asks for no content type, because a read carries no body', () => {
+    // The JSON requirement on the write path is there because a form post is
+    // the one shape that crosses origins without a preflight. A GET has no
+    // body to be a form, and demanding a content type on one refuses every
+    // honest request instead.
+    expect(() => assertSameOrigin({ host: 'localhost:8787' }, 8787)).not.toThrow();
+  });
+
+  it('refuses a host that is not this one', () => {
+    // The door DNS rebinding comes through: a domain the attacker controls,
+    // pointed at 127.0.0.1, which the browser then treats as same-origin.
+    expect(() => assertSameOrigin({ host: 'evil.example:8787' }, 8787)).toThrow(NotLocalError);
+  });
+
+  it('refuses another origin', () => {
+    expect(() =>
+      assertSameOrigin({ host: '127.0.0.1:8787', origin: 'https://evil.example' }, 8787),
+    ).toThrow(NotLocalError);
   });
 });

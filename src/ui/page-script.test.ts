@@ -47,7 +47,7 @@ const RATE = 3.15;
 // The fields the record puts on every reading and every neighbourhood, and that
 // none of these tests are about. Spread into a fixture so what is written out is
 // only what the test is checking.
-const RECORDED = { earlier: [], corrected: false };
+const RECORDED = { earlier: [], corrected: false, file: 'a.json' };
 const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
 
 const DATA: PageData = {
@@ -129,6 +129,11 @@ function open(data: PageData = DATA) {
       if (element === null) throw new Error(`the page has no ${selector}`);
       element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     },
+    /** The text of each row matching a selector, for asking about a list. */
+    rows: (selector: string): string[] =>
+      [...document.querySelectorAll(selector)].map((row) =>
+        (row.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      ),
     /** Text of a region, for asking what the reader can see rather than one field. */
     region: (selector: string): string => document.querySelector(selector)?.textContent ?? '',
     disabled: (selector: string): boolean =>
@@ -729,6 +734,7 @@ describe('zooming the coverage map', () => {
     ...DATA,
     research: [
       {
+        file: '2026-07-29-izmir-menemen.json',
         place: 'İzmir / Menemen',
         dated: '2026-07-29',
         neighbourhoods: [
@@ -778,74 +784,143 @@ describe('zooming the coverage map', () => {
     expect(page.hidden('[data-level="district"]')).toBe(true);
   });
 
-  it('opens a district’s report, and the shelf it is folded into', () => {
-    // The readings sit behind one fold so nothing is on screen before it is
-    // asked for. Opening a report inside a closed shelf would be a click that
-    // appears to do nothing, which is the failure this map avoids everywhere
-    // else.
-    const page = open(withReadings());
-    const detail = (selector: string) =>
-      page.window.document.querySelector<HTMLDetailsElement>(selector);
+  const manyReadings = (): PageData => ({
+    ...DATA,
+    research: [
+      {
+        ...RECORDED,
+        file: '2026-07-29-menemen.json',
+        place: 'İzmir / Menemen',
+        dated: '2026-07-29',
+        at: '2026-07-29T22:55:00+03:00',
+        neighbourhoods: [],
+        earlier: [
+          {
+            ...RECORDED,
+            file: '2026-07-29-menemen-morning.json',
+            place: 'İzmir / Menemen',
+            dated: '2026-07-29',
+            at: '2026-07-29T18:19:00+03:00',
+            corrected: true,
+            neighbourhoods: [],
+          },
+          {
+            ...RECORDED,
+            file: '2025-11-02-menemen.json',
+            place: 'İzmir / Menemen',
+            dated: '2025-11-02',
+            neighbourhoods: [],
+          },
+        ],
+      },
+    ],
+  });
 
-    expect(detail('details.readings')?.open).toBe(false);
-
+  const pickMenemen = (data: PageData) => {
+    const page = open(data);
     page.click('[data-level="province"] [data-name="İzmir"]');
     page.click('[data-level="district"] [data-name="Menemen"]');
+    return page;
+  };
 
-    expect(detail('details.readings')?.open).toBe(true);
-    expect(detail('details.report[data-place="İzmir / Menemen"]')?.open).toBe(true);
+  it('offers the readings of the district that was picked, newest first', () => {
+    // The page carries an index, not the readings. Picking a district turns
+    // that index into a dated list; nothing is fetched until one is chosen.
+    const page = pickMenemen(manyReadings());
+    const dates = page.rows('#reading-dates tbody tr');
+
+    expect(dates).toHaveLength(3);
+    expect(dates[0]).toContain('29.07.2026');
+    expect(dates[0]).toContain('22:55');
+    expect(dates[2]).toContain('02.11.2025');
   });
 
-  it('opens the districts of a province with no readings at all', () => {
-    // Every province has a district layer. Stopping at the country for the
-    // eighty with nothing in them would make the map useful only where the
-    // research already is, which is backwards for a map about gaps.
-    const page = open(withReadings());
+  it('says a reading was corrected in a word, not a sentence', () => {
+    // "Yerine yenisi yazıldı" is the right sentence on a reading you have
+    // opened. In a column beside a date it is a paragraph where a label goes.
+    const page = pickMenemen(manyReadings());
 
-    page.click('[data-level="province"] [data-name="Manisa"]');
-
-    expect(page.hidden('[data-level="district"]')).toBe(false);
-    expect(page.text('zoom-at')).toBe('Manisa');
-    expect(page.hidden('[data-province="Manisa"]')).toBe(false);
-    // And every other province is gone, not merely cropped out of the frame.
-    expect(page.hidden('[data-province="Konya"]')).toBe(true);
-    expect(page.hidden('[data-province="İzmir"]')).toBe(true);
+    expect(page.region('#reading-dates')).toContain('düzeltildi');
+    expect(page.region('#reading-dates')).not.toContain('yerine yenisi yazıldı');
   });
 
-  it('sizes the counts to the province it is framing', () => {
-    // The numbers are drawn in national units and every province is framed in
-    // its own slice of them, so one fixed size is a third of Konya and swallows
-    // Yalova. Proportional, and the proportion is what a reversed index in the
-    // viewBox split would silently break.
-    const page = open(withReadings());
-    const svg = () => page.window.document.querySelector<SVGElement>('[data-level="district"]');
-    const sizeFor = (province: string): number => {
-      page.click('#zoom-out');
-      page.click(`[data-level="province"] [data-name="${province}"]`);
-      const box = svg()?.getAttribute('viewBox')?.split(' ') ?? [];
+  it('leaves the time out when the record did not record one', () => {
+    // Half the readings carry a minute and half do not. An invented 00:00 is a
+    // measurement nobody made.
+    const page = pickMenemen(manyReadings());
 
-      expect(svg()?.style.getPropertyValue('--count-size')).toBe(
-        `${String(Number(box[2]) * 0.025)}px`,
-      );
-
-      return Number(box[2]);
-    };
-
-    expect(sizeFor('Konya')).toBeGreaterThan(sizeFor('Yalova'));
+    expect(page.rows('#reading-dates tbody tr')[2]).not.toMatch(/\d\d:\d\d/);
   });
 
-  it('frames the province it opened, not the whole country', () => {
-    // One national projection, and the viewBox is the zoom.
+  it('narrows the list to a date range', () => {
+    const page = pickMenemen(manyReadings());
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(3);
+
+    page.type('from-date', '2026-01-01');
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(2);
+
+    page.type('to-date', '2026-07-29');
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(2);
+
+    page.type('to-date', '2026-07-28');
+
+    expect(page.rows('#reading-dates tbody tr')).toHaveLength(0);
+    expect(page.region('#reading-dates')).toMatch(/aralıkta okuma yok/i);
+  });
+
+  it('cannot be broken out of by a hostile file name', () => {
+    // The file name is not something this code invents: it is whatever a report
+    // under market/ is called, written by an agent and merged in a pull request
+    // where a reviewer is reading the JSON's contents rather than its name.
+    // Concatenated into an attribute it is a script tag in the reader's page.
+    const nasty = '2026-07-29"><img src=x onerror=alert(1)>.json';
+    const page = pickMenemen({
+      ...DATA,
+      research: [
+        {
+          ...RECORDED,
+          file: nasty,
+          place: 'İzmir / Menemen',
+          dated: '2026-07-29',
+          neighbourhoods: [],
+          earlier: [
+            {
+              ...RECORDED,
+              file: 'b.json',
+              place: 'İzmir / Menemen',
+              dated: '2026-07-28',
+              neighbourhoods: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(page.window.document.querySelector('#reading-dates img')).toBeNull();
+    expect(
+      page.window.document.querySelector('#reading-dates [data-file]')?.getAttribute('data-file'),
+    ).toBe(nasty);
+  });
+
+  it('offers no filter for a district read once', () => {
+    // A date range over one row is furniture.
+    const page = pickMenemen(withReadings());
+
+    expect(page.window.document.getElementById('from-date')).toBeNull();
+  });
+
+  it('says so when a district has no readings at all', () => {
+    // Silence here reads as a page that failed, and the district was simply
+    // never researched — which is the thing the request form is for.
     const page = open(withReadings());
-    const svg = () => page.window.document.querySelector('[data-level="district"]');
 
-    page.click('[data-level="province"] [data-name="Manisa"]');
-    const manisa = svg()?.getAttribute('viewBox');
-
-    page.click('#zoom-out');
     page.click('[data-level="province"] [data-name="İzmir"]');
+    page.click('[data-level="district"] [data-name="Karaburun"]');
 
-    expect(svg()?.getAttribute('viewBox')).not.toBe(manisa);
+    expect(page.text('reading-dates')).toMatch(/okuma yok/i);
   });
 
   it('puts an unread district into the request form instead of doing nothing', () => {
