@@ -669,7 +669,8 @@ function coverageMap(reports: ShownMarketReport[]): string {
 
   const groups = DISTRICTS_BY_PROVINCE.map(
     (entry) => `
-        <g data-province="${escape(entry.province)}" data-viewbox="${entry.viewBox}" hidden
+        <g data-province="${escape(entry.province)}" data-viewbox="${entry.viewBox}"
+          style="display:none"
           >${mapShapes(entry.districts, districts, (shape) => `${entry.province} / ${shape.name}`, false)}
         </g>`,
   ).join('');
@@ -1613,12 +1614,27 @@ const FINANCE_SCRIPT = `
       if (!group) return false;
 
       openProvince = name;
+      // display, not the hidden attribute. That attribute only means anything
+      // because the browser's own stylesheet says so, and that rule does not
+      // reach inside SVG: it went on, every other province kept painting, and
+      // the viewBox merely cropped the country down to one corner of it. A
+      // style property means the same thing everywhere and, unlike the
+      // attribute, is the same thing the tests can see.
       for (var other of districtLayer.querySelectorAll('[data-province]')) {
-        other.toggleAttribute('hidden', other !== group);
+        other.style.display = other === group ? '' : 'none';
       }
       // Every province is projected in one national system, so framing one is
-      // a matter of which window you look through.
-      districtLayer.setAttribute('viewBox', group.getAttribute('data-viewbox'));
+      // a matter of which window you look through. The numbers are drawn in
+      // those same units, so they have to be sized to the window as well.
+      var box = group.getAttribute('data-viewbox');
+      districtLayer.setAttribute('viewBox', box);
+      // The figure is drawn at about 640 pixels wide whatever province it is,
+      // so a number that should read at ~16px on screen is that fraction of
+      // the frame's own width.
+      districtLayer.style.setProperty(
+        '--count-size',
+        String(Number(box.split(' ')[2]) * 0.025) + 'px',
+      );
       provinceLayer.toggleAttribute('hidden', true);
       districtLayer.toggleAttribute('hidden', false);
       out.hidden = false;
@@ -1973,7 +1989,10 @@ const STYLE = `
   .count { font-family: var(--sans); font-weight: 600; fill: var(--ink);
     text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
   [data-level='province'] .count { font-size: 24px; }
-  [data-level='district'] .count { font-size: 22px; }
+  /* Set from the province's own viewBox when one is opened, because every
+     province is framed in the same national units and they are not the same
+     size: a fixed size is a third of Konya and swallows Yalova. */
+  [data-level='district'] .count { font-size: var(--count-size, 22px); }
   .coverage figcaption { margin: .6rem 0 0; font-size: .75rem; color: var(--muted);
     max-width: 44ch; }
   .find { margin: 1.2rem 0; }

@@ -134,15 +134,20 @@ function open(data: PageData = DATA) {
     disabled: (selector: string): boolean =>
       document.querySelector<HTMLButtonElement>(selector)?.disabled ?? false,
     /**
-     * Whether an element is hidden, read off the attribute.
+     * Whether an element is actually not drawn.
      *
-     * The attribute rather than the `hidden` property on purpose: `hidden` is
-     * declared on HTMLElement, and an <svg> is not one. Assigning to it there
-     * silently sets an expando and paints nothing, which is exactly the bug
-     * this asks about.
+     * Computed display rather than the attribute. Reading the attribute is what
+     * let a real bug through: `hidden` on an SVG <g> sets the attribute and
+     * paints nothing away, because the rule that gives `hidden` its meaning is
+     * the browser's own stylesheet and it does not reach inside SVG. The page
+     * looked wrong and the test looked right.
      */
-    hidden: (selector: string): boolean =>
-      document.querySelector(selector)?.hasAttribute('hidden') ?? false,
+    hidden: (selector: string): boolean => {
+      const element = document.querySelector(selector);
+      if (element === null) throw new Error(`the page has no ${selector}`);
+
+      return dom.window.getComputedStyle(element).display === 'none';
+    },
   };
 }
 
