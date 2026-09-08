@@ -45,6 +45,15 @@ export interface ShownNeighbourhood extends MarketNeighbourhood {
 }
 
 export interface ShownMarketReport {
+  /**
+   * The file in the record this reading came from.
+   *
+   * Carried so the page can ship an index of what exists and ask for one by
+   * name. The alternative key — place plus timestamp — holds together only for
+   * as long as no two readings of one district share a minute, which is not a
+   * property of the record but a coincidence of it.
+   */
+  file: string;
   place: string;
   dated: string;
   /**
@@ -119,9 +128,11 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   const placeByFile = new Map<string, string>();
   const claims: { supersedes: string; at: string; place: string }[] = [];
   const replaced = new Set<string>();
+  const fileByReport = new Map<MarketReport, string>();
 
   for (const { report, file } of readReports<MarketReport>(root, 'market', 'market-report')) {
     const place = `${report.province} / ${report.district}`;
+    fileByReport.set(report, file);
     byPlace.set(place, [...(byPlace.get(place) ?? []), { report, file }]);
     readAtByFile.set(file, readAt(report));
     placeByFile.set(file, place);
@@ -154,19 +165,23 @@ export function loadMarketReports(root: string): ShownMarketReport[] {
   return [...newest.entries()]
     .sort(([left], [right]) => byCodePoint(left, right))
     .map(([place, report]) => ({
-      ...shown(place, report),
+      ...shown(place, report, fileByReport.get(report) ?? ''),
       earlier: (byPlace.get(place) ?? [])
         .filter((other) => other.report !== report)
         .sort((a, b) => byCodePoint(readAt(b.report), readAt(a.report)))
-        .map((other) => ({ ...shown(place, other.report), corrected: replaced.has(other.file) })),
+        .map((other) => ({
+          ...shown(place, other.report, other.file),
+          corrected: replaced.has(other.file),
+        })),
     }));
 }
 
 /** One reading, as the interface shows it. */
-function shown(place: string, report: MarketReport): ShownMarketReport {
+function shown(place: string, report: MarketReport, file: string): ShownMarketReport {
   return {
     earlier: [],
     corrected: false,
+    file,
     place,
     dated: report.captured_on,
     ...(report.captured_at === undefined ? {} : { at: report.captured_at }),

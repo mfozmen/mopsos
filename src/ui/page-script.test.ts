@@ -47,7 +47,7 @@ const RATE = 3.15;
 // The fields the record puts on every reading and every neighbourhood, and that
 // none of these tests are about. Spread into a fixture so what is written out is
 // only what the test is checking.
-const RECORDED = { earlier: [], corrected: false };
+const RECORDED = { earlier: [], corrected: false, file: 'a.json' };
 const MEASURED = { basis: 'listing_median' as const, confidence: 'medium' as const };
 
 const DATA: PageData = {
@@ -729,6 +729,7 @@ describe('zooming the coverage map', () => {
     ...DATA,
     research: [
       {
+        file: '2026-07-29-izmir-menemen.json',
         place: 'İzmir / Menemen',
         dated: '2026-07-29',
         neighbourhoods: [
@@ -778,74 +779,30 @@ describe('zooming the coverage map', () => {
     expect(page.hidden('[data-level="district"]')).toBe(true);
   });
 
-  it('opens a district’s report, and the shelf it is folded into', () => {
-    // The readings sit behind one fold so nothing is on screen before it is
-    // asked for. Opening a report inside a closed shelf would be a click that
-    // appears to do nothing, which is the failure this map avoids everywhere
-    // else.
+  it('offers the readings of the district that was picked, by date', () => {
+    // The page carries an index, not the readings. Picking a district turns
+    // that index into a dated list — which reading, from when, how big — and
+    // nothing is fetched until one of them is chosen.
     const page = open(withReadings());
-    const detail = (selector: string) =>
-      page.window.document.querySelector<HTMLDetailsElement>(selector);
 
-    expect(detail('details.readings')?.open).toBe(false);
+    expect(page.text('reading-dates')).toBe('');
 
     page.click('[data-level="province"] [data-name="İzmir"]');
     page.click('[data-level="district"] [data-name="Menemen"]');
 
-    expect(detail('details.readings')?.open).toBe(true);
-    expect(detail('details.report[data-place="İzmir / Menemen"]')?.open).toBe(true);
+    expect(page.text('reading-dates')).toMatch(/29\.07\.2026/);
+    expect(page.text('reading-dates')).toMatch(/1 mahalle/);
   });
 
-  it('opens the districts of a province with no readings at all', () => {
-    // Every province has a district layer. Stopping at the country for the
-    // eighty with nothing in them would make the map useful only where the
-    // research already is, which is backwards for a map about gaps.
+  it('says so when a district has no readings at all', () => {
+    // Silence here reads as a page that failed, and the district was simply
+    // never researched — which is the thing the request form is for.
     const page = open(withReadings());
 
-    page.click('[data-level="province"] [data-name="Manisa"]');
-
-    expect(page.hidden('[data-level="district"]')).toBe(false);
-    expect(page.text('zoom-at')).toBe('Manisa');
-    expect(page.hidden('[data-province="Manisa"]')).toBe(false);
-    // And every other province is gone, not merely cropped out of the frame.
-    expect(page.hidden('[data-province="Konya"]')).toBe(true);
-    expect(page.hidden('[data-province="İzmir"]')).toBe(true);
-  });
-
-  it('sizes the counts to the province it is framing', () => {
-    // The numbers are drawn in national units and every province is framed in
-    // its own slice of them, so one fixed size is a third of Konya and swallows
-    // Yalova. Proportional, and the proportion is what a reversed index in the
-    // viewBox split would silently break.
-    const page = open(withReadings());
-    const svg = () => page.window.document.querySelector<SVGElement>('[data-level="district"]');
-    const sizeFor = (province: string): number => {
-      page.click('#zoom-out');
-      page.click(`[data-level="province"] [data-name="${province}"]`);
-      const box = svg()?.getAttribute('viewBox')?.split(' ') ?? [];
-
-      expect(svg()?.style.getPropertyValue('--count-size')).toBe(
-        `${String(Number(box[2]) * 0.025)}px`,
-      );
-
-      return Number(box[2]);
-    };
-
-    expect(sizeFor('Konya')).toBeGreaterThan(sizeFor('Yalova'));
-  });
-
-  it('frames the province it opened, not the whole country', () => {
-    // One national projection, and the viewBox is the zoom.
-    const page = open(withReadings());
-    const svg = () => page.window.document.querySelector('[data-level="district"]');
-
-    page.click('[data-level="province"] [data-name="Manisa"]');
-    const manisa = svg()?.getAttribute('viewBox');
-
-    page.click('#zoom-out');
     page.click('[data-level="province"] [data-name="İzmir"]');
+    page.click('[data-level="district"] [data-name="Karaburun"]');
 
-    expect(svg()?.getAttribute('viewBox')).not.toBe(manisa);
+    expect(page.text('reading-dates')).toMatch(/okuma yok/i);
   });
 
   it('puts an unread district into the request form instead of doing nothing', () => {

@@ -5,6 +5,7 @@ import { DISTRICTS_BY_PROVINCE } from './districts.js';
 import { TURKEY_PROVINCES } from './turkey.js';
 
 const reading = (place: string, mahalle: number) => ({
+  file: 'a.json',
   place,
   dated: '2026-07-29',
   neighbourhoods: Array.from({ length: mahalle }, (_, index) => ({

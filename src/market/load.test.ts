@@ -214,3 +214,27 @@ describe('the readings behind a district', () => {
     expect(loadMarketReports(root)[0]?.earlier[0]?.neighbourhoods[0]?.sale_per_m2).toBe(40_000);
   });
 });
+
+describe('which file a reading came from', () => {
+  it('says so, because the page has to ask for one by name', () => {
+    // The page ships an index of what readings exist and fetches the one that
+    // is picked. Without the file name the index would have to key on the place
+    // and the timestamp, a compound key held together by the hope that no two
+    // readings of one district ever share a minute.
+    const [loaded] = loadMarketReports(market(['2026-07-29-izmir-cigli.json', report()]));
+
+    expect(loaded?.file).toBe('2026-07-29-izmir-cigli.json');
+  });
+
+  it('says so for a reading that was superseded, too', () => {
+    const [live] = loadMarketReports(
+      market(
+        ['a.json', report({ captured_at: '2026-07-28T08:00:00+03:00' })],
+        ['b.json', report({ captured_at: '2026-07-28T20:00:00+03:00', supersedes: 'a.json' })],
+      ),
+    );
+
+    expect(live?.file).toBe('b.json');
+    expect(live?.earlier[0]?.file).toBe('a.json');
+  });
+});

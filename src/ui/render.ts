@@ -444,11 +444,75 @@ function recordData(data: PageData): string {
       <script type="application/json" id="record">${blob}</script>`;
 }
 
+/**
+ * What readings exist, so the page can offer them without carrying them.
+ *
+ * Three readings of seventy mahalle were 271 KB of this page — a quarter of it —
+ * printed before anyone asked for one. İzmir alone, read out, is thirty
+ * districts of that. So what ships is the shelf label rather than the shelf:
+ * where, when, how big, and which file to ask for. The reading itself arrives
+ * when it is picked.
+ *
+ * Every reading, not only the current one. A superseded reading is still a
+ * reading and looking at what was corrected is a thing this record exists to
+ * allow — it just has to say so before it is opened, which is what `corrected`
+ * is doing here.
+ */
+function readingsIndex(reports: ShownMarketReport[]): string {
+  const entries = reports
+    .flatMap((report) => [report, ...report.earlier])
+    .map((report) => ({
+      place: report.place,
+      file: report.file,
+      dated: report.dated,
+      ...(report.at === undefined ? {} : { at: report.at }),
+      count: report.neighbourhoods.length,
+      corrected: report.corrected,
+    }));
+
+  return `
+      <script type="application/json" id="readings">${JSON.stringify(entries).replaceAll('<', SCRIPT_ESCAPE)}</script>`;
+}
+
 function placesData(reports: ShownMarketReport[]): string {
   const blob = JSON.stringify(comparable(reports)).replaceAll('<', SCRIPT_ESCAPE);
 
   return `
       <script type="application/json" id="places">${blob}</script>`;
+}
+
+/**
+ * One reading, rendered as the page shows it.
+ *
+ * Exported because the page no longer carries its readings — it carries an
+ * index and asks for one when it is picked, and the thing that answers is the
+ * dev server. Both go through here, so what a reader sees after clicking a date
+ * is produced by the same code that used to print it inline. A second renderer
+ * on the server would drift from this one, and the drift would be invisible:
+ * two tables of plausible numbers that disagree.
+ */
+export function renderReading(report: ShownMarketReport, data: PageData): string {
+  const cheapest = cheapestRealRate(data.rates);
+
+  return (
+    reportSection(
+      report,
+      cheapest === undefined
+        ? undefined
+        : {
+            monthlyRate: cheapest.rate,
+            bank: cheapest.bank,
+            byName: new Map(
+              owningVsRenting(data.finance.rules, report.neighbourhoods, {
+                ...ASSUMED,
+                monthlyRate: cheapest.rate,
+              }).map((ranked) => [ranked.name, ranked.timesRent]),
+            ),
+          },
+      true,
+    ) +
+    report.earlier.map((reading) => whatMoved(report, reading) + reportSection(reading)).join('')
+  );
 }
 
 function reportSection(report: ShownMarketReport, cost?: Affordability, open = false): string {
@@ -1259,42 +1323,6 @@ function panelBody(tab: Tab, data: PageData): string {
   const empty = `<p class="empty">${escape(tab.emptyState)}</p>`;
 
   if (tab.id === 'housing') {
-    // Computed here because it needs both halves: the report has the prices and
-    // the rate record has what borrowing costs. Neither knows the other, which
-    // is exactly why the brief tells a scout not to work it out.
-    const cheapest = cheapestRealRate(data.rates);
-
-    const research =
-      data.research.length === 0
-        ? empty
-        : data.research
-            .map((report) => {
-              // Built fresh per report rather than mutated in place: sharing one
-              // object across the loop is correct only for as long as nothing
-              // here becomes asynchronous, which is not a property worth
-              // depending on for a table of numbers.
-              const cost =
-                cheapest === undefined
-                  ? undefined
-                  : {
-                      monthlyRate: cheapest.rate,
-                      bank: cheapest.bank,
-                      byName: new Map(
-                        owningVsRenting(data.finance.rules, report.neighbourhoods, {
-                          ...ASSUMED,
-                          monthlyRate: cheapest.rate,
-                        }).map((ranked) => [ranked.name, ranked.timesRent]),
-                      ),
-                    };
-
-              // Nothing opens on load. The map above is how a reading is
-              // chosen now, and a district expanded before anyone picked it is
-              // a district the page picked — which on a page about where to buy
-              // is a suggestion nobody made.
-              return reportSection(report, cost, false);
-            })
-            .join('');
-
     // Two halves, because they are two different sessions of thinking: what is
     // this place worth, and what can I reach. Together they were twenty-eight
     // neighbourhoods and fifteen banks on one screen, which is not a page.
@@ -1324,20 +1352,9 @@ function panelBody(tab: Tab, data: PageData): string {
           ${SEARCH}
           ${coverageMap(data.research)}
           ${compareBlock(data.research)}
-          ${
-            /*
-             * Folded, because the map above is how a reading is chosen now and
-             * a stack of summary rows under it answers a question nobody asked
-             * — three today, thirty once İzmir is read.
-             *
-             * Folded rather than withheld: the map is an index over the record,
-             * not the record. A name that stops matching or a shape that goes
-             * missing must not take the readings with it.
-             */ ''
-          }<details class="readings">
-            <summary>Bütün okumalar${data.research.length === 0 ? '' : ` (${String(data.research.length)})`}</summary>
-            ${research}
-          </details>
+          ${readingsIndex(data.research)}
+          <div id="reading-dates"></div>
+          <div id="reading">${data.research.length === 0 ? empty : ''}</div>
           ${placesData(data.research)}
           ${recordData(data)}
         </section>
@@ -1695,23 +1712,70 @@ const FINANCE_SCRIPT = `
       input.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
-    // Matched on the place, not on the summary's text. A substring search over
-    // rendered text works only while no district name sits inside another one,
-    // which is a property of the names rather than a rule.
-    var openDistrict = function (name) {
-      var wanted = document.querySelector(
-        '#panel-pazar details.report[data-place="' +
-          CSS.escape(openProvince + ' / ' + name) +
-          '"]',
-      );
-      if (!wanted) return putInRequest('district', name);
-      // The shelf as well as the reading inside it. Opening a report that is
-      // still folded away is a click that appears to do nothing.
-      var shelf = wanted.closest('details.readings');
-      if (shelf) shelf.open = true;
-      wanted.open = true;
-      wanted.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var readings = JSON.parse(document.getElementById('readings').textContent || '[]');
+    var dates = document.getElementById('reading-dates');
+    var shown = document.getElementById('reading');
+
+    var turkishDay = function (iso) { return iso.split('-').reverse().join('.'); };
+
+    /**
+     * The readings of one district, offered by date.
+     *
+     * The page holds an index, not the readings — printing them all was a
+     * quarter of the page for three of them. So picking a district draws what
+     * exists and fetching waits for a second choice, which is also the answer
+     * to a district read more than once: the dates are the choice.
+     */
+    var offerReadings = function (place) {
+      var mine = readings.filter(function (entry) { return entry.place === place; });
+      shown.innerHTML = '';
+
+      if (mine.length === 0) {
+        dates.innerHTML = '<p class="empty">Bu ilçede okuma yok — araştırma isteğine yazıldı.</p>';
+        return false;
+      }
+
+      dates.innerHTML =
+        '<p class="note">' + place + ' — hangi okuma?</p><ul class="dates">' +
+        mine.map(function (entry) {
+          return '<li><button type="button" data-file="' + entry.file + '">' +
+            turkishDay(entry.dated) +
+            (entry.at ? ' ' + entry.at.slice(11, 16) : '') +
+            ' · ' + entry.count + ' mahalle' +
+            (entry.corrected ? ' · yerine yenisi yazıldı' : '') +
+            '</button></li>';
+        }).join('') + '</ul>';
+      return true;
     };
+
+    var openDistrict = function (name) {
+      var place = openProvince + ' / ' + name;
+      if (!offerReadings(place)) putInRequest('district', name);
+      else dates.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    dates.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-file]');
+      if (!button) return;
+
+      shown.innerHTML = '<p class="note">Okuma getiriliyor…</p>';
+      fetch('/reading?file=' + encodeURIComponent(button.getAttribute('data-file')))
+        .then(function (answer) {
+          if (!answer.ok) throw new Error(String(answer.status));
+          return answer.text();
+        })
+        .then(function (html) {
+          shown.innerHTML = html;
+          shown.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        })
+        // A page opened straight from disk has nobody to ask. Said plainly:
+        // silence here looks like a reading with nothing in it.
+        .catch(function () {
+          shown.innerHTML =
+            '<p class="caution">Okuma getirilemedi. Bu sayfa okumalari sunucudan aliyor —' +
+            ' <code>npm run dev</code> calisiyor olmali.</p>';
+        });
+    });
 
     var choose = function (level, name) {
       if (level !== 'province') return openDistrict(name);
