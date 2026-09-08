@@ -7,6 +7,7 @@ import { DISTRICTS_BY_PROVINCE } from '../map/districts.js';
 import type { PlaceShape } from '../map/shape.js';
 import { TURKEY_PROVINCES, TURKEY_VIEWBOX } from '../map/turkey.js';
 import { movedIn } from '../market/movement.js';
+import { type Household } from '../record/household.js';
 import { comparable } from '../market/places.js';
 import { searchable } from '../record/search.js';
 import { byCodePoint } from '../order.js';
@@ -135,6 +136,15 @@ export interface FinanceBundle {
 }
 
 export interface PageData {
+  /**
+   * Who the reader is, as far as the rate table is concerned.
+   *
+   * Not interface state: owning a home removes every "İlk Evim" product and
+   * cuts the loan-to-value ratio by three quarters, age caps the term, and the
+   * salary decides whether a protocol rate is reachable at all. It comes from
+   * the record for the reasons `record/household.ts` gives.
+   */
+  household: Household;
   modules: TabModule[];
   research: ShownMarketReport[];
   instruments: InstrumentReturn[];
@@ -1204,23 +1214,28 @@ function ratesTable(reports: ShownRateReport[]): string {
  * Anyone whose spouse owns the flat answers "no" to a question about themselves
  * and gets a comparison built on a rate they cannot have.
  */
-const HOUSEHOLD = `
+/** `selected` on the option that was answered, and on no other. */
+function chosen(value: string, answer: string): string {
+  return value === answer ? ' selected' : '';
+}
+
+const HOUSEHOLD = (household: Household): string => `
       <form id="household" class="household" autocomplete="off">
-        <label><span class="q">Yaşın${hint('Bankalar son taksitin 70 yaşından önce bitmesini ister, o yüzden yaş vadeyi kısaltır — 62 yaşında 120 ay değil 96 ay çıkar. Bu bir kanun değil, bankaların uyguladığı kendi sınırı: BDDK yaş sınırını ve azami vadeyi her bankaya bırakıyor.')}</span><span class="control"><input id="age" type="text" inputmode="numeric" value="35"><span class="unit">yaş</span></span></label>
+        <label><span class="q">Yaşın${hint('Bankalar son taksitin 70 yaşından önce bitmesini ister, o yüzden yaş vadeyi kısaltır — 62 yaşında 120 ay değil 96 ay çıkar. Bu bir kanun değil, bankaların uyguladığı kendi sınırı: BDDK yaş sınırını ve azami vadeyi her bankaya bırakıyor.')}</span><span class="control"><input id="age" type="text" inputmode="numeric" value="${String(household.age)}"><span class="unit">yaş</span></span></label>
         <label><span class="q">Sen, eşin veya 18 yaş altı çocuğun üzerine kayıtlı konut${hint('Bankaların hepsi “ilk ev”i hane olarak tanımlıyor: kendisi, eşi veya 18 yaşından küçük çocukları. Varsa üç şey birden değişir — “İlk Evim” oranlarının hiçbirini alamazsın, taksitlere %15 BSMV eklenir (konut kredisi muafiyeti kalkar) ve kullanabileceğin kredi oranı %75 azalır (BDDK 10656). Bu, kurallardaki tek en büyük etki.')}</span><select id="ownsHome">
-          <option value="no" selected>Yok</option>
-          <option value="yes">Var</option>
+          <option value="no"${chosen('no', household.owns_home ? 'yes' : 'no')}>Yok</option>
+          <option value="yes"${chosen('yes', household.owns_home ? 'yes' : 'no')}>Var</option>
         </select></label>
         <label><span class="q">Yeni evli misin${hint(
           'Kayıttaki en ucuz gerçek maliyet yeni evlilere özel bir üründe — Halkbank’ın “Yeni Evlilere Özel Konut Kredisi”, söylenen %2,60, gerçekte %2,72. Koşulu bankanın kendi cümlesiyle tabloda duruyor; evlilik tarihi sorulmuyor ve hiçbir yere yazılmıyor, çünkü uygunluğu banka değerlendirir, bu sayfa değil. “Evet” dersen bu ürünler tabloda solmaz; “Hayır” dersen alamayacağın bir oran listenin başında oturmaz.',
         )}</span><select id="newlywed">
-          <option value="no" selected>Hayır</option>
-          <option value="yes">Evet — eşlerden biri 35 yaşını doldurmamış, nikâh 3 yıldan eski değil</option>
+          <option value="no"${chosen('no', household.newlywed ? 'yes' : 'no')}>Hayır</option>
+          <option value="yes"${chosen('yes', household.newlywed ? 'yes' : 'no')}>Evet — eşlerden biri 35 yaşını doldurmamış, nikâh 3 yıldan eski değil</option>
         </select></label>
         <label><span class="q">Hanede maaşı kim alıyor${hint('Bu bir filtre değil, bir hatırlatma. Ziraat, Halkbank ve VakıfBank’ın üçünde de kamu/maaş koşullu konut oranı ARANDI ve hiçbiri yayınlamıyor — ama üçünün de kendi belgeleri böyle bir oranın var olduğunu söylüyor. Ziraat’in broşürü: “kurumunuz ile Bankamız arasında imzalanan maaş protokolüne göre değişiklik gösterebilir… şubemiz ile irtibata geçiniz.” Ziraat’in kendi hesaplama servisinde maaşlı/maaşsız oran alanı var, konut için ikisi de sıfır dönüyor. VakıfBank’ın OYAK ve TSK üyelerine özel konut kampanyaları canlı ama oran yazmıyor. Yani aşağıdaki tablo herkese açık oranlar; protokol oranı sormadan öğrenilmiyor.')}</span><select id="salary">
-          <option value="private" selected>Özel sektör / serbest</option>
-          <option value="public">Kamu (memur, öğretmen, sağlık, TSK, OYAK)</option>
-          <option value="retired">Emekli</option>
+          <option value="private"${chosen('private', household.salary)}>Özel sektör / serbest</option>
+          <option value="public"${chosen('public', household.salary)}>Kamu (memur, öğretmen, sağlık, TSK, OYAK)</option>
+          <option value="retired"${chosen('retired', household.salary)}>Emekli</option>
         </select></label>
       </form>
       <p class="note advice" id="salaryNote"></p>`;
@@ -1364,7 +1379,7 @@ function panelBody(tab: Tab, data: PageData): string {
         <div class="split">
           <section class="who">
             <h3 class="section">Durumun</h3>
-            ${HOUSEHOLD}
+            ${HOUSEHOLD(data.household)}
           </section>
 
           <section class="banks">
@@ -1925,6 +1940,50 @@ const FINANCE_SCRIPT = `
   // The household answers feed the same calculation, so they trigger it too.
   $('household').addEventListener('input', run);
   $('household').addEventListener('change', run);
+
+  /**
+   * Keeps the household answers, so they are not retyped on every regeneration.
+   *
+   * They go to the record rather than the browser: owning a home removes every
+   * "İlk Evim" product and cuts the loan-to-value ratio by three quarters, age
+   * caps the term, and the salary decides whether a protocol rate is reachable
+   * at all. That is a research input, and a value in a browser profile is not
+   * available to the agent that will need it.
+   *
+   * Nothing is said when it fails. A page opened from disk has nobody to tell,
+   * and the answers are still doing their work on screen — a warning there
+   * would be about the page's plumbing rather than about the reader's money.
+   */
+  var lastKept = null;
+
+  var keepHousehold = function () {
+    var age = Number($('age').value.trim());
+    // Halfway through typing the field is empty or a single digit. Posting that
+    // gets a refusal and makes the page look broken while somebody types.
+    if ($('age').value.trim() === '' || !Number.isInteger(age)) return;
+
+    var body = JSON.stringify({
+      age: age,
+      owns_home: $('ownsHome').value === 'yes',
+      newlywed: $('newlywed').value === 'yes',
+      salary: $('salary').value,
+    });
+
+    // A select fires input and then change, and the page listens for both
+    // because a reader can also arrive by keyboard. Sending the same four
+    // answers twice is two writes to the record for one decision.
+    if (body === lastKept) return;
+    lastKept = body;
+
+    fetch('/household', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: body,
+    }).catch(function () {});
+  };
+
+  $('household').addEventListener('change', keepHousehold);
+  $('household').addEventListener('input', keepHousehold);
   run();
 
   // Only the place is ever sent. The calculator's amounts are personal data and

@@ -3,6 +3,7 @@ import { Script } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { loadMortgageRules } from '../finance/rules.js';
+import { DEFAULT_HOUSEHOLD } from '../record/household.js';
 import { buildTabs, PAGE_SCRIPTS, renderPage, renderReading, type PageData } from './render.js';
 
 const MODULES = [
@@ -22,6 +23,7 @@ const EMPTY: PageData = {
   savings: [],
   // The real pinned rules: the instalment column applies them to real money, and
   // a stub bracket table would let this pass while the page shows nonsense.
+  household: DEFAULT_HOUSEHOLD,
   finance: { bundle: 'var Mortgage = {};', rules: loadMortgageRules() },
 };
 
@@ -275,6 +277,40 @@ const readingOf = (data: PageData): string => {
 
   return renderReading(first, data);
 };
+
+describe('the household the page opens with', () => {
+  const withHousehold = (household: PageData['household']): string =>
+    panel(renderPage({ ...EMPTY, household }), 'housing');
+
+  it('opens with what was answered last time, not with the defaults', () => {
+    // Four answers that decide which rates the reader can actually get, retyped
+    // on every regeneration of the page until now.
+    const page = withHousehold({ age: 62, owns_home: true, newlywed: true, salary: 'public' });
+
+    expect(page).toMatch(/id="age"[^>]*value="62"/);
+    expect(page).toMatch(/<option value="yes" selected>[^<]*<\/option>/);
+    expect(page).toMatch(/<option value="public" selected>/);
+  });
+
+  it('still opens with the defaults when nothing was answered', () => {
+    const page = withHousehold({ age: 35, owns_home: false, newlywed: false, salary: 'private' });
+
+    expect(page).toMatch(/id="age"[^>]*value="35"/);
+    expect(page).toMatch(/<option value="no" selected>Yok<\/option>/);
+    expect(page).toMatch(/<option value="private" selected>/);
+  });
+
+  it('selects exactly one answer per question', () => {
+    // Two selected options is a select that answers whichever the browser
+    // happens to prefer, which is a comparison built on nobody's situation.
+    const page = withHousehold({ age: 41, owns_home: true, newlywed: false, salary: 'retired' });
+    const form = page.slice(page.indexOf('id="household"'), page.indexOf('id="salaryNote"'));
+
+    for (const select of form.split('<select').slice(1)) {
+      expect(select.slice(0, select.indexOf('</select>')).match(/ selected/g)).toHaveLength(1);
+    }
+  });
+});
 
 describe('sending the agent from the page', () => {
   const halves = (): { pazar: string; finansman: string } => {

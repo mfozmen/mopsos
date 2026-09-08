@@ -24,6 +24,7 @@ import { describe, expect, it } from 'vitest';
 
 import { formatTry, monthlyPayment, parseTurkishNumber } from '../finance/browser.js';
 import { loadMortgageRules } from '../finance/rules.js';
+import { DEFAULT_HOUSEHOLD } from '../record/household.js';
 import { renderPage, type PageData } from './render.js';
 
 // Compiled the way `src/cli/ui.ts` compiles it, from the same entry point. A
@@ -67,6 +68,7 @@ const DATA: PageData = {
       earlier: [],
     },
   ],
+  household: DEFAULT_HOUSEHOLD,
   finance: { bundle: compiled.outputFiles[0]?.text ?? '', rules: loadMortgageRules() },
 };
 
@@ -959,5 +961,68 @@ describe('zooming the coverage map', () => {
 
     expect(page.value('province')).toBe('Manisa');
     expect(page.value('district')).toBe('');
+  });
+});
+
+describe('remembering the household', () => {
+  interface Posted {
+    url: string;
+    body: Record<string, unknown>;
+  }
+
+  /**
+   * The page with its fetch replaced, so what it sends can be read back.
+   *
+   * jsdom has no network. Stubbing fetch is not a way around that — it is the
+   * only way to ask what this block asks, which is what the page decided to
+   * send rather than whether a socket opened.
+   */
+  const watching = (): { page: ReturnType<typeof open>; posted: Posted[] } => {
+    const page = open();
+    const posted: Posted[] = [];
+
+    (page.window as unknown as { fetch: unknown }).fetch = (
+      url: string,
+      init?: { body?: string },
+    ) => {
+      posted.push({ url, body: JSON.parse(init?.body ?? '{}') as Record<string, unknown> });
+      return Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve('') });
+    };
+
+    return { page, posted };
+  };
+
+  it('sends the answers back when one of them changes', () => {
+    // They decide which rates the reader can actually get, and they were being
+    // retyped on every regeneration of the page.
+    const { page, posted } = watching();
+
+    page.choose('salary', 'public');
+
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({
+      url: '/household',
+      body: { salary: 'public', age: 35, owns_home: false, newlywed: false },
+    });
+  });
+
+  it('sends a number for the age, not the text of the field', () => {
+    // The server refuses anything that is not a whole number, and it is right
+    // to: "35" is a string that looks like an answer.
+    const { page, posted } = watching();
+
+    page.type('age', '41');
+
+    expect(posted[0]).toMatchObject({ url: '/household', body: { age: 41 } });
+  });
+
+  it('says nothing at all when the age is not a number yet', () => {
+    // Halfway through typing, the field is empty or "4". Posting that would
+    // make the server refuse and the page look broken while somebody types.
+    const { page, posted } = watching();
+
+    page.type('age', '');
+
+    expect(posted).toEqual([]);
   });
 });
