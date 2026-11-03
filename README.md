@@ -102,7 +102,7 @@ be trusted.
 
 ## Getting started
 
-Requires Node 22 (see `.nvmrc`).
+Requires Node 24 (see `.nvmrc`).
 
 ```bash
 git clone git@github.com:mfozmen/mopsos.git
