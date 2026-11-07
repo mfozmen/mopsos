@@ -8,6 +8,7 @@
  * Usage: npm run publish:run <YYYY-MM-DD-slug>
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 
 import { loadModules } from '../modules/registry.js';
 import { assertRunName, prepareRun, pullRequestBody } from '../research/publish.js';
@@ -18,8 +19,12 @@ function run(command: string, args: string[], input?: string): string {
   return execFileSync(command, args, { encoding: 'utf8', input }).trim();
 }
 
-const name = process.argv[2];
+const requested = process.argv[2];
+// The name used from here on is the directory's own, read from disk, so what
+// reaches git is something that exists under research/ — never raw input.
+const name = existsSync(ROOT) ? readdirSync(ROOT).find((entry) => entry === requested) : undefined;
 if (!name) {
+  console.error(`No run directory ${JSON.stringify(requested)} under ${ROOT}/`);
   console.error('Usage: npm run publish:run <YYYY-MM-DD-slug>');
   process.exit(2);
 }
