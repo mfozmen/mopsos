@@ -14,7 +14,7 @@ import { parseVerdict, type ParsedVerdict } from '../schema/verdict.js';
  * anything else added later are ignored by default instead of being parsed as
  * verdicts and blowing up.
  */
-const RUN_DIRECTORY = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$/;
+export const RUN_DIRECTORY = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export interface LoadedVerdict {
   /** The run directory this verdict was produced in, relative to the research root. */
