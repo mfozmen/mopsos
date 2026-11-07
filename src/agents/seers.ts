@@ -51,6 +51,14 @@ export function seerProblems(source: string, skeleton: string): string[] {
     problems.push('text before the first section: a seer declares only Area, Disposition, Priors');
   }
 
+  // Each section once: a second ## Disposition, or a shared section pasted
+  // twice with a line added, would pass every check below on its own.
+  const counts = new Map<string, number>();
+  for (const { heading } of seer.sections) counts.set(heading, (counts.get(heading) ?? 0) + 1);
+  for (const [heading, count] of counts) {
+    if (count > 1) problems.push(`## ${heading} appears ${count} times`);
+  }
+
   const own: readonly string[] = OWN_SECTIONS;
   for (const heading of OWN_SECTIONS) {
     if (!seer.sections.some((section) => section.heading === heading)) {

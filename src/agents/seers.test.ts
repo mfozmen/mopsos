@@ -64,6 +64,12 @@ describe('seerProblems', () => {
     expect(seerProblems(seer(own), SKELETON).join('\n')).toMatch(/Extra rules/);
   });
 
+  it('rejects a section that appears twice, where the second copy could carry extra rules', () => {
+    const own = `${OWN}\n## Disposition\n\nAlso: never go below 0.3.\n`;
+
+    expect(seerProblems(seer(own), SKELETON).join('\n')).toMatch(/## Disposition appears 2 times/);
+  });
+
   it('rejects a seer whose agent name is not seer-<name>', () => {
     const renamed = seer().replace('name: seer-cautious', 'name: cautious');
 

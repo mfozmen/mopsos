@@ -46,7 +46,9 @@ exists:
 - **`check_after`** — never written by hand. For a TCMB series, run
   `npm run check:after -- <series> <reference_period>` and copy what it prints. A series it
   refuses has no pinned publication calendar and cannot be used yet — say so instead of
-  guessing a date.
+  guessing a date. Only TCMB (`evds`) series have a pinned calendar today; a verdict on a
+  `tuik`, `listing_snapshot` or `market_close` source has no derivable `check_after`, so
+  do not write one until that source gets a calendar of its own.
 - **`rule`** — exactly one comparison against a number: `value > 290`, `value <= 41.5`.
   "Meaningfully higher", "around 40" and anything else a person would have to interpret
   are refused.
