@@ -25,7 +25,9 @@
     "check:rates": "tsx src/cli/check-rates.ts",
     "read:page": "tsx src/cli/read-page.ts",
     "import:listings": "tsx src/cli/import-listings.ts",
-    "publish:run": "tsx src/cli/publish-run.ts"
+    "publish:run": "tsx src/cli/publish-run.ts",
+    "check:run": "tsx src/cli/check-run.ts",
+    "check:after": "tsx src/cli/check-after.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
