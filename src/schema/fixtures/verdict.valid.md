@@ -9,7 +9,7 @@ created_at: '2026-07-26'
 due_at: '2026-09-30'
 resolution:
   source: evds
-  series: TP.KTF17
+  series: TP.KFE.TR
   reference_period: '2026-09'
   check_after: '2026-10-16'
   rule: 'value > 41.5'

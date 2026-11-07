@@ -64,7 +64,7 @@ schema validation failure and no storage.
 ```yaml
 resolution:
   source: evds # evds | tuik | listing_snapshot | market_close
-  series: 'TP.KTF17' # series code, or snapshot basket id
+  series: 'TP.KFE.TR' # series code, or snapshot basket id
   reference_period: '2026-09' # the period being measured
   check_after: '2026-10-16' # derived from the publication calendar, known up front
   rule: 'value > 41.5' # one comparison, no room for interpretation
