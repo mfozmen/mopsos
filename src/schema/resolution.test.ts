@@ -14,7 +14,7 @@ const VERDICT: Verdict = {
   due_at: '2026-09-30',
   resolution: {
     source: 'evds',
-    series: 'TP.KTF17',
+    series: 'TP.KFE.TR',
     reference_period: '2026-09',
     check_after: '2026-10-16',
     rule: 'value > 41.5',
@@ -90,10 +90,15 @@ describe('check_after must be after the value exists', () => {
     expect(problems(input).join('\n')).toMatch(/before due_at/);
   });
 
-  it('accepts the day the period ends, since the floor is what the schema can know', () => {
+  it('accepts the day the period ends for a source with no publication calendar', () => {
     const input = verdict({
       due_at: '2026-09-30',
-      resolution: { ...VERDICT.resolution, check_after: '2026-09-30' },
+      resolution: {
+        ...VERDICT.resolution,
+        source: 'listing_snapshot',
+        series: 'izmir-menemen-3plus1',
+        check_after: '2026-09-30',
+      },
     });
 
     expect(() => {
@@ -126,6 +131,33 @@ describe('check_after must be after the value exists', () => {
     });
 
     expect(problems(input).join('\n')).toMatch(/before the end of reference_period/);
+  });
+});
+
+describe('check_after must follow the TCMB publication calendar', () => {
+  it('rejects the last day of the month for the house price index, which comes out weeks later', () => {
+    const input = verdict({
+      due_at: '2026-09-30',
+      resolution: { ...VERDICT.resolution, check_after: '2026-09-30' },
+    });
+
+    expect(problems(input).join('\n')).toMatch(/TP\.KFE\.TR.*2026-10-16/);
+  });
+
+  it('accepts the pinned release date', () => {
+    expect(() => {
+      assertMeasurable(VERDICT);
+    }).not.toThrow();
+  });
+
+  it('rejects a series with no pinned calendar rather than trusting a hand-written date', () => {
+    const input = verdict({
+      resolution: { ...VERDICT.resolution, series: 'TP.NOT.PINNED' },
+    });
+
+    expect(problems(input).join('\n')).toMatch(
+      /TP\.NOT\.PINNED has no pinned publication calendar/,
+    );
   });
 });
 

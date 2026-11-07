@@ -1,0 +1,388 @@
+{
+  "publisher": "TCMB",
+  "year": 2026,
+  "source": "https://appg.tcmb.gov.tr/igmvytsfe-dis/tr",
+  "api": "https://appg.tcmb.gov.tr/igmvytsms-dis/veriTakvimi/list?yil=2026&ay={1..12}",
+  "captured_at": "2026-11-07",
+  "notes": [
+    "Dates are the publication day as listed; the listing gives local Istanbul time with a misleading Z suffix, so only the date is kept.",
+    "The 2026-12-16 Konut Fiyat Endeksi release is listed as \"Kasım 2025\". The same listing has one release per month for Aralık 2025 through Ekim 2026, so the December release is Kasım 2026; it is recorded as 2026-11 and the listed text is kept in as_listed.",
+    "Weekly periods are listed as \"N. Hafta YYYY\" and recorded as ISO weeks. TCMB weekly flow data is dated on the Friday of the week, which falls inside the ISO week of the same number.",
+    "Series were matched to publications by their EVDS3 data group (evds3.tcmb.gov.tr searchResults, 2026-11-07): the TP.KFE.* codes are bie_kfe, TP.YKFE.TR is bie_ykfe, TP.YOKFEND.TR is bie_yokfend, all released with the Konut Fiyat Endeksi; the TP.KTF* codes are bie_kt100h, weekly flow loan rates dated on Fridays. A series not listed here has no pinned release date and cannot be used for a verdict until it is added."
+  ],
+  "publications": [
+    {
+      "name": "Konut Fiyat Endeksi",
+      "yayin_id": 11,
+      "series": [
+        "TP.KFE.TR",
+        "TP.KFE.TR10",
+        "TP.KFE.TR21",
+        "TP.KFE.TR22",
+        "TP.KFE.TR31",
+        "TP.KFE.TR32",
+        "TP.KFE.TR33",
+        "TP.KFE.TR41",
+        "TP.KFE.TR42",
+        "TP.KFE.TR51",
+        "TP.KFE.TR52",
+        "TP.KFE.TR61",
+        "TP.KFE.TR62",
+        "TP.KFE.TR63",
+        "TP.KFE.TR7",
+        "TP.KFE.TR8",
+        "TP.KFE.TR9",
+        "TP.KFE.TRA",
+        "TP.KFE.TRB",
+        "TP.KFE.TRC",
+        "TP.YKFE.TR",
+        "TP.YOKFEND.TR"
+      ],
+      "releases": [
+        {
+          "reference_period": "2025-12",
+          "published": "2026-01-19",
+          "as_listed": "Aralık 2025"
+        },
+        {
+          "reference_period": "2026-01",
+          "published": "2026-02-17",
+          "as_listed": "Ocak 2026"
+        },
+        {
+          "reference_period": "2026-02",
+          "published": "2026-03-17",
+          "as_listed": "Şubat 2026"
+        },
+        {
+          "reference_period": "2026-03",
+          "published": "2026-04-16",
+          "as_listed": "Mart 2026"
+        },
+        {
+          "reference_period": "2026-04",
+          "published": "2026-05-20",
+          "as_listed": "Nisan 2026"
+        },
+        {
+          "reference_period": "2026-05",
+          "published": "2026-06-16",
+          "as_listed": "Mayıs 2026"
+        },
+        {
+          "reference_period": "2026-06",
+          "published": "2026-07-17",
+          "as_listed": "Haziran 2026"
+        },
+        {
+          "reference_period": "2026-07",
+          "published": "2026-08-18",
+          "as_listed": "Temmuz 2026"
+        },
+        {
+          "reference_period": "2026-08",
+          "published": "2026-09-16",
+          "as_listed": "Ağustos 2026"
+        },
+        {
+          "reference_period": "2026-09",
+          "published": "2026-10-16",
+          "as_listed": "Eylül 2026"
+        },
+        {
+          "reference_period": "2026-10",
+          "published": "2026-11-17",
+          "as_listed": "Ekim 2026"
+        },
+        {
+          "reference_period": "2026-11",
+          "published": "2026-12-16",
+          "as_listed": "Kasım 2025"
+        }
+      ]
+    },
+    {
+      "name": "Kredi Faiz Oranları (Haftalık Akım, Ağırlıklı Ortalama)",
+      "yayin_id": 39,
+      "series": [
+        "TP.KTF10",
+        "TP.KTF101",
+        "TP.KTF11",
+        "TP.KTF12",
+        "TP.KTF17",
+        "TP.KTF17.EUR",
+        "TP.KTF17.USD",
+        "TP.KTF18",
+        "TP.KTFTUK",
+        "TP.KTFTUK01"
+      ],
+      "releases": [
+        {
+          "reference_period": "2025-W52",
+          "published": "2026-01-02",
+          "as_listed": "52. Hafta 2025"
+        },
+        {
+          "reference_period": "2026-W01",
+          "published": "2026-01-08",
+          "as_listed": "1. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W02",
+          "published": "2026-01-15",
+          "as_listed": "2. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W03",
+          "published": "2026-01-22",
+          "as_listed": "3. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W04",
+          "published": "2026-01-29",
+          "as_listed": "4. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W05",
+          "published": "2026-02-05",
+          "as_listed": "5. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W06",
+          "published": "2026-02-12",
+          "as_listed": "6. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W07",
+          "published": "2026-02-19",
+          "as_listed": "7. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W08",
+          "published": "2026-02-26",
+          "as_listed": "8. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W09",
+          "published": "2026-03-05",
+          "as_listed": "9. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W10",
+          "published": "2026-03-12",
+          "as_listed": "10. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W11",
+          "published": "2026-03-23",
+          "as_listed": "11. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W12",
+          "published": "2026-03-26",
+          "as_listed": "12. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W13",
+          "published": "2026-04-02",
+          "as_listed": "13. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W14",
+          "published": "2026-04-09",
+          "as_listed": "14. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W15",
+          "published": "2026-04-16",
+          "as_listed": "15. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W16",
+          "published": "2026-04-24",
+          "as_listed": "16. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W17",
+          "published": "2026-04-30",
+          "as_listed": "17. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W18",
+          "published": "2026-05-07",
+          "as_listed": "18. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W19",
+          "published": "2026-05-14",
+          "as_listed": "19. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W20",
+          "published": "2026-05-22",
+          "as_listed": "20. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W21",
+          "published": "2026-06-03",
+          "as_listed": "21. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W22",
+          "published": "2026-06-04",
+          "as_listed": "22. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W23",
+          "published": "2026-06-11",
+          "as_listed": "23. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W24",
+          "published": "2026-06-18",
+          "as_listed": "24. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W25",
+          "published": "2026-06-25",
+          "as_listed": "25. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W26",
+          "published": "2026-07-02",
+          "as_listed": "26. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W27",
+          "published": "2026-07-09",
+          "as_listed": "27. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W28",
+          "published": "2026-07-17",
+          "as_listed": "28. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W29",
+          "published": "2026-07-23",
+          "as_listed": "29. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W30",
+          "published": "2026-07-30",
+          "as_listed": "30. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W31",
+          "published": "2026-08-06",
+          "as_listed": "31. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W32",
+          "published": "2026-08-13",
+          "as_listed": "32. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W33",
+          "published": "2026-08-20",
+          "as_listed": "33. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W34",
+          "published": "2026-08-27",
+          "as_listed": "34. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W35",
+          "published": "2026-09-03",
+          "as_listed": "35. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W36",
+          "published": "2026-09-10",
+          "as_listed": "36. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W37",
+          "published": "2026-09-17",
+          "as_listed": "37. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W38",
+          "published": "2026-09-24",
+          "as_listed": "38. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W39",
+          "published": "2026-10-01",
+          "as_listed": "39. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W40",
+          "published": "2026-10-08",
+          "as_listed": "40. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W41",
+          "published": "2026-10-15",
+          "as_listed": "41. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W42",
+          "published": "2026-10-22",
+          "as_listed": "42. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W43",
+          "published": "2026-11-02",
+          "as_listed": "43. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W44",
+          "published": "2026-11-05",
+          "as_listed": "44. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W45",
+          "published": "2026-11-12",
+          "as_listed": "45. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W46",
+          "published": "2026-11-19",
+          "as_listed": "46. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W47",
+          "published": "2026-11-26",
+          "as_listed": "47. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W48",
+          "published": "2026-12-03",
+          "as_listed": "48. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W49",
+          "published": "2026-12-10",
+          "as_listed": "49. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W50",
+          "published": "2026-12-17",
+          "as_listed": "50. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W51",
+          "published": "2026-12-24",
+          "as_listed": "51. Hafta 2026"
+        },
+        {
+          "reference_period": "2026-W52",
+          "published": "2026-12-31",
+          "as_listed": "52. Hafta 2026"
+        }
+      ]
+    }
+  ]
+}
