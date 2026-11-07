@@ -45,6 +45,10 @@ jobs:
 
       - run: npm run test:coverage
 
+      # The Claude review's range script decides what gets reviewed; a bug in it
+      # silently skips commits. ubuntu-latest ships python3.
+      - run: python3 .github/scripts/test_review_range.py
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
