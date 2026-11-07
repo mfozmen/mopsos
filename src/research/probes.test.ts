@@ -14,9 +14,9 @@ const LONG: Verdict = {
   due_at: '2027-01-31',
   resolution: {
     source: 'evds',
-    series: 'TP.KTF17',
+    series: 'TP.KFE.TR',
     reference_period: '2027-01',
-    check_after: '2027-02-16',
+    check_after: '2027-02-20',
     rule: 'value > 41.5',
     print: 'first',
   },

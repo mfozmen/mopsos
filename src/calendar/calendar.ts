@@ -49,17 +49,40 @@ function addDays(date: string, count: number): string {
   return new Date(Date.parse(date) + count * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
+export class PeriodMismatchError extends Error {
+  constructor(
+    readonly series: string,
+    readonly referencePeriod: string,
+  ) {
+    super(
+      `${series} is not published for periods shaped like ${referencePeriod}: ` +
+        'there is no single value to read, so the rule could be settled against any of several',
+    );
+    this.name = 'PeriodMismatchError';
+  }
+}
+
+/** Day, ISO week or month — the three shapes a reference period can take. */
+function shape(period: string): string {
+  return period.replaceAll(/\d/g, '9');
+}
+
 /**
  * The first date the value of `series` for `referencePeriod` can exist.
  *
  * The pinned release date when the calendar lists the period. Otherwise — a
- * period whose year's calendar is not out yet — the end of the period plus the
- * slowest release the pinned calendars show for that publication, so the
- * estimate can only err late, never early.
+ * period whose year's calendar is not out yet — an estimate: the end of the
+ * period plus the slowest release the pinned calendars show. That is a floor
+ * for validation, not a promise the value exists on that day; resolution still
+ * has to find the first print before it can settle anything.
  */
 export function checkAfter(series: string, referencePeriod: string): string {
   const releases = PUBLICATIONS.filter((p) => p.series.includes(series)).flatMap((p) => p.releases);
   if (releases.length === 0) throw new UnknownSeriesError(series);
+
+  if (!releases.some((r) => shape(r.reference_period) === shape(referencePeriod))) {
+    throw new PeriodMismatchError(series, referencePeriod);
+  }
 
   const pinned = releases.find((r) => r.reference_period === referencePeriod);
   if (pinned) return pinned.published;

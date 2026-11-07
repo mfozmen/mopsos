@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkAfter, UnknownSeriesError } from './calendar.js';
+import { checkAfter, PeriodMismatchError, UnknownSeriesError } from './calendar.js';
 
 describe('checkAfter', () => {
   it('returns the pinned release date of the house price index, not the end of the month', () => {
@@ -21,6 +21,10 @@ describe('checkAfter', () => {
     // 20 days after its month ended (Nisan 2026 on 20 May), so March 2027 cannot
     // be read before 20 April.
     expect(checkAfter('TP.KFE.TR', '2027-03')).toBe('2027-04-20');
+  });
+
+  it('refuses a monthly period on a weekly series, which has no single value to read', () => {
+    expect(() => checkAfter('TP.KTF17', '2026-09')).toThrow(PeriodMismatchError);
   });
 
   it('refuses a series that has no pinned release date', () => {
