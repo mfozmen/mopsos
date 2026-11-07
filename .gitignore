@@ -56,3 +56,7 @@ Thumbs.db
 # it on disk and the next `git add -A` swept it up.
 *-tmp.txt
 *-tmp.ts
+
+# Python bytecode from running .github/scripts tests locally
+__pycache__/
+*.pyc
