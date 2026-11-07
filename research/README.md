@@ -48,3 +48,14 @@ never reused and never renamed.
 `loadVerdicts(root)` in `src/research/load.ts` reads the whole tree. It **refuses** a
 malformed or unmeasurable verdict rather than skipping it: a verdict that quietly vanishes
 from the record is indistinguishable from one that was never made.
+
+## Publishing a run
+
+```
+npm run publish:run 2026-07-26-menemen
+```
+
+Validates every verdict in the tree, checks calibration probe coverage for the run, refuses a
+run that is already on `main`, then opens a pull request from `chore/research-<run>` whose
+body lists each verdict with its probability and due date. If anything fails, no branch and
+no pull request are created — an invalid verdict never gets a timestamp.
