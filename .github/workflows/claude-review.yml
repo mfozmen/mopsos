@@ -50,6 +50,20 @@ jobs:
     env:
       HAS_CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
+      # A comment carries no head repo, so the job's `if` cannot see a fork:
+      # ask the API before anything of the PR is checked out.
+      - name: Only this repository's pull requests
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          cross=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json isCrossRepository --jq .isCrossRepository)
+          if [ "$cross" != "false" ]; then
+            echo "::error::@claude reviews only pull requests from this repository, not from forks."
+            exit 1
+          fi
+
       # The range script comes from main, never from the PR under review: a PR
       # must not rewrite what it is reviewed against, nor write GITHUB_ENV for
       # the step that holds the Claude token. Moved out of the workspace so the
@@ -80,6 +94,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REVIEW_DIFF: ${{ github.workspace }}/.review-range.diff
         run: |
           script="$RUNNER_TEMP/trusted/.github/scripts/review_range.py"
           if [ -f "$script" ]; then
@@ -87,6 +102,7 @@ jobs:
           else
             echo "mode=full" >> "$GITHUB_OUTPUT"
             echo "previous=(none)" >> "$GITHUB_OUTPUT"
+            echo "diff=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Not configured
@@ -112,7 +128,8 @@ jobs:
           # `cd`, a pipe or a heredoc. That is fixed in the prompt instead.
           claude_args: |
             --max-turns 40
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git log:*),Bash(git show:*),Read,Grep,Glob"
+            --setting-sources user
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
           prompt: |
             PR number: ${{ github.event.pull_request.number || github.event.issue.number }}
 
@@ -125,9 +142,10 @@ jobs:
             What the mode means:
             - full: first review, or the earlier head is gone. Review the whole
               PR diff with `gh pr diff <number>`.
-            - incremental: review ONLY the commits listed above, one
-              `git show <sha>` each. The rest was reviewed at the last head; do
-              not review it again.
+            - incremental: review ONLY the commits listed above. Their full
+              diffs are in ${{ steps.range.outputs.diff }}; read that file with
+              Read. The rest was reviewed at the last head; do not review it
+              again.
             - unchanged: no new commits since the last review. Re-check the open
               findings below and nothing else.
 
@@ -160,10 +178,10 @@ jobs:
               only way to publish: post no other comments.
 
             You are already in the repository root. Run every command bare
-            (`gh pr diff 12`, `git show abc1234`), never with a pipe, redirect,
+            (`gh pr diff 12`), never with a pipe, redirect,
             `&&`, `cd` or heredoc: the permission check matches on the command
             prefix, and a denied call costs a turn and returns nothing. If you
-            need less output, ask `gh` or `git` for it with their own flags.
+            need less output, ask `gh` for it with its own flags.
 
             Three things matter more than general code quality here. Check them
             first and report them first.

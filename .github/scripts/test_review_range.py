@@ -16,6 +16,7 @@ from review_range import (  # noqa: E402
     git,
     last_review,
     own_commits,
+    range_diff,
     write_outputs,
 )
 
@@ -140,6 +141,13 @@ with tempfile.TemporaryDirectory() as folder:
             "only the PR's own new commits: no merge, nothing from main",
             subjects,
             ["C new on feature"],
+        )
+        reviewed_c = git("rev-parse", "HEAD").stdout.strip()
+        diff = range_diff(own_commits(reviewed, "HEAD", "main"))
+        check(
+            "the range diff holds each own commit and nothing from main",
+            ("C new on feature" in diff, "M new on main" in diff, reviewed_c[:7] in diff),
+            (True, False, True),
         )
         try:
             own_commits("0" * 40, "HEAD", "main")

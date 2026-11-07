@@ -14,6 +14,8 @@ and hands the review step:
             are left out so merging main into the branch does not flood it
   previous  the previous summary, so open findings are checked rather than
             re-derived
+  diff      a file holding the incremental range's commits, for the reviewer
+            to Read
 
 Standard library only. Adapted from mfozmen/notelore.
 Tests: .github/scripts/test_review_range.py (run by ci.yml).
@@ -85,6 +87,22 @@ def own_commits(base, head, main_ref="origin/main"):
     return listed.stdout.strip()
 
 
+def range_diff(commits):
+    """Each listed commit as `git show` prints it, oldest first.
+
+    Written to a file by this trusted step so the reviewer reads the range with
+    Read instead of being allowed to run git, whose options can write files.
+    """
+    shown = []
+    for line in commits.splitlines():
+        sha = line.split(" ", 1)[0]
+        result = git("show", "--no-ext-diff", sha)
+        if result.returncode != 0:
+            raise RuntimeError(f"git show {sha} failed: {result.stderr.strip()}")
+        shown.append(result.stdout)
+    return "\n".join(shown)
+
+
 def github(path, token):
     request = urllib.request.Request(
         f"https://api.github.com/{path}",
@@ -133,6 +151,12 @@ def main():
     commits = own_commits(base, head) if mode == "incremental" else ""
     if mode == "incremental" and not commits:
         mode = "unchanged"  # only merges from main arrived: nothing of its own to review
+    diff_path = Path(os.environ["REVIEW_DIFF"])
+    # Inside the PR's checkout, so the reviewer's Read can reach it. Unlinked
+    # first: a PR that commits a symlink at this path must not redirect the write.
+    if os.path.lexists(diff_path):
+        diff_path.unlink()
+    diff_path.write_text(range_diff(commits) if mode == "incremental" else "", encoding="utf-8")
     write_outputs(
         os.environ["GITHUB_OUTPUT"],
         {
@@ -141,6 +165,7 @@ def main():
             "head": head,
             "commits": commits,
             "previous": previous or "(none)",
+            "diff": str(diff_path),
         },
     )
     print(f"review range: mode={mode} base={base or '-'} head={head}")
