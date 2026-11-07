@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process';
 
 import { loadModules } from '../modules/registry.js';
-import { prepareRun, pullRequestBody } from '../research/publish.js';
+import { assertRunName, prepareRun, pullRequestBody } from '../research/publish.js';
 
 const ROOT = 'research';
 
@@ -23,6 +23,7 @@ if (!name) {
   console.error('Usage: npm run publish:run <YYYY-MM-DD-slug>');
   process.exit(2);
 }
+assertRunName(name);
 
 run('git', ['fetch', '--quiet', 'origin', 'main']);
 const runsOnMain = run('git', ['ls-tree', '--name-only', 'origin/main', `${ROOT}/`])

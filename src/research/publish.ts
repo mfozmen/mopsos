@@ -1,5 +1,15 @@
-import { loadVerdicts, type LoadedVerdict } from './load.js';
+import { loadVerdicts, RUN_DIRECTORY, type LoadedVerdict } from './load.js';
 import { assertProbeCoverage } from './probes.js';
+
+/**
+ * Throws unless `run` is shaped like `YYYY-MM-DD-<slug>`. The name becomes a
+ * path, a branch and git arguments, so nothing else may reach them.
+ */
+export function assertRunName(run: string): void {
+  if (!RUN_DIRECTORY.test(run)) {
+    throw new Error(`${JSON.stringify(run)} is not a run directory name (YYYY-MM-DD-<slug>)`);
+  }
+}
 
 /**
  * Everything that must hold before a run becomes a pull request.
@@ -14,6 +24,8 @@ export function prepareRun(
   registeredAssetClasses: string[],
   runsOnMain: string[],
 ): LoadedVerdict[] {
+  assertRunName(run);
+
   // A merged run directory never changes again; a second PR for it would be
   // an edit of the record with a fresh timestamp on it.
   if (runsOnMain.includes(run)) {
@@ -28,7 +40,7 @@ export function prepareRun(
 }
 
 function cell(text: string): string {
-  return text.replaceAll('|', '\\|').replaceAll('\n', ' ');
+  return text.replaceAll('|', String.raw`\|`).replaceAll('\n', ' ');
 }
 
 /** The pull request body: what was predicted, how sure, and when it comes due. */

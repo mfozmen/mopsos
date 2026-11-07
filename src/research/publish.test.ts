@@ -57,6 +57,18 @@ const LONG = verdict(LONG_ID, {
 });
 
 describe('prepareRun', () => {
+  it('refuses a name that is not shaped like a run directory before anything uses it', () => {
+    // The name ends up in git arguments; "--upload-pack=..." must never get that far.
+    const root = research({});
+
+    expect(() => prepareRun(root, '--upload-pack=touch x', ['housing'], [])).toThrow(
+      /not a run directory name/,
+    );
+    expect(() => prepareRun(root, '../2026-11-07-menemen', ['housing'], [])).toThrow(
+      /not a run directory name/,
+    );
+  });
+
   it('returns the verdicts of the named run only', () => {
     const root = research({
       [`${RUN}/2026-11-07-housing-tr-kfe-nov.md`]: verdict('2026-11-07-housing-tr-kfe-nov'),
