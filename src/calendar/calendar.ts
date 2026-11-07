@@ -20,6 +20,7 @@ interface Publication {
 }
 
 interface Calendar {
+  year: number;
   publications: Publication[];
 }
 
@@ -35,11 +36,24 @@ export class UnknownSeriesError extends Error {
 
 // Every year's file, old ones included: a verdict written in 2026 must still
 // derive the same date after the 2027 calendar lands.
-const PUBLICATIONS: Publication[] = readdirSync(CALENDAR_DIR)
+const CALENDARS: Calendar[] = readdirSync(CALENDAR_DIR)
   .filter((name) => name.endsWith('.json'))
-  .flatMap(
-    (name) => (JSON.parse(readFileSync(join(CALENDAR_DIR, name), 'utf8')) as Calendar).publications,
-  );
+  .map((name) => JSON.parse(readFileSync(join(CALENDAR_DIR, name), 'utf8')) as Calendar);
+
+const PUBLICATIONS: Publication[] = CALENDARS.flatMap((calendar) => calendar.publications);
+
+/**
+ * Throws unless a calendar for `year` is pinned. Past the last pinned year,
+ * check_after silently falls back to an estimate — so the gap has to be loud.
+ */
+export function assertCalendarCovers(year: number): void {
+  if (!CALENDARS.some((calendar) => calendar.year === year)) {
+    throw new Error(
+      `No TCMB publication calendar pinned for ${year}. Add data/calendars/tcmb-${year}.json ` +
+        '— see data/calendars/README.md for the refresh procedure.',
+    );
+  }
+}
 
 function days(from: string, to: string): number {
   return (Date.parse(to) - Date.parse(from)) / MS_PER_DAY;
