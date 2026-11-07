@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkAfter, PeriodMismatchError, UnknownSeriesError } from './calendar.js';
+import {
+  assertCalendarCovers,
+  checkAfter,
+  PeriodMismatchError,
+  UnknownSeriesError,
+} from './calendar.js';
 
 describe('checkAfter', () => {
   it('returns the pinned release date of the house price index, not the end of the month', () => {
@@ -29,5 +34,22 @@ describe('checkAfter', () => {
 
   it('refuses a series that has no pinned release date', () => {
     expect(() => checkAfter('TP.NOT.PINNED', '2026-09')).toThrow(UnknownSeriesError);
+  });
+});
+
+describe('assertCalendarCovers', () => {
+  it('passes for the current year, and fails loudly the day it does not', () => {
+    // Runs in CI on every pull request. On the first day of a year with no
+    // pinned calendar it goes red, which is the point: a stale calendar
+    // produces check_after dates that are quietly wrong.
+    expect(() => {
+      assertCalendarCovers(new Date().getFullYear());
+    }).not.toThrow();
+  });
+
+  it('names the missing year and where its calendar belongs', () => {
+    expect(() => {
+      assertCalendarCovers(1999);
+    }).toThrow(/1999.*data\/calendars/);
   });
 });
